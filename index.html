@@ -4081,4 +4081,1080 @@ body.dnd-dragging,body.dnd-dragging *{cursor:grabbing !important;}
 })();
 </script>
 <!-- ===== END STEP 15 ===== -->
+  <!-- ===== PAWNIAC STEP 16: ANALYZE (paste at the very bottom, below step 15) ===== -->
+<style>
+.an-in textarea{width:100%;min-height:130px;border:1px solid #d8d1bf;border-radius:7px;padding:10px 12px;font-size:12.5px;font-family:monospace;resize:vertical;background:#fff;color:inherit;}
+[data-theme=dark] .an-in textarea{background:#1b1a17;border-color:#4a463b;color:#e8e4d8;}
+.an-row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:12px;}
+.an-row select{border:1px solid #d8d1bf;border-radius:7px;padding:9px 10px;font-size:13px;font-family:inherit;background:#fff;color:inherit;}
+[data-theme=dark] .an-row select{background:#1b1a17;border-color:#4a463b;color:#e8e4d8;}
+.an-bar{height:8px;border-radius:4px;background:#e4ddcf;overflow:hidden;margin:10px 0 6px;}
+.an-bar div{height:100%;background:#1f6f5c;width:0;transition:width .15s;}
+[data-theme=dark] .an-bar{background:#3a372f;}
+.an-main{display:flex;gap:22px;flex-wrap:wrap;align-items:flex-start;}
+.an-boardcol{display:flex;gap:8px;align-items:stretch;}
+.an-bw{position:relative;display:inline-block;}
+.an-bw svg.an-arrows{position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none;}
+.an-evalbar{width:14px;border-radius:3px;overflow:hidden;background:#2b2924;position:relative;flex-shrink:0;}
+.an-evalbar div{position:absolute;left:0;right:0;bottom:0;background:#f4f1ea;transition:height .2s;}
+.an-ctrl{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;}
+.an-ctrl button{padding:8px 14px;}
+.an-side{flex:1;min-width:290px;max-width:520px;}
+.an-title{font-size:17px;font-weight:700;display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+.an-chip{display:inline-block;color:#fff;font-size:11.5px;font-weight:700;padding:3px 9px;border-radius:12px;}
+.an-evline{font-family:monospace;font-size:13px;margin:6px 0 10px;opacity:.85;}
+.an-sec{margin-top:14px;}
+.an-sec h4{font-size:12px;text-transform:uppercase;letter-spacing:.6px;color:#7a766c;margin-bottom:6px;font-weight:700;}
+[data-theme=dark] .an-sec h4{color:#a29d90;}
+.an-sec p,.an-sec li{font-size:13.5px;line-height:1.6;}
+.an-sec ul{margin-left:18px;}
+.an-line{font-family:monospace;font-size:12.5px;background:#f7f4ec;border-radius:6px;padding:6px 9px;display:inline-block;margin:4px 0;}
+[data-theme=dark] .an-line{background:#2b2924;}
+.an-pc{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+.an-pc > div{border-radius:8px;padding:10px 12px;}
+.an-pros{background:#eaf3ef;} .an-cons{background:#fbecec;}
+[data-theme=dark] .an-pros{background:#1f3a33;} [data-theme=dark] .an-cons{background:#3a2524;}
+.an-pc h4{margin-bottom:4px;}
+.an-lesson{background:#fff6e6;border:1px solid #e8d6ae;border-radius:8px;padding:10px 12px;font-size:13px;line-height:1.55;color:#7a5c1f;}
+[data-theme=dark] .an-lesson{background:#3a3220;border-color:#5a4a2a;color:#e3c98a;}
+.an-moves{max-height:240px;overflow-y:auto;border-top:1px solid #e4ddcf;margin-top:14px;padding-top:8px;}
+[data-theme=dark] .an-moves{border-top-color:#3a372f;}
+.an-mrow{display:grid;grid-template-columns:34px 1fr 1fr;font-size:13px;}
+.an-mrow > span.an-n{color:#a19c8c;padding:5px 4px;font-size:11.5px;}
+.an-m{padding:5px 8px;border-radius:4px;cursor:pointer;display:flex;align-items:center;gap:6px;}
+.an-m:hover{background:#efe9db;} [data-theme=dark] .an-m:hover{background:#38352d;}
+.an-m.sel{background:#dfe9f5;color:#1f4d7a;font-weight:600;} [data-theme=dark] .an-m.sel{background:#2a3e55;color:#a9cbee;}
+.an-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0;}
+.an-graph svg{width:100%;height:90px;display:block;cursor:pointer;border-radius:6px;}
+.an-sumgrid{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+@media (max-width:640px){ .an-sumgrid,.an-pc{grid-template-columns:1fr;} }
+.an-sum{border:1px solid #e4ddcf;border-radius:10px;padding:14px;}
+[data-theme=dark] .an-sum{border-color:#3a372f;}
+.an-acc{font-size:30px;font-weight:700;}
+.an-counts{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0;}
+.an-moment{cursor:pointer;text-decoration:underline dotted;text-underline-offset:3px;}
+.an-err{color:#b8433f;font-size:13.5px;margin-top:10px;}
+</style>
+<script>
+(function(){
+  // =====================================================================
+  //  constants + small helpers
+  // =====================================================================
+  var VAL = {p:1, n:3, b:3, r:5, q:9, k:0};
+  var NAMES = {p:'pawn', n:'knight', b:'bishop', r:'rook', q:'queen', k:'king'};
+  var LABEL = {
+    best:       {t:'Best move',  c:'#1f9d55'},
+    excellent:  {t:'Excellent',  c:'#4caf50'},
+    good:       {t:'Good',       c:'#5f9ea0'},
+    inaccuracy: {t:'Inaccuracy', c:'#d4a800'},
+    mistake:    {t:'Mistake',    c:'#e67e22'},
+    blunder:    {t:'Blunder',    c:'#d64545'}
+  };
+  var SF_URLS = [
+    'https://cdnjs.cloudflare.com/ajax/libs/stockfish.js/10.0.2/stockfish.js',
+    'https://cdn.jsdelivr.net/npm/stockfish.js@10.0.2/stockfish.js',
+    'https://unpkg.com/stockfish.js@10.0.2/stockfish.js'
+  ];
+
+  function esc(s){
+    return String(s).replace(/[&<>"']/g, function(c){
+      return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
+    });
+  }
+  function cap(s){ return s.charAt(0).toUpperCase() + s.slice(1); }
+  function plural(n, w){ return n + ' ' + w + (n === 1 ? '' : 's'); }
+
+  function winPct(cp){                                   // mover/white point of view -> 0..100
+    cp = Math.max(-1000, Math.min(1000, cp));
+    return 50 + 50 * (2 / (1 + Math.exp(-0.00368208 * cp)) - 1);
+  }
+  function isMate(cp){ return Math.abs(cp) >= 9000; }
+  function mateN(cp){ return Math.max(0, Math.round((10000 - Math.abs(cp)) / 10)); }
+  function fmtEval(cp){
+    if(isMate(cp)) return (cp > 0 ? '+' : '-') + 'M' + mateN(cp);
+    var v = cp / 100;
+    return (v >= 0 ? '+' : '') + v.toFixed(2);
+  }
+  function whoWords(cpW){                                // white point of view
+    if(isMate(cpW)) return (cpW > 0 ? 'White' : 'Black') + ' has a forced checkmate';
+    var a = Math.abs(cpW), side = cpW > 0 ? 'White' : 'Black';
+    if(a < 25)  return 'The position is dead equal';
+    if(a < 60)  return 'The position is roughly equal';
+    if(a < 120) return side + ' is slightly better';
+    if(a < 250) return side + ' is clearly better';
+    if(a < 500) return side + ' has a big advantage';
+    return side + ' is winning';
+  }
+  function fenParts(fen){ var p = fen.split(' '); return {turn:p[1], rights:p[2] || '-', full:parseInt(p[5], 10) || 1}; }
+  function moveNumText(fen){
+    var p = fenParts(fen);
+    return p.full + (p.turn === 'w' ? '.' : '...');
+  }
+  function tryMove(fen, uci){
+    try{
+      var c = new Chess(fen);
+      return c.move({from:uci.slice(0, 2), to:uci.slice(2, 4), promotion:uci.slice(4, 5) || undefined});
+    }catch(e){ return null; }
+  }
+
+  // =====================================================================
+  //  engine: Stockfish (loaded as a worker from a CDN) with a small built-in fallback
+  // =====================================================================
+  var ENGINE = null;
+
+  function sfHandshake(w){
+    return new Promise(function(res, rej){
+      var t = setTimeout(function(){ try{ w.terminate(); }catch(e){} rej(new Error('engine did not answer')); }, 25000);
+      w.onmessage = function(e){
+        if(String(e.data).indexOf('uciok') >= 0){ clearTimeout(t); w.onmessage = null; res(w); }
+      };
+      w.onerror = function(e){ clearTimeout(t); rej(new Error('worker error')); };
+      w.postMessage('uci');
+    });
+  }
+  async function loadStockfish(){
+    var lastErr = null;
+    for(var i = 0; i < SF_URLS.length; i++){
+      try{
+        var r = await fetch(SF_URLS[i]);
+        if(!r.ok) throw new Error('HTTP ' + r.status);
+        var txt = await r.text();
+        if(txt.length < 20000) throw new Error('unexpected file');
+        var blob = new Blob([txt], {type:'application/javascript'});
+        var w = new Worker(URL.createObjectURL(blob));
+        await sfHandshake(w);
+        return w;
+      }catch(e){ lastErr = e; console.warn('stockfish source failed', SF_URLS[i], e); }
+    }
+    throw lastErr || new Error('no engine source worked');
+  }
+  async function getEngine(setStatus){
+    if(ENGINE) return ENGINE;
+    setStatus('Loading the chess engine (first time only)...');
+    try{
+      var w = await loadStockfish();
+      ENGINE = {kind:'stockfish', w:w};
+    }catch(e){
+      ENGINE = {kind:'basic'};
+    }
+    return ENGINE;
+  }
+
+  function sfEval(w, fen, ms){
+    return new Promise(function(resolve, reject){
+      var last = null;
+      var guard = setTimeout(function(){ w.removeEventListener('message', h); reject(new Error('engine timed out')); }, ms + 20000);
+      function h(e){
+        var line = String(e.data);
+        if(line.indexOf('info') === 0 && line.indexOf(' score ') > 0 && line.indexOf(' pv ') > 0 && !/lowerbound|upperbound/.test(line)){
+          var m = /score (cp|mate) (-?\d+)/.exec(line), p = / pv (.+)$/.exec(line), d = / depth (\d+)/.exec(line);
+          if(m && p) last = {type:m[1], val:parseInt(m[2], 10), pv:p[1].trim().split(/\s+/), depth:d ? parseInt(d[1], 10) : 0};
+        } else if(line.indexOf('bestmove') === 0){
+          clearTimeout(guard);
+          w.removeEventListener('message', h);
+          var bm = line.split(' ')[1];
+          var cp = 0;
+          if(last){
+            if(last.type === 'mate') cp = last.val === 0 ? -10000 : (last.val > 0 ? 10000 - 10 * last.val : -(10000 - 10 * (-last.val)));
+            else cp = last.val;
+          }
+          resolve({cp:cp, best:(bm && bm !== '(none)') ? bm : null, pv:last ? last.pv : [], depth:last ? last.depth : 0});
+        }
+      }
+      w.addEventListener('message', h);
+      w.postMessage('position fen ' + fen);
+      w.postMessage('go movetime ' + ms);
+    });
+  }
+
+  // ---- fallback engine: tiny alpha-beta (much weaker than Stockfish, but always available) ----
+  var BV = {p:100, n:320, b:330, r:500, q:900, k:0};
+  function basicStatic(chess){                           // white point of view
+    var b = chess.board(), s = 0;
+    for(var r = 0; r < 8; r++) for(var f = 0; f < 8; f++){
+      var p = b[r][f]; if(!p) continue;
+      var v = BV[p.type], cen = (3.5 - Math.abs(3.5 - f)) + (3.5 - Math.abs(3.5 - r));
+      if(p.type === 'n' || p.type === 'b') v += cen * 6;
+      else if(p.type === 'p') v += cen * 2 + (p.color === 'w' ? (6 - r) : (r - 1)) * 4;
+      s += p.color === 'w' ? v : -v;
+    }
+    return s;
+  }
+  function orderMoves(moves){
+    return moves.sort(function(a, b){
+      var sa = (a.captured ? BV[a.captured] * 10 - BV[a.piece] : 0) + (a.promotion ? 800 : 0);
+      var sb = (b.captured ? BV[b.captured] * 10 - BV[b.piece] : 0) + (b.promotion ? 800 : 0);
+      return sb - sa;
+    });
+  }
+  var TIMEOUT = {t:1};
+  function quiesce(chess, alpha, beta, deadline, qd){
+    if(Date.now() > deadline) throw TIMEOUT;
+    var stand = (chess.turn() === 'w' ? 1 : -1) * basicStatic(chess);
+    if(stand >= beta) return beta;
+    if(stand > alpha) alpha = stand;
+    if(qd >= 4) return alpha;
+    var moves = orderMoves(chess.moves({verbose:true}).filter(function(m){ return m.captured || m.promotion; }));
+    for(var i = 0; i < moves.length; i++){
+      chess.move(moves[i]);
+      var sc = -quiesce(chess, -beta, -alpha, deadline, qd + 1);
+      chess.undo();
+      if(sc >= beta) return beta;
+      if(sc > alpha) alpha = sc;
+    }
+    return alpha;
+  }
+  function negamax(chess, depth, alpha, beta, ply, deadline){
+    if(Date.now() > deadline) throw TIMEOUT;
+    if(chess.in_checkmate()) return -(30000 - ply);
+    if(chess.in_draw() || chess.in_stalemate() || chess.in_threefold_repetition()) return 0;
+    if(depth <= 0) return quiesce(chess, alpha, beta, deadline, 0);
+    var moves = orderMoves(chess.moves({verbose:true})), best = -Infinity;
+    for(var i = 0; i < moves.length; i++){
+      chess.move(moves[i]);
+      var sc = -negamax(chess, depth - 1, -beta, -alpha, ply + 1, deadline);
+      chess.undo();
+      if(sc > best) best = sc;
+      if(best > alpha) alpha = best;
+      if(alpha >= beta) break;
+    }
+    return best;
+  }
+  function basicEval(fen, ms){
+    var chess = new Chess(fen), deadline = Date.now() + ms;
+    var root = orderMoves(chess.moves({verbose:true}));
+    var bestMove = root[0], bestScore = 0, doneDepth = 0;
+    for(var depth = 1; depth <= 4; depth++){
+      try{
+        var curBest = null, curScore = -Infinity, alpha = -Infinity;
+        for(var i = 0; i < root.length; i++){
+          chess.move(root[i]);
+          var sc = -negamax(chess, depth - 1, -Infinity, -alpha, 1, deadline);
+          chess.undo();
+          if(sc > curScore){ curScore = sc; curBest = root[i]; }
+          if(sc > alpha) alpha = sc;
+        }
+        bestMove = curBest; bestScore = curScore; doneDepth = depth;
+        root = [curBest].concat(root.filter(function(m){ return m !== curBest; }));
+      }catch(e){ if(e !== TIMEOUT) throw e; break; }
+    }
+    var cp = bestScore;
+    if(Math.abs(cp) > 29000){ var n = Math.ceil((30000 - Math.abs(cp)) / 2); cp = (cp > 0 ? 1 : -1) * (10000 - 10 * n); }
+    var uci = bestMove ? bestMove.from + bestMove.to + (bestMove.promotion || '') : null;
+    return {cp:cp, best:uci, pv:uci ? [uci] : [], depth:doneDepth};
+  }
+
+  // returns the evaluation of a position from WHITE's point of view
+  async function evalFen(eng, fen, ms){
+    var c = new Chess(fen), turn = fenParts(fen).turn;
+    if(c.game_over()){
+      var cp0 = 0;
+      if(c.in_checkmate()) cp0 = turn === 'w' ? -10000 : 10000;
+      return {cp:cp0, best:null, pv:[], depth:0};
+    }
+    var r = eng.kind === 'stockfish' ? await sfEval(eng.w, fen, ms) : basicEval(fen, ms);
+    return {cp:(turn === 'w' ? r.cp : -r.cp), best:r.best, pv:r.pv, depth:r.depth};
+  }
+
+  // =====================================================================
+  //  position understanding ("how a human reads the position")
+  // =====================================================================
+  function features(fen){
+    var c = new Chess(fen), b = c.board();
+    function blank(){ return {mat:0, nonPawn:0, minors:0, dev:0, bishops:0, queens:0, pawnsFiles:[0,0,0,0,0,0,0,0], pawns:[], rooks:[], centre:0, king:null}; }
+    var F = {w:blank(), b:blank()};
+    for(var r = 0; r < 8; r++) for(var f = 0; f < 8; f++){
+      var p = b[r][f]; if(!p) continue;
+      var o = F[p.color], sq = 'abcdefgh'[f] + (8 - r);
+      if(p.type === 'k'){ o.king = {f:f, r:r}; continue; }
+      o.mat += VAL[p.type];
+      if(p.type !== 'p') o.nonPawn += VAL[p.type];
+      if(p.type === 'p'){
+        o.pawnsFiles[f]++; o.pawns.push({f:f, r:r});
+        if(sq === 'd4' || sq === 'e4' || sq === 'd5' || sq === 'e5') o.centre++;
+      }
+      if(p.type === 'n' || p.type === 'b'){ o.minors++; if(r !== (p.color === 'w' ? 7 : 0)) o.dev++; }
+      if(p.type === 'b') o.bishops++;
+      if(p.type === 'q') o.queens++;
+      if(p.type === 'r') o.rooks.push({f:f, r:r});
+    }
+    ['w', 'b'].forEach(function(col){
+      var o = F[col], opp = F[col === 'w' ? 'b' : 'w'];
+      o.doubled = 0; o.isolated = 0; o.passed = 0; o.openRooks = 0; o.castled = false; o.shield = 0;
+      for(var ff = 0; ff < 8; ff++){
+        if(o.pawnsFiles[ff] > 1) o.doubled += o.pawnsFiles[ff] - 1;
+        if(o.pawnsFiles[ff] > 0){
+          var left = ff > 0 ? o.pawnsFiles[ff - 1] : 0, right = ff < 7 ? o.pawnsFiles[ff + 1] : 0;
+          if(!left && !right) o.isolated += o.pawnsFiles[ff];
+        }
+      }
+      o.pawns.forEach(function(pw){
+        var passed = true;
+        opp.pawns.forEach(function(q){
+          if(Math.abs(q.f - pw.f) <= 1 && (col === 'w' ? q.r < pw.r : q.r > pw.r)) passed = false;
+        });
+        if(passed) o.passed++;
+      });
+      o.rooks.forEach(function(rk){ if(o.pawnsFiles[rk.f] === 0) o.openRooks++; });
+      var k = o.king;
+      if(k){
+        var homeR = col === 'w' ? 7 : 0, dir = col === 'w' ? -1 : 1;
+        o.castled = (k.r === homeR) && (k.f >= 6 || k.f <= 2);
+        for(var df = -1; df <= 1; df++){
+          var kf = k.f + df; if(kf < 0 || kf > 7) continue;
+          for(var dr = 1; dr <= 2; dr++){
+            var kr = k.r + dir * dr; if(kr < 0 || kr > 7) continue;
+            var pp = b[kr][kf];
+            if(pp && pp.type === 'p' && pp.color === col){ o.shield++; break; }
+          }
+        }
+      }
+      o.weak = o.doubled + o.isolated;
+    });
+    F.total = F.w.nonPawn + F.b.nonPawn;
+    var fp = fenParts(fen);
+    F.phase = F.total <= 20 ? 'endgame' : ((fp.full <= 10 && F.total >= 40) ? 'opening' : 'middlegame');
+    return F;
+  }
+
+  function evalBlock(fen, cpW){
+    var F = features(fen), lines = [];
+    lines.push(whoWords(cpW) + ' (' + fmtEval(cpW) + ').');
+    if(!isMate(cpW)){
+      lines.push('Read it like this: ' + fmtEval(cpW) + ' is worth about ' + Math.abs(cpW / 100).toFixed(1) +
+        ' of a pawn in favour of ' + (cpW >= 0 ? 'White' : 'Black') + '. Engines convert everything on the board into that single number.');
+    }
+    var md = F.w.mat - F.b.mat;
+    lines.push(md === 0 ? 'Material is even (pawn 1, minor piece 3, rook 5, queen 9).'
+      : (md > 0 ? 'White' : 'Black') + ' is up ' + plural(Math.abs(md), 'point') + ' of material.');
+    var fac = [];
+    function add(s, t){ if(s) fac.push({s:s, t:t}); }
+    if(F.phase === 'opening' || F.phase === 'middlegame'){
+      var dd = F.w.dev - F.b.dev;
+      add(dd, (dd > 0 ? 'White' : 'Black') + ' has developed ' + plural(Math.abs(dd), 'more minor piece') + ' (more pieces in play)');
+      if(F.w.castled !== F.b.castled && F.total >= 30){
+        var wc = F.w.castled;
+        add(wc ? 1 : -1, (wc ? 'White' : 'Black') + ' has castled while the ' + (wc ? 'black' : 'white') + ' king is still in the centre');
+      } else if(F.w.castled && F.b.castled && F.w.shield !== F.b.shield){
+        add(F.w.shield - F.b.shield, (F.w.shield > F.b.shield ? 'White' : 'Black') + ' has a sturdier pawn shield in front of the king');
+      }
+    }
+    if(F.w.bishops >= 2 && F.b.bishops < 2) add(1, 'White has the bishop pair');
+    if(F.b.bishops >= 2 && F.w.bishops < 2) add(-1, 'Black has the bishop pair');
+    var wk = F.b.weak - F.w.weak;
+    add(wk, (wk > 0 ? 'White' : 'Black') + "'s pawn structure is healthier (fewer doubled/isolated pawns)");
+    var pp = F.w.passed - F.b.passed;
+    add(pp, (pp > 0 ? 'White' : 'Black') + ' has ' + plural(Math.abs(pp), 'extra passed pawn') + ' (a pawn nobody can stop with pawns alone)');
+    var rk = F.w.openRooks - F.b.openRooks;
+    add(rk, (rk > 0 ? 'White' : 'Black') + ' has rooks on open files');
+    var ce = F.w.centre - F.b.centre;
+    if(F.phase !== 'endgame') add(ce, (ce > 0 ? 'White' : 'Black') + ' holds more of the centre with pawns');
+
+    var lead = cpW >= 0 ? 1 : -1;
+    var sup = fac.filter(function(x){ return x.s * lead > 0; }).sort(function(a, b){ return Math.abs(b.s) - Math.abs(a.s); }).slice(0, 3);
+    var agn = fac.filter(function(x){ return x.s * lead < 0; }).sort(function(a, b){ return Math.abs(b.s) - Math.abs(a.s); }).slice(0, 1);
+    if(Math.abs(cpW) < 60 && !isMate(cpW)){
+      lines.push('The factors roughly cancel out' + (fac.length ? ': ' + fac.slice(0, 2).map(function(x){ return x.t; }).join('; ') : '') + '.');
+    } else {
+      if(sup.length) lines.push('What supports it: ' + sup.map(function(x){ return x.t; }).join('; ') + '.');
+      if(agn.length) lines.push('Working the other way: ' + agn[0].t + '.');
+    }
+    if(!isMate(cpW)){
+      var extra = cpW / 100 - md;
+      if(Math.abs(extra) >= 0.6){
+        lines.push('The engine rates it ' + (Math.abs(extra)).toFixed(1) + ' pawns ' + (extra > 0 ? 'higher' : 'lower') +
+          ' than material alone for White. That gap is activity, king safety and concrete threats: things you feel when you see the position, not when you count pieces.');
+      }
+    }
+    return lines;
+  }
+
+  // =====================================================================
+  //  move explanation helpers
+  // =====================================================================
+  function describeMove(mv, ply){
+    var bits = [], tags = [], pname = NAMES[mv.piece], fl = mv.flags || '';
+    if(fl.indexOf('k') >= 0 || fl.indexOf('q') >= 0){
+      bits.push('castles ' + (fl.indexOf('k') >= 0 ? 'kingside' : 'queenside') + ', tucking the king away and bringing a rook toward the centre');
+      tags.push('castle');
+    } else {
+      if(mv.captured){
+        bits.push('captures the ' + NAMES[mv.captured] + ' on ' + mv.to + (fl.indexOf('e') >= 0 ? ' (en passant)' : ''));
+        tags.push('capture');
+      }
+      if(mv.promotion){ bits.push('promotes the pawn to a ' + NAMES[mv.promotion]); tags.push('promo'); }
+      var home = mv.color === 'w' ? '1' : '8';
+      if((mv.piece === 'n' || mv.piece === 'b') && mv.from.charAt(1) === home && ply < 30){
+        bits.push('develops the ' + pname + ' to ' + mv.to); tags.push('develop');
+      }
+      if(mv.piece === 'p' && ['d4', 'e4', 'd5', 'e5'].indexOf(mv.to) >= 0 && !mv.captured){
+        bits.push('stakes a claim in the centre'); tags.push('centre');
+      }
+      if(mv.piece === 'k'){ bits.push('moves the king to ' + mv.to); tags.push('kingmove'); }
+      if(mv.piece === 'q' && ply < 12 && !mv.captured) tags.push('earlyqueen');
+      if(!bits.length){
+        bits.push(mv.piece === 'p' ? 'pushes the pawn to ' + mv.to : 'moves the ' + pname + ' from ' + mv.from + ' to ' + mv.to);
+      }
+    }
+    var last = mv.san.charAt(mv.san.length - 1);
+    if(last === '#'){ bits.push('delivers checkmate'); tags.push('mate'); }
+    else if(last === '+'){ bits.push('gives check'); tags.push('check'); }
+    return {text:bits.join(', '), tags:tags};
+  }
+
+  function pvInfo(fen, ucis, plies, side){
+    var c = new Chess(fen), net = 0, firstCap = null, sans = [], mate = false;
+    for(var k = 0; k < ucis.length && k < plies; k++){
+      var u = ucis[k];
+      var mv = c.move({from:u.slice(0, 2), to:u.slice(2, 4), promotion:u.slice(4, 5) || undefined});
+      if(!mv) break;
+      sans.push(mv.san);
+      var v = 0;
+      if(mv.captured) v += VAL[mv.captured];
+      if(mv.promotion) v += VAL[mv.promotion] - 1;
+      if(v){
+        net += (mv.color === side ? v : -v);
+        if(!firstCap) firstCap = {san:mv.san, color:mv.color, captured:mv.captured, to:mv.to, piece:mv.piece, ply:k};
+      }
+      if(mv.san.charAt(mv.san.length - 1) === '#') mate = true;
+    }
+    return {net:net, firstCap:firstCap, sans:sans, mate:mate};
+  }
+
+  function sanLine(fen, ucis, max){
+    var fp = fenParts(fen), num = fp.full, c = new Chess(fen), out = [], first = true;
+    for(var k = 0; k < ucis.length && k < max; k++){
+      var u = ucis[k];
+      var mv = c.move({from:u.slice(0, 2), to:u.slice(2, 4), promotion:u.slice(4, 5) || undefined});
+      if(!mv) break;
+      var white = mv.color === 'w', s = '';
+      if(white) s = num + '. '; else if(first) s = num + '... ';
+      out.push(s + mv.san);
+      if(!white) num++;
+      first = false;
+    }
+    return out.join(' ');
+  }
+
+  // pieces of `mover` that the opponent can win right now (fen = position after mover's move)
+  function hangingAfter(fenA){
+    var c = new Chess(fenA), res = [];
+    c.moves({verbose:true}).forEach(function(m){
+      if(!m.captured || m.captured === 'k') return;
+      var c2 = new Chess(fenA);
+      c2.move({from:m.from, to:m.to, promotion:m.promotion});
+      var recap = c2.moves({verbose:true}).filter(function(x){ return x.to === m.to && x.captured; });
+      var gain = VAL[m.captured];
+      var net = recap.length ? gain - VAL[m.piece] : gain;
+      if(net >= 1) res.push({to:m.to, piece:m.captured, san:m.san, net:net, undefended:!recap.length});
+    });
+    return res.sort(function(a, b){ return b.net - a.net; });
+  }
+
+  // =====================================================================
+  //  build the analysis from engine output
+  // =====================================================================
+  function parsePgn(text){
+    text = String(text || '').replace(/\r/g, '').trim();
+    if(!text) throw new Error('Paste a PGN or upload a .pgn file first.');
+    text = text.split(/\n(?=\[Event )/)[0];                         // first game only
+    var c = new Chess();
+    var ok = c.load_pgn(text, {sloppy:true});
+    if(!ok) throw new Error("I couldn't read that PGN. Check that it is a normal chess game (not a variant).");
+    var hdr = c.header() || {};
+    var hist = c.history({verbose:true});
+    if(!hist.length) throw new Error('That PGN has no moves.');
+    var r = hdr.FEN ? new Chess(hdr.FEN) : new Chess();
+    var fens = [r.fen()], moves = [];
+    hist.forEach(function(mv){
+      var made = r.move({from:mv.from, to:mv.to, promotion:mv.promotion});
+      if(!made) throw new Error('Move ' + mv.san + ' could not be replayed.');
+      moves.push(made); fens.push(r.fen());
+    });
+    return {moves:moves, fens:fens, hdr:hdr};
+  }
+
+  function build(parsed, ev){
+    var A = {moves:parsed.moves, fens:parsed.fens, hdr:parsed.hdr, ev:ev, stats:[], cache:{}, sel:0, flip:false};
+    A.moves.forEach(function(m, i){
+      var sign = m.color === 'w' ? 1 : -1;
+      var cpB = sign * ev[i].cp, cpA = sign * ev[i + 1].cp;
+      var loss = Math.max(0, winPct(cpB) - winPct(cpA));
+      var uci = m.from + m.to + (m.promotion || '');
+      var label;
+      if(uci === ev[i].best) label = 'best';
+      else if(loss < 2) label = 'excellent';
+      else if(loss < 5) label = 'good';
+      else if(loss < 10) label = 'inaccuracy';
+      else if(loss < 20) label = 'mistake';
+      else label = 'blunder';
+      var F = features(A.fens[i]);
+      A.stats.push({uci:uci, cpBefore:cpB, cpAfter:cpA, loss:loss, label:label, phase:F.phase});
+    });
+    return A;
+  }
+
+  function sideSummary(A, color){
+    var idx = [], counts = {best:0, excellent:0, good:0, inaccuracy:0, mistake:0, blunder:0}, accSum = 0;
+    var phases = {opening:[], middlegame:[], endgame:[]}, maxAdv = -99999, maxAdvIdx = -1;
+    A.moves.forEach(function(m, i){
+      if(m.color !== color) return;
+      var s = A.stats[i];
+      idx.push(i); counts[s.label]++;
+      accSum += Math.max(0, Math.min(100, 103.1668 * Math.exp(-0.04354 * s.loss) - 3.1669));
+      phases[s.phase].push(s.loss);
+      if(s.cpBefore > maxAdv){ maxAdv = s.cpBefore; maxAdvIdx = i; }
+    });
+    var n = idx.length || 1;
+    var phaseAvg = {};
+    Object.keys(phases).forEach(function(k){
+      phaseAvg[k] = phases[k].length >= 3 ? phases[k].reduce(function(a, b){ return a + b; }, 0) / phases[k].length : null;
+    });
+    return {idx:idx, counts:counts, acc:accSum / n, phaseAvg:phaseAvg, maxAdv:maxAdv, maxAdvIdx:maxAdvIdx};
+  }
+
+  function coachNotes(A, color, S){
+    var name = (color === 'w' ? A.hdr.White : A.hdr.Black) || (color === 'w' ? 'White' : 'Black');
+    var pros = [], cons = [];
+    var good = S.counts.best + S.counts.excellent;
+    if(S.acc >= 90) pros.push('Excellent accuracy overall (' + Math.round(S.acc) + '%). Very few moves cost anything.');
+    else if(S.acc >= 78) pros.push('Solid accuracy (' + Math.round(S.acc) + '%): mostly sensible, engine-approved moves.');
+    else if(S.acc >= 62) cons.push('Accuracy of ' + Math.round(S.acc) + '% is inconsistent. A few moves swung the game.');
+    else cons.push('Accuracy of ' + Math.round(S.acc) + '% means many moves gave away ground.');
+    if(good >= Math.ceil(S.idx.length * 0.6)) pros.push(plural(good, 'move') + ' were best or excellent.');
+    if(S.counts.blunder === 0 && S.counts.mistake === 0) pros.push('No blunders or mistakes. Great discipline.');
+    if(S.counts.blunder > 0) cons.push(plural(S.counts.blunder, 'blunder') + '. Each one is a chance to learn: review them first.');
+    if(S.counts.mistake > 0) cons.push(plural(S.counts.mistake, 'mistake') + ' cost real advantage.');
+    var best = null, worst = null;
+    ['opening', 'middlegame', 'endgame'].forEach(function(k){
+      var v = S.phaseAvg[k]; if(v === null) return;
+      if(best === null || v < S.phaseAvg[best]) best = k;
+      if(worst === null || v > S.phaseAvg[worst]) worst = k;
+    });
+    if(best && worst && best !== worst){
+      if(S.phaseAvg[best] < 4) pros.push('Your ' + best + ' was your strongest phase.');
+      if(S.phaseAvg[worst] >= 6) cons.push('Your ' + worst + ' was the weak spot. That is where most of the damage happened.');
+    }
+    var res = A.hdr.Result;
+    var won = (res === '1-0' && color === 'w') || (res === '0-1' && color === 'b');
+    if(S.maxAdv >= 300 && !won && res && res !== '*'){
+      cons.push('You were clearly winning at one point (move ' + (Math.floor(S.maxAdvIdx / 2) + 1) + ') but did not convert. Practise turning advantages into wins: trade pieces, keep the king safe, avoid tricks.');
+    }
+    return {name:name, pros:pros, cons:cons};
+  }
+
+  // =====================================================================
+  //  the "why" for one move
+  // =====================================================================
+  function explainCore(A, i){
+    var m = A.moves[i], S = A.stats[i], fenB = A.fens[i], fenA = A.fens[i + 1];
+    var evB = A.ev[i], evA = A.ev[i + 1], mover = m.color;
+    var label = S.label, bad = (label === 'inaccuracy' || label === 'mistake' || label === 'blunder');
+    var d = describeMove(m, i);
+    var pros = [], cons = [], why = [], lessonKey = null, better = null;
+    var featsA = features(fenA), featsB = features(fenB);
+
+    // ---- positives of the move itself
+    if(d.tags.indexOf('develop') >= 0) pros.push('Develops a piece, which brings more of your army into the game.');
+    if(d.tags.indexOf('castle') >= 0) pros.push('Gets the king safe and activates a rook.');
+    if(d.tags.indexOf('centre') >= 0) pros.push('Fights for the centre, where pieces are most active.');
+    if(d.tags.indexOf('capture') >= 0) pros.push('Wins a ' + NAMES[m.captured] + ' (' + plural(VAL[m.captured], 'point') + ' of material).');
+    if(d.tags.indexOf('promo') >= 0) pros.push('Promotes, a huge material gain.');
+    if(d.tags.indexOf('mate') >= 0) pros.push('Checkmate. Nothing beats that.');
+    else if(d.tags.indexOf('check') >= 0) pros.push('Gives check, forcing a reply and gaining a tempo.');
+
+    // ---- engine's best alternative
+    var bestSan = null, bm = null, bestInfo = null;
+    if(evB.best && evB.best !== S.uci){
+      bm = tryMove(fenB, evB.best);
+      if(bm){ bestSan = bm.san; bestInfo = pvInfo(fenB, evB.pv, 5, mover); }
+    }
+
+    // ---- what happens after the move (the opponent's best reply)
+    var refInfo = (evA.best && evA.pv.length) ? pvInfo(fenA, evA.pv, 6, mover) : null;
+    var refLine = (evA.best && evA.pv.length) ? sanLine(fenA, evA.pv, 4) : '';
+    var hang = [];
+    try{ hang = evA.best ? hangingAfter(fenA) : []; }catch(e){}
+
+    if(bad){
+      if(S.cpAfter <= -9000){
+        var n = mateN(S.cpAfter);
+        why.push('It allows a forced checkmate' + (n ? ' in ' + n : '') + (refLine ? ': <span class="an-line">' + esc(refLine) + '</span>' : '.'));
+        cons.push('Leaves the king open to a forced mate.');
+        lessonKey = 'mate';
+      } else if(refInfo && refInfo.net <= -2){
+        var fc = refInfo.firstCap, sentence;
+        if(fc && fc.color !== mover && fc.ply === 0 && fc.to === m.to){
+          var h0 = hang.filter(function(x){ return x.to === m.to; })[0];
+          sentence = 'The ' + NAMES[m.piece] + ' you just moved to ' + m.to + ' can be taken by ' + fc.san +
+            (h0 && h0.undefended ? ', and nothing protects it.' : ', and the trade does not work out for you.');
+        } else if(fc && fc.color !== mover){
+          sentence = 'After ' + (refInfo.sans[0] || 'the best reply') + ', you lose a ' + NAMES[fc.captured] + ' on ' + fc.to + '.';
+        } else {
+          sentence = 'The forcing continuation leaves you down material.';
+        }
+        why.push(sentence + ' In the engine line you end up about ' + plural(Math.abs(refInfo.net), 'point') + ' of material down: <span class="an-line">' + esc(refLine) + '</span>');
+        cons.push('Loses material (about ' + plural(Math.abs(refInfo.net), 'point') + ').');
+        lessonKey = 'hang';
+      } else if(hang.length && hang[0].net >= 2){
+        var hg = hang[0];
+        why.push('It leaves your ' + NAMES[hg.piece] + ' on ' + hg.to + ' en prise: ' + hg.san + ' wins it' + (hg.undefended ? ' for free.' : ' favourably.'));
+        cons.push('Leaves a piece capturable.');
+        lessonKey = 'hang';
+      }
+
+      // missed opportunities
+      if(bm && S.cpBefore >= 9000){
+        var mn = mateN(S.cpBefore);
+        why.push('You had a forced checkmate' + (mn ? ' in ' + mn : '') + ': <span class="an-line">' + esc(sanLine(fenB, evB.pv, 2 * (mn || 1))) + '</span>');
+        cons.push('Missed a forced mate.');
+        lessonKey = lessonKey || 'missed';
+      } else if(bm && bestInfo && bestInfo.net >= 2){
+        why.push('You missed a tactic: ' + bestSan + ' wins about ' + plural(bestInfo.net, 'point') + ' of material.');
+        cons.push('Missed a material-winning tactic.');
+        lessonKey = lessonKey || 'missed';
+      }
+
+      // opening-principle heuristics
+      var prev = i >= 2 ? A.moves[i - 2] : null;
+      if(i < 24 && d.tags.indexOf('capture') < 0){
+        if(d.tags.indexOf('earlyqueen') >= 0){
+          why.push('Bringing the queen out this early invites the opponent to attack it and gain developing moves for free.');
+          cons.push('Early queen sortie: loses time.'); lessonKey = lessonKey || 'opening';
+        } else if(prev && prev.piece === m.piece && prev.to === m.from && m.piece !== 'p' && m.piece !== 'k'){
+          why.push('You moved the same ' + NAMES[m.piece] + ' twice in the opening instead of developing a new piece, which hands your opponent time.');
+          cons.push('Moves the same piece twice.'); lessonKey = lessonKey || 'opening';
+        }
+      }
+      var rights = fenParts(fenA).rights, mine = mover === 'w' ? /[KQ]/.test(rights) : /[kq]/.test(rights);
+      if(!why.length && fenParts(fenB).full >= 9 && mine && d.tags.indexOf('castle') < 0 && featsA.total >= 30){
+        why.push('Your king is still in the centre and you can still castle. Getting it to safety first usually comes before other plans.');
+        cons.push('King stays in the centre.'); lessonKey = lessonKey || 'king';
+      }
+
+      // positional fallback
+      if(!why.length){
+        var fm = featsB[mover], fa = featsA[mover], bits = [];
+        if(fa.weak > fm.weak) bits.push('it creates a weaker pawn structure (doubled or isolated pawns)');
+        if(fa.shield < fm.shield && featsA.total >= 25) bits.push('it thins the pawn shield in front of your king');
+        if(fm.bishops >= 2 && fa.bishops < 2) bits.push('it gives up the bishop pair');
+        if(fa.centre < fm.centre) bits.push('it gives up a central pawn');
+        if(bits.length){
+          why.push('There is no immediate tactic, but ' + bits.join(' and ') + '.');
+          cons.push(cap(bits[0]) + '.');
+        } else {
+          why.push("There is no single tactic to point at. The move is slower than the alternative and lets your opponent improve with tempo: the position went from " +
+            fmtEval(S.cpBefore) + ' to ' + fmtEval(S.cpAfter) + ' for you.');
+          cons.push('Quiet move that hands over the initiative.');
+        }
+        lessonKey = lessonKey || 'quiet';
+      }
+    } else {
+      // good / excellent / best
+      var cpA = S.cpAfter;
+      if(label === 'best') why.push('This is the engine\'s top choice.');
+      else if(label === 'excellent') why.push('Practically as good as the engine\'s favourite.');
+      else why.push('A fine move. A slightly stronger option existed, but nothing is lost.');
+      if(d.tags.indexOf('mate') >= 0) why.push('It ends the game.');
+      else if(cpA >= 250) why.push('You are clearly better here, so the job is to keep control and avoid tricks.');
+      else if(cpA <= -150) why.push('The position is difficult, but this is the most resilient defence.');
+      else if(Math.abs(cpA) < 60) why.push('The game stays balanced.');
+      if(m.captured && VAL[m.captured] === VAL[m.piece] && cpA >= 150) pros.push('An even trade when ahead: simplifying makes the advantage easier to convert.');
+      if(!pros.length) pros.push('Keeps your position healthy and your pieces coordinated.');
+      if(label !== 'best' && bm) cons.push('The engine slightly preferred ' + bestSan + '.');
+      if(S.cpAfter <= -150) cons.push('Even with the best moves, the position is worse for you.');
+      if(featsA[mover].weak > featsB[mover].weak) cons.push('Slightly worsens your pawn structure.');
+      if(featsA[mover].shield < featsB[mover].shield && featsA.total >= 25) cons.push('Loosens the pawns around your king.');
+    }
+
+    // ---- "better was"
+    if(bm && S.loss >= 2){
+      var bd = describeMove(bm, i), reason;
+      if(S.cpBefore >= 9000) reason = 'It leads to a forced mate.';
+      else if(bestInfo && bestInfo.net >= 1) reason = 'It wins about ' + plural(bestInfo.net, 'point') + ' of material by force.';
+      else if(bd.tags.indexOf('check') >= 0 || bd.tags.indexOf('mate') >= 0) reason = 'The check gains time and drives the opponent back.';
+      else if(bd.tags.indexOf('castle') >= 0) reason = 'It gets the king safe first.';
+      else if(bd.tags.indexOf('develop') >= 0) reason = 'It develops a new piece instead.';
+      else if(bd.tags.indexOf('centre') >= 0) reason = 'It takes the centre.';
+      else reason = 'It keeps the evaluation at ' + fmtEval(S.cpBefore) + ' where your move dropped it to ' + fmtEval(S.cpAfter) + '.';
+      better = {san:bestSan, text:cap(bd.text) + '. ' + reason, line:sanLine(fenB, evB.pv, 5)};
+    }
+
+    var lessons = {
+      hang:   'Before every move, run a safety check: after my move, which of my pieces can be captured or attacked? Is each one protected?',
+      mate:   'Whenever your king is exposed, list every check your opponent has before you move. Forcing moves come first.',
+      missed: 'Look for forcing moves first: checks, then captures, then threats. They often hide the winning idea.',
+      opening:'In the opening: develop knights and bishops, fight for the centre, castle early, and avoid moving the same piece twice.',
+      king:   'Get the king safe before starting an attack. A castled king is a quiet mind.',
+      quiet:  'Not every mistake is a tactic. Compare candidate moves by asking what each one improves: your worst-placed piece, king safety, or a pawn break.'
+    };
+
+    return {
+      title:moveNumText(fenB) + ' ' + m.san,
+      label:label,
+      evalLine:fmtEval(S.cpBefore) + '  ->  ' + fmtEval(S.cpAfter) + '  (' + (mover === 'w' ? 'White' : 'Black') + ' point of view)',
+      what:cap(d.text) + '.',
+      why:why, better:better, pros:pros, cons:cons,
+      engine:evalBlock(fenA, A.ev[i + 1].cp),
+      lesson:lessonKey ? lessons[lessonKey] : null
+    };
+  }
+  function explain(A, i){
+    if(A.cache[i]) return A.cache[i];
+    var out;
+    try{ out = explainCore(A, i); }
+    catch(e){
+      console.error('explain failed', e);
+      var S = A.stats[i];
+      out = {title:A.moves[i].san, label:S.label, evalLine:fmtEval(S.cpBefore) + '  ->  ' + fmtEval(S.cpAfter), what:'',
+        why:["I couldn't build the full explanation for this move (" + esc(e.message) + ')'], better:null, pros:[], cons:[], engine:[], lesson:null};
+    }
+    A.cache[i] = out;
+    return out;
+  }
+
+  // =====================================================================
+  //  UI
+  // =====================================================================
+  var A = null, running = false, cancelFlag = false;
+  var screen = document.createElement('div');
+  screen.id = 'screen-analyze';
+  screen.style.display = 'none';
+  document.querySelector('.wrap').appendChild(screen);
+
+  var nav = document.getElementById('navbar');
+  var link = document.createElement('a');
+  link.dataset.nav = 'analyze';
+  link.textContent = 'Analyze';
+  nav.insertBefore(link, nav.querySelector('[data-nav="leaderboard"]'));
+  link.onclick = function(){
+    var inGame = document.getElementById('screen-game').style.display === 'block' && gameState && gameState.status === 'active';
+    if(inGame && !confirm('Your clock keeps running while you are away. Leave the game view?')) return;
+    stopPoll();
+    renderAnalyze();
+  };
+
+  var prevShow = window.showScreen;
+  window.showScreen = function(n){
+    prevShow(n);
+    screen.style.display = (n === 'analyze') ? 'block' : 'none';
+    if(n === 'analyze') nav.querySelectorAll('[data-nav]').forEach(function(a){ a.classList.toggle('active', a.dataset.nav === 'analyze'); });
+    else if(running) cancelFlag = true;
+  };
+
+  function speedMs(){
+    var v = 800;
+    try{ v = parseInt(localStorage.getItem('pawniac-analyze-ms'), 10) || 800; }catch(e){}
+    return v;
+  }
+
+  function renderAnalyze(){
+    showScreen('analyze');
+    var ms = speedMs();
+    screen.innerHTML =
+      '<div class="card an-in"><h2>Analyze a game</h2>' +
+        '<p class="desc">Paste a PGN or upload a .pgn file. A chess engine runs in your browser (free, nothing is uploaded) and each move is explained in plain language: what it does, why it works or fails, and what to play instead.</p>' +
+        '<textarea id="anPgn" placeholder="1. e4 e5 2. Nf3 Nc6 3. Bb5 a6 ..."></textarea>' +
+        '<div class="an-row">' +
+          '<button id="anGo">Analyze</button>' +
+          '<button class="secondary" id="anFileBtn">Upload .pgn</button>' +
+          '<input type="file" id="anFile" accept=".pgn,.txt,text/plain" style="display:none;">' +
+          '<select id="anSpeed" aria-label="Analysis depth">' +
+            '<option value="300"' + (ms === 300 ? ' selected' : '') + '>Fast</option>' +
+            '<option value="800"' + (ms === 800 ? ' selected' : '') + '>Balanced</option>' +
+            '<option value="2000"' + (ms === 2000 ? ' selected' : '') + '>Deep (slower)</option>' +
+          '</select>' +
+        '</div>' +
+        '<div id="anProg"></div>' +
+      '</div>' +
+      '<div id="anRes"></div>';
+    document.getElementById('anGo').onclick = function(){ start(document.getElementById('anPgn').value); };
+    var fb = document.getElementById('anFileBtn'), fi = document.getElementById('anFile');
+    fb.onclick = function(){ fi.click(); };
+    fi.onchange = function(){
+      var f = fi.files && fi.files[0]; fi.value = '';
+      if(!f) return;
+      var r = new FileReader();
+      r.onload = function(){ document.getElementById('anPgn').value = r.result; };
+      r.readAsText(f);
+    };
+    document.getElementById('anSpeed').onchange = function(){
+      try{ localStorage.setItem('pawniac-analyze-ms', this.value); }catch(e){}
+    };
+    if(A) renderResults();
+  }
+
+  function setProg(html, pct){
+    var el = document.getElementById('anProg');
+    if(!el) return;
+    el.innerHTML = html ? '<div class="an-bar"><div style="width:' + (pct || 0) + '%"></div></div><div class="hint">' + html + '</div>' : '';
+  }
+
+  async function start(text){
+    if(running){ cancelFlag = true; return; }
+    var prog = document.getElementById('anProg');
+    try{
+      var parsed = parsePgn(text);
+      running = true; cancelFlag = false;
+      var go = document.getElementById('anGo');
+      if(go) go.textContent = 'Cancel';
+      var eng = await getEngine(function(t){ setProg(t, 3); });
+      var ms = speedMs(), ev = [], total = parsed.fens.length;
+      var note = eng.kind === 'stockfish' ? 'Stockfish engine' : 'basic built-in engine (Stockfish could not be loaded, so the analysis is weaker)';
+      for(var i = 0; i < total; i++){
+        if(cancelFlag) throw new Error('Analysis cancelled.');
+        setProg('Analyzing position ' + (i + 1) + ' of ' + total + ' with the ' + note + '...', Math.round(i / total * 100));
+        ev.push(await evalFen(eng, parsed.fens[i], ms));
+        await new Promise(function(r){ setTimeout(r, 0); });
+      }
+      A = build(parsed, ev);
+      A.engineKind = eng.kind;
+      A.sel = 0;
+      setProg('', 0);
+      renderResults();
+    }catch(e){
+      console.error(e);
+      setProg('', 0);
+      var p2 = document.getElementById('anProg');
+      if(p2) p2.innerHTML = '<div class="an-err">' + esc(e.message || e) + '</div>';
+    }finally{
+      running = false;
+      var g2 = document.getElementById('anGo');
+      if(g2) g2.textContent = 'Analyze';
+    }
+  }
+
+  // ---- board drawing ----
+  function boardHtml(fen, last, arrows, flip){
+    var c = new Chess(fen), b = c.board();
+    var idx = [0, 1, 2, 3, 4, 5, 6, 7];
+    var rows = flip ? idx.slice().reverse() : idx, cols = flip ? idx.slice().reverse() : idx;
+    var h = '<div class="an-bw"><div class="board">';
+    rows.forEach(function(r){
+      cols.forEach(function(f){
+        var file = 'abcdefgh'[f], rank = 8 - r, sq = file + rank, p = b[r][f];
+        var cls = 'sq ' + (((r + f) % 2 === 0) ? 'light' : 'dark');
+        if(last && (sq === last.from || sq === last.to)) cls += ' last';
+        var sym = '';
+        if(p){
+          var uf = PIECE_UNICODE[p.color][p.type];
+          sym = '<img class="piece-img" src="' + pieceImgUrl(p.color, p.type) + '" alt="" draggable="false" onerror="this.outerHTML=\'<span style=&quot;font-size:1em;line-height:1;&quot;>' + uf + '</span>\'">';
+        }
+        var co = '';
+        if(f === cols[0]) co += '<span class="coord rank">' + rank + '</span>';
+        if(r === rows[7]) co += '<span class="coord file">' + file + '</span>';
+        h += '<div class="' + cls + '">' + co + sym + '</div>';
+      });
+    });
+    h += '</div>';
+    if(arrows && arrows.length){
+      h += '<svg class="an-arrows" viewBox="0 0 8 8">';
+      arrows.forEach(function(a, n){
+        var f1 = a.from.charCodeAt(0) - 97, r1 = 8 - parseInt(a.from.charAt(1), 10);
+        var f2 = a.to.charCodeAt(0) - 97, r2 = 8 - parseInt(a.to.charAt(1), 10);
+        var x1 = (flip ? 7 - f1 : f1) + .5, y1 = (flip ? 7 - r1 : r1) + .5;
+        var x2 = (flip ? 7 - f2 : f2) + .5, y2 = (flip ? 7 - r2 : r2) + .5;
+        var dx = x2 - x1, dy = y2 - y1, len = Math.sqrt(dx * dx + dy * dy) || 1;
+        x2 -= dx / len * .32; y2 -= dy / len * .32;
+        h += '<defs><marker id="anArr' + n + '" markerWidth="4" markerHeight="4" refX="2.2" refY="2" orient="auto"><path d="M0,0 L4,2 L0,4z" fill="' + a.color + '"/></marker></defs>' +
+             '<line x1="' + x1 + '" y1="' + y1 + '" x2="' + x2 + '" y2="' + y2 + '" stroke="' + a.color + '" stroke-width=".17" stroke-linecap="round" opacity=".8" marker-end="url(#anArr' + n + ')"/>';
+      });
+      h += '</svg>';
+    }
+    return h + '</div>';
+  }
+
+  function graphHtml(){
+    var n = A.fens.length, W = 600, H = 90, pts = [];
+    for(var i = 0; i < n; i++){
+      var x = n > 1 ? i / (n - 1) * W : 0;
+      var y = H - winPct(A.ev[i].cp) / 100 * H;
+      pts.push(x.toFixed(1) + ',' + y.toFixed(1));
+    }
+    var cx = n > 1 ? A.sel / (n - 1) * W : 0;
+    return '<svg viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="none" id="anGraph">' +
+      '<rect width="' + W + '" height="' + H + '" fill="#2b2924"/>' +
+      '<polygon points="0,' + H + ' ' + pts.join(' ') + ' ' + W + ',' + H + '" fill="#f4f1ea"/>' +
+      '<line x1="0" y1="' + H / 2 + '" x2="' + W + '" y2="' + H / 2 + '" stroke="#999" stroke-width="1" stroke-dasharray="4 4" opacity=".6"/>' +
+      '<line x1="' + cx + '" y1="0" x2="' + cx + '" y2="' + H + '" stroke="#e0532e" stroke-width="2"/></svg>';
+  }
+
+  function movesHtml(){
+    var h = '';
+    for(var i = 0; i < A.moves.length; i += 2){
+      var cells = '';
+      for(var k = 0; k < 2; k++){
+        var j = i + k;
+        if(j >= A.moves.length){ cells += '<span></span>'; continue; }
+        var s = A.stats[j], L = LABEL[s.label];
+        cells += '<span class="an-m' + (A.sel === j + 1 ? ' sel' : '') + '" data-ply="' + (j + 1) + '"><span class="an-dot" style="background:' + L.c + '" title="' + L.t + '"></span>' + esc(A.moves[j].san) + '</span>';
+      }
+      h += '<div class="an-mrow"><span class="an-n">' + fenParts(A.fens[i]).full + '</span>' + cells + '</div>';
+    }
+    return h;
+  }
+
+  function panelHtml(){
+    if(A.sel === 0){
+      return '<div class="an-title">Start of the game</div><p class="desc" style="margin-top:8px;">Use the arrows (or your keyboard arrow keys) to step through the game. Click any move in the list or any point on the graph. Each move gets a plain-language explanation here.</p>' +
+        '<div class="an-sec"><h4>How the engine sees it</h4>' + evalBlock(A.fens[0], A.ev[0].cp).map(function(l){ return '<p>' + esc(l) + '</p>'; }).join('') + '</div>';
+    }
+    var E = explain(A, A.sel - 1), L = LABEL[E.label];
+    var h = '<div class="an-title">' + esc(E.title) + ' <span class="an-chip" style="background:' + L.c + '">' + L.t + '</span></div>' +
+      '<div class="an-evline">' + esc(E.evalLine) + '</div>';
+    if(E.what) h += '<div class="an-sec"><h4>What the move does</h4><p>' + esc(E.what) + '</p></div>';
+    if(E.why.length) h += '<div class="an-sec"><h4>' + (['inaccuracy', 'mistake', 'blunder'].indexOf(E.label) >= 0 ? 'Why it is a problem' : 'Why it works') + '</h4>' +
+      E.why.map(function(w){ return '<p style="margin-bottom:6px;">' + w + '</p>'; }).join('') + '</div>';
+    if(E.better) h += '<div class="an-sec"><h4>Better was ' + esc(E.better.san) + '</h4><p>' + esc(E.better.text) + '</p><span class="an-line">' + esc(E.better.line) + '</span></div>';
+    if(E.pros.length || E.cons.length){
+      h += '<div class="an-sec an-pc"><div class="an-pros"><h4>Pros</h4>' +
+        (E.pros.length ? '<ul>' + E.pros.map(function(p){ return '<li>' + esc(p) + '</li>'; }).join('') + '</ul>' : '<p>-</p>') + '</div>' +
+        '<div class="an-cons"><h4>Cons</h4>' +
+        (E.cons.length ? '<ul>' + E.cons.map(function(p){ return '<li>' + esc(p) + '</li>'; }).join('') + '</ul>' : '<p>-</p>') + '</div></div>';
+    }
+    if(E.engine.length) h += '<div class="an-sec"><h4>How the engine sees the position</h4>' + E.engine.map(function(l){ return '<p style="margin-bottom:5px;">' + esc(l) + '</p>'; }).join('') + '</div>';
+    if(E.lesson) h += '<div class="an-sec"><div class="an-lesson"><b>Lesson:</b> ' + esc(E.lesson) + '</div></div>';
+    return h;
+  }
+
+  function summaryHtml(){
+    var cols = ['w', 'b'].map(function(color){
+      var S = sideSummary(A, color), N = coachNotes(A, color, S);
+      var chips = ['best', 'excellent', 'good', 'inaccuracy', 'mistake', 'blunder'].map(function(k){
+        return '<span class="an-chip" style="background:' + LABEL[k].c + '">' + S.counts[k] + ' ' + LABEL[k].t.toLowerCase() + '</span>';
+      }).join('');
+      return '<div class="an-sum"><div class="hint" style="margin:0;">' + (color === 'w' ? 'White' : 'Black') + '</div>' +
+        '<div style="font-weight:700;font-size:15px;">' + esc(N.name) + '</div>' +
+        '<div class="an-acc">' + Math.round(S.acc) + '%</div><div class="hint" style="margin:0 0 6px;">accuracy</div>' +
+        '<div class="an-counts">' + chips + '</div>' +
+        (N.pros.length ? '<div class="an-sec"><h4>What went well</h4><ul>' + N.pros.map(function(t){ return '<li>' + esc(t) + '</li>'; }).join('') + '</ul></div>' : '') +
+        (N.cons.length ? '<div class="an-sec"><h4>To work on</h4><ul>' + N.cons.map(function(t){ return '<li>' + esc(t) + '</li>'; }).join('') + '</ul></div>' : '') +
+        '</div>';
+    }).join('');
+    var swings = A.stats.map(function(s, i){ return {i:i, loss:s.loss}; })
+      .filter(function(x){ return x.loss >= 10; }).sort(function(a, b){ return b.loss - a.loss; }).slice(0, 3);
+    var moments = swings.length ? '<p class="desc" style="margin:14px 0 0;">Turning points: ' + swings.map(function(x){
+      var m = A.moves[x.i], lb = LABEL[A.stats[x.i].label];
+      return '<span class="an-moment" data-ply="' + (x.i + 1) + '">' + esc(moveNumText(A.fens[x.i]) + ' ' + m.san) + ' (' + lb.t.toLowerCase() + ')</span>';
+    }).join(', ') + '.</p>' : '<p class="desc" style="margin:14px 0 0;">No big swings. A clean game.</p>';
+    var title = esc((A.hdr.White || 'White') + ' vs ' + (A.hdr.Black || 'Black')) + (A.hdr.Result ? ' &middot; ' + esc(A.hdr.Result) : '');
+    var eng = A.engineKind === 'stockfish' ? 'Analysed with Stockfish running in your browser.' : 'Stockfish could not be loaded, so this used a small built-in engine. Explanations are less reliable.';
+    return '<div class="card"><h2>' + title + '</h2><p class="desc" style="margin-bottom:12px;">' + eng + '</p><div class="an-sumgrid">' + cols + '</div>' + moments + '</div>';
+  }
+
+  function renderResults(){
+    var res = document.getElementById('anRes');
+    if(!res || !A) return;
+    res.innerHTML = summaryHtml() +
+      '<div class="card"><div class="an-main">' +
+        '<div><div class="an-boardcol"><div id="anEvalBar" class="an-evalbar"><div></div></div><div id="anBoard"></div></div>' +
+          '<div class="an-ctrl"><button class="secondary" id="anFirst">&laquo;</button><button class="secondary" id="anPrev">&lsaquo;</button>' +
+          '<button class="secondary" id="anNext">&rsaquo;</button><button class="secondary" id="anLast">&raquo;</button>' +
+          '<button class="secondary" id="anFlip">Flip</button></div></div>' +
+        '<div class="an-side"><div id="anPanel"></div><div class="an-moves" id="anMoves"></div></div>' +
+      '</div></div>' +
+      '<div class="card an-graph"><h2>Evaluation</h2><p class="desc" style="margin-bottom:10px;">White is the light area. Click anywhere to jump to that move.</p><div id="anGraphBox"></div></div>';
+    document.getElementById('anFirst').onclick = function(){ goto(0); };
+    document.getElementById('anPrev').onclick = function(){ goto(A.sel - 1); };
+    document.getElementById('anNext').onclick = function(){ goto(A.sel + 1); };
+    document.getElementById('anLast').onclick = function(){ goto(A.moves.length); };
+    document.getElementById('anFlip').onclick = function(){ A.flip = !A.flip; paintSel(); };
+    res.querySelectorAll('.an-moment').forEach(function(el){ el.onclick = function(){ goto(+el.dataset.ply); window.scrollTo({top:res.offsetTop + 260, behavior:'smooth'}); }; });
+    paintSel();
+  }
+
+  function goto(k){
+    if(!A) return;
+    A.sel = Math.max(0, Math.min(A.moves.length, k));
+    paintSel();
+  }
+
+  function paintSel(){
+    if(!A || !document.getElementById('anBoard')) return;
+    var fen = A.fens[A.sel], last = null, arrows = [];
+    if(A.sel > 0){
+      var m = A.moves[A.sel - 1], S = A.stats[A.sel - 1];
+      last = {from:m.from, to:m.to};
+      var bad = ['inaccuracy', 'mistake', 'blunder'].indexOf(S.label) >= 0;
+      var bestUci = A.ev[A.sel - 1].best;
+      if(bad && bestUci) arrows.push({from:bestUci.slice(0, 2), to:bestUci.slice(2, 4), color:'#1f9d55'});
+    }
+    document.getElementById('anBoard').innerHTML = boardHtml(fen, last, arrows, A.flip);
+    var wpW = winPct(A.ev[A.sel].cp);
+    var bar = document.querySelector('#anEvalBar div');
+    if(bar){
+      bar.style.height = wpW + '%';
+      if(A.flip){ bar.style.top = '0'; bar.style.bottom = 'auto'; }
+      else { bar.style.bottom = '0'; bar.style.top = 'auto'; }
+    }
+    document.getElementById('anPanel').innerHTML = panelHtml();
+    var mv = document.getElementById('anMoves');
+    var keep = mv.scrollTop;
+    mv.innerHTML = movesHtml();
+    mv.scrollTop = keep;
+    var selEl = mv.querySelector('.sel');
+    if(selEl && selEl.offsetTop < mv.scrollTop || selEl && selEl.offsetTop > mv.scrollTop + mv.clientHeight - 30) mv.scrollTop = selEl.offsetTop - 60;
+    mv.querySelectorAll('[data-ply]').forEach(function(el){ el.onclick = function(){ goto(+el.dataset.ply); }; });
+    var gb = document.getElementById('anGraphBox');
+    if(gb){
+      gb.innerHTML = graphHtml();
+      var gsvg = document.getElementById('anGraph');
+      gsvg.onclick = function(e){
+        var r = gsvg.getBoundingClientRect(), x = (e.clientX - r.left) / r.width;
+        goto(Math.round(x * (A.fens.length - 1)));
+      };
+    }
+  }
+
+  document.addEventListener('keydown', function(e){
+    if(!A || screen.style.display !== 'block') return;
+    var t = e.target && e.target.tagName;
+    if(t === 'TEXTAREA' || t === 'INPUT' || t === 'SELECT') return;
+    if(e.key === 'ArrowRight'){ goto(A.sel + 1); e.preventDefault(); }
+    else if(e.key === 'ArrowLeft'){ goto(A.sel - 1); e.preventDefault(); }
+    else if(e.key === 'Home'){ goto(0); }
+    else if(e.key === 'End'){ goto(A.moves.length); }
+  });
+
+  // ---- "Analyze this game" button on a finished game ----
+  function gamePgn(g){
+    var s = g.seats || {};
+    var w = g.mode === 'team' ? (s.whiteBrain + ' & ' + s.whiteHand) : s.white;
+    var b = g.mode === 'team' ? (s.blackBrain + ' & ' + s.blackHand) : s.black;
+    var res = g.winner === 'w' ? '1-0' : g.winner === 'b' ? '0-1' : g.winner === 'draw' ? '1/2-1/2' : '*';
+    var mt = '';
+    (g.moveLog || []).forEach(function(san, i){ mt += (i % 2 === 0 ? (i / 2 + 1) + '. ' : '') + san + ' '; });
+    return '[Event "Pawniac game"]\n[White "' + String(w || 'White').replace(/"/g, '') + '"]\n[Black "' + String(b || 'Black').replace(/"/g, '') +
+      '"]\n[Result "' + res + '"]\n\n' + mt + res;
+  }
+  var prevDraw = window.drawGame;
+  window.drawGame = function(){
+    try{ prevDraw(); }
+    finally{
+      try{
+        var g = gameState;
+        if(g && g.status === 'finished' && g.winner !== 'abort' && g.moveLog && g.moveLog.length >= 2 && !document.getElementById('btnAnalyzeGame')){
+          var back = document.getElementById('btnBack');
+          if(back){
+            var bt = document.createElement('button');
+            bt.className = 'full-btn secondary';
+            bt.id = 'btnAnalyzeGame';
+            bt.textContent = 'Analyze this game';
+            bt.onclick = function(){
+              var pgn = gamePgn(g);
+              stopPoll();
+              A = null;
+              renderAnalyze();
+              document.getElementById('anPgn').value = pgn;
+              start(pgn);
+            };
+            back.parentNode.insertBefore(bt, back);
+          }
+        }
+      }catch(e){ console.error('analyze button failed', e); }
+    }
+  };
+})();
+</script>
+<!-- ===== END STEP 16 ===== -->
 </html>
