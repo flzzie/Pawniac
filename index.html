@@ -4081,7 +4081,7 @@ body.dnd-dragging,body.dnd-dragging *{cursor:grabbing !important;}
 })();
 </script>
 <!-- ===== END STEP 15 ===== -->
-  <!-- ===== PAWNIAC STEP 16: ANALYZE (paste at the very bottom, below step 15) ===== -->
+<!-- ===== PAWNIAC STEP 16: ANALYZE (paste at the very bottom, below step 15) ===== -->
 <style>
 .an-in textarea{width:100%;min-height:130px;border:1px solid #d8d1bf;border-radius:7px;padding:10px 12px;font-size:12.5px;font-family:monospace;resize:vertical;background:#fff;color:inherit;}
 [data-theme=dark] .an-in textarea{background:#1b1a17;border-color:#4a463b;color:#e8e4d8;}
@@ -4134,6 +4134,26 @@ body.dnd-dragging,body.dnd-dragging *{cursor:grabbing !important;}
 .an-counts{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0;}
 .an-moment{cursor:pointer;text-decoration:underline dotted;text-underline-offset:3px;}
 .an-err{color:#b8433f;font-size:13.5px;margin-top:10px;}
+
+/* ---- compact "analyzing" bar once a game is loaded ---- */
+.an-compact{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:14px 20px;}
+.an-compact span{font-size:13.5px;}
+.an-compact b{font-weight:700;}
+
+/* ---- Board / Report tabs ---- */
+.an-tabs{display:flex;gap:8px;margin-bottom:16px;}
+.an-tabbtn{border:1px solid #d8d1bf;border-radius:7px;padding:9px 16px;font-size:13px;font-weight:600;cursor:pointer;background:#fff;color:inherit;}
+.an-tabbtn.active{border-color:#1f6f5c;background:#eaf3ef;color:#155646;}
+[data-theme=dark] .an-tabbtn{background:#2d2b25;border-color:#4a463b;color:#e8e4d8;}
+[data-theme=dark] .an-tabbtn.active{background:#1f3a33;border-color:#3fa389;color:#8fd3bc;}
+
+/* ---- thin ambient eval strip next to the board, instead of a big separate card ---- */
+.an-graphstrip{margin-top:8px;}
+.an-graphstrip svg{width:100%;height:24px;display:block;cursor:pointer;border-radius:4px;}
+
+/* ---- de-emphasized inline lesson tip (was a full section before) ---- */
+.an-lesson-mini{margin-top:10px;font-size:12px;line-height:1.5;color:#7a5c1f;background:#fff6e6;border:1px solid #e8d6ae;border-radius:6px;padding:7px 10px;}
+[data-theme=dark] .an-lesson-mini{background:#3a3220;border-color:#5a4a2a;color:#e3c98a;}
 </style>
 <script>
 (function(){
@@ -4816,7 +4836,7 @@ body.dnd-dragging,body.dnd-dragging *{cursor:grabbing !important;}
   // =====================================================================
   //  UI
   // =====================================================================
-  var A = null, running = false, cancelFlag = false;
+  var A = null, running = false, cancelFlag = false, activeTab = 'board';
   var screen = document.createElement('div');
   screen.id = 'screen-analyze';
   screen.style.display = 'none';
@@ -4848,10 +4868,38 @@ body.dnd-dragging,body.dnd-dragging *{cursor:grabbing !important;}
     return v;
   }
 
+  // ---- renderAnalyze now only lays out two permanent containers; everything
+  // else (input form vs the compact "Analyzing: ..." bar, and results) is
+  // re-rendered into them independently so neither wipes the other out ----
   function renderAnalyze(){
     showScreen('analyze');
+    if(!document.getElementById('anInputWrap')){
+      screen.innerHTML = '<div id="anInputWrap"></div><div id="anRes"></div>';
+    }
+    renderInputBox();
+    if(A) renderResults(); else document.getElementById('anRes').innerHTML = '';
+  }
+
+  function renderInputBox(){
+    var wrap = document.getElementById('anInputWrap');
+    if(!wrap) return;
+
+    if(A){
+      // collapse to a single line once a game is loaded, instead of keeping
+      // the full paste/upload form taking up space forever
+      var title = (A.hdr.White || 'White') + ' vs ' + (A.hdr.Black || 'Black') + (A.hdr.Result ? ' \u00b7 ' + A.hdr.Result : '');
+      wrap.innerHTML = '<div class="card an-compact"><span>Analyzing: <b>' + esc(title) + '</b></span><button class="secondary" id="anNewBtn">New analysis</button></div>';
+      document.getElementById('anNewBtn').onclick = function(){
+        A = null;
+        activeTab = 'board';
+        renderInputBox();
+        document.getElementById('anRes').innerHTML = '';
+      };
+      return;
+    }
+
     var ms = speedMs();
-    screen.innerHTML =
+    wrap.innerHTML =
       '<div class="card an-in"><h2>Analyze a game</h2>' +
         '<p class="desc">Paste a PGN or upload a .pgn file. A chess engine runs in your browser (free, nothing is uploaded) and each move is explained in plain language: what it does, why it works or fails, and what to play instead.</p>' +
         '<textarea id="anPgn" placeholder="1. e4 e5 2. Nf3 Nc6 3. Bb5 a6 ..."></textarea>' +
@@ -4866,8 +4914,7 @@ body.dnd-dragging,body.dnd-dragging *{cursor:grabbing !important;}
           '</select>' +
         '</div>' +
         '<div id="anProg"></div>' +
-      '</div>' +
-      '<div id="anRes"></div>';
+      '</div>';
     document.getElementById('anGo').onclick = function(){ start(document.getElementById('anPgn').value); };
     var fb = document.getElementById('anFileBtn'), fi = document.getElementById('anFile');
     fb.onclick = function(){ fi.click(); };
@@ -4881,7 +4928,6 @@ body.dnd-dragging,body.dnd-dragging *{cursor:grabbing !important;}
     document.getElementById('anSpeed').onchange = function(){
       try{ localStorage.setItem('pawniac-analyze-ms', this.value); }catch(e){}
     };
-    if(A) renderResults();
   }
 
   function setProg(html, pct){
@@ -4892,7 +4938,6 @@ body.dnd-dragging,body.dnd-dragging *{cursor:grabbing !important;}
 
   async function start(text){
     if(running){ cancelFlag = true; return; }
-    var prog = document.getElementById('anProg');
     try{
       var parsed = parsePgn(text);
       running = true; cancelFlag = false;
@@ -4910,7 +4955,9 @@ body.dnd-dragging,body.dnd-dragging *{cursor:grabbing !important;}
       A = build(parsed, ev);
       A.engineKind = eng.kind;
       A.sel = 0;
+      activeTab = 'board';
       setProg('', 0);
+      renderInputBox();   // collapse the form now that A is set
       renderResults();
     }catch(e){
       console.error(e);
@@ -4996,7 +5043,7 @@ body.dnd-dragging,body.dnd-dragging *{cursor:grabbing !important;}
 
   function panelHtml(){
     if(A.sel === 0){
-      return '<div class="an-title">Start of the game</div><p class="desc" style="margin-top:8px;">Use the arrows (or your keyboard arrow keys) to step through the game. Click any move in the list or any point on the graph. Each move gets a plain-language explanation here.</p>' +
+      return '<div class="an-title">Start of the game</div><p class="desc" style="margin-top:8px;">Use the arrows (or your keyboard arrow keys) to step through the game. Click any move in the list, or anywhere on the thin bar under the board. Each move gets a plain-language explanation here.</p>' +
         '<div class="an-sec"><h4>How the engine sees it</h4>' + evalBlock(A.fens[0], A.ev[0].cp).map(function(l){ return '<p>' + esc(l) + '</p>'; }).join('') + '</div>';
     }
     var E = explain(A, A.sel - 1), L = LABEL[E.label];
@@ -5013,7 +5060,8 @@ body.dnd-dragging,body.dnd-dragging *{cursor:grabbing !important;}
         (E.cons.length ? '<ul>' + E.cons.map(function(p){ return '<li>' + esc(p) + '</li>'; }).join('') + '</ul>' : '<p>-</p>') + '</div></div>';
     }
     if(E.engine.length) h += '<div class="an-sec"><h4>How the engine sees the position</h4>' + E.engine.map(function(l){ return '<p style="margin-bottom:5px;">' + esc(l) + '</p>'; }).join('') + '</div>';
-    if(E.lesson) h += '<div class="an-sec"><div class="an-lesson"><b>Lesson:</b> ' + esc(E.lesson) + '</div></div>';
+    // de-emphasized: a small inline tip instead of a full labelled section
+    if(E.lesson) h += '<div class="an-lesson-mini">\uD83D\uDCA1 ' + esc(E.lesson) + '</div>';
     return h;
   }
 
@@ -5042,24 +5090,49 @@ body.dnd-dragging,body.dnd-dragging *{cursor:grabbing !important;}
     return '<div class="card"><h2>' + title + '</h2><p class="desc" style="margin-bottom:12px;">' + eng + '</p><div class="an-sumgrid">' + cols + '</div>' + moments + '</div>';
   }
 
+  // ---- Board tab: everything interactive, with the eval graph as a thin
+  // strip right under the board/controls instead of a separate big card ----
+  function boardTabHtml(){
+    return '<div class="card"><div class="an-main">' +
+      '<div><div class="an-boardcol"><div id="anEvalBar" class="an-evalbar"><div></div></div><div id="anBoard"></div></div>' +
+        '<div class="an-graphstrip" id="anGraphBox"></div>' +
+        '<div class="an-ctrl"><button class="secondary" id="anFirst">&laquo;</button><button class="secondary" id="anPrev">&lsaquo;</button>' +
+        '<button class="secondary" id="anNext">&rsaquo;</button><button class="secondary" id="anLast">&raquo;</button>' +
+        '<button class="secondary" id="anFlip">Flip</button></div></div>' +
+      '<div class="an-side"><div id="anPanel"></div><div class="an-moves" id="anMoves"></div></div>' +
+    '</div></div>';
+  }
+
   function renderResults(){
     var res = document.getElementById('anRes');
     if(!res || !A) return;
-    res.innerHTML = summaryHtml() +
-      '<div class="card"><div class="an-main">' +
-        '<div><div class="an-boardcol"><div id="anEvalBar" class="an-evalbar"><div></div></div><div id="anBoard"></div></div>' +
-          '<div class="an-ctrl"><button class="secondary" id="anFirst">&laquo;</button><button class="secondary" id="anPrev">&lsaquo;</button>' +
-          '<button class="secondary" id="anNext">&rsaquo;</button><button class="secondary" id="anLast">&raquo;</button>' +
-          '<button class="secondary" id="anFlip">Flip</button></div></div>' +
-        '<div class="an-side"><div id="anPanel"></div><div class="an-moves" id="anMoves"></div></div>' +
-      '</div></div>' +
-      '<div class="card an-graph"><h2>Evaluation</h2><p class="desc" style="margin-bottom:10px;">White is the light area. Click anywhere to jump to that move.</p><div id="anGraphBox"></div></div>';
+    res.innerHTML =
+      '<div class="an-tabs">' +
+        '<button class="an-tabbtn' + (activeTab === 'board' ? ' active' : '') + '" data-tab="board">Board</button>' +
+        '<button class="an-tabbtn' + (activeTab === 'report' ? ' active' : '') + '" data-tab="report">Report</button>' +
+      '</div>' +
+      '<div id="anBoardTab" style="display:' + (activeTab === 'board' ? 'block' : 'none') + '">' + boardTabHtml() + '</div>' +
+      '<div id="anReportTab" style="display:' + (activeTab === 'report' ? 'block' : 'none') + '">' + summaryHtml() + '</div>';
+
+    res.querySelectorAll('.an-tabbtn').forEach(function(b){
+      b.onclick = function(){
+        activeTab = b.dataset.tab;
+        renderResults();
+      };
+    });
+    res.querySelectorAll('.an-moment').forEach(function(el){
+      el.onclick = function(){
+        activeTab = 'board';
+        renderResults();
+        goto(+el.dataset.ply);
+        window.scrollTo({top:res.offsetTop, behavior:'smooth'});
+      };
+    });
     document.getElementById('anFirst').onclick = function(){ goto(0); };
     document.getElementById('anPrev').onclick = function(){ goto(A.sel - 1); };
     document.getElementById('anNext').onclick = function(){ goto(A.sel + 1); };
     document.getElementById('anLast').onclick = function(){ goto(A.moves.length); };
     document.getElementById('anFlip').onclick = function(){ A.flip = !A.flip; paintSel(); };
-    res.querySelectorAll('.an-moment').forEach(function(el){ el.onclick = function(){ goto(+el.dataset.ply); window.scrollTo({top:res.offsetTop + 260, behavior:'smooth'}); }; });
     paintSel();
   }
 
@@ -5144,6 +5217,7 @@ body.dnd-dragging,body.dnd-dragging *{cursor:grabbing !important;}
               var pgn = gamePgn(g);
               stopPoll();
               A = null;
+              activeTab = 'board';
               renderAnalyze();
               document.getElementById('anPgn').value = pgn;
               start(pgn);
