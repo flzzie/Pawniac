@@ -4093,7 +4093,7 @@ body.dnd-dragging,body.dnd-dragging *{cursor:grabbing !important;}
 })();
 </script>
 <!-- ===== END STEP 15 v2 ===== -->
-<!-- ===== PAWNIAC STEP 16 v2: ANALYZE, YOUR PERSPECTIVE + TIME + PRACTICE (replaces the old step 16 block completely) ===== -->
+<!-- ===== PAWNIAC STEP 16 v3: ANALYZE, now searches to a fixed depth (replaces the old step 16 block completely) ===== -->
 <style>
 .an-in textarea{width:100%;min-height:130px;border:1px solid #d8d1bf;border-radius:7px;padding:10px 12px;font-size:12.5px;font-family:monospace;resize:vertical;background:#fff;color:inherit;}
 [data-theme=dark] .an-in textarea{background:#1b1a17;border-color:#4a463b;color:#e8e4d8;}
@@ -4242,13 +4242,26 @@ body.dnd-dragging,body.dnd-dragging *{cursor:grabbing !important;}
   async function getEngine(setStatus){
     if(ENGINE) return ENGINE;
     setStatus('Loading the chess engine (first time only)...');
-    try{ ENGINE = {kind:'stockfish', w:await loadStockfish()}; }catch(e){ ENGINE = {kind:'basic'}; }
+    try{
+      ENGINE = {kind:'stockfish', w:await loadStockfish()};
+      setStatus('Warming up the engine...');
+      ENGINE.w.postMessage('ucinewgame');
+      try{ await sfEval(ENGINE.w, 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1', 300); }catch(e){}
+    }catch(e){ ENGINE = {kind:'basic'}; }
     return ENGINE;
+  }
+  // search to a fixed depth so results do not depend on how fast the device is;
+  // the time cap only stops positions that are very slow to search
+  function sfLimits(ms){
+    if(ms <= 300) return {depth:10, cap:3000};
+    if(ms <= 500) return {depth:11, cap:3000};
+    if(ms <= 800) return {depth:12, cap:6000};
+    return {depth:14, cap:12000};
   }
   function sfEval(w, fen, ms){
     return new Promise(function(resolve, reject){
       var last = null;
-      var guard = setTimeout(function(){ w.removeEventListener('message', h); reject(new Error('engine timed out')); }, ms + 20000);
+      var guard = setTimeout(function(){ w.removeEventListener('message', h); reject(new Error('engine timed out')); }, 60000);
       function h(e){
         var line = String(e.data);
         if(line.indexOf('info') === 0 && line.indexOf(' score ') > 0 && line.indexOf(' pv ') > 0 && !/lowerbound|upperbound/.test(line)){
@@ -4266,7 +4279,8 @@ body.dnd-dragging,body.dnd-dragging *{cursor:grabbing !important;}
       }
       w.addEventListener('message', h);
       w.postMessage('position fen ' + fen);
-      w.postMessage('go movetime ' + ms);
+      var lim = sfLimits(ms);
+      w.postMessage('go depth ' + lim.depth + ' movetime ' + lim.cap);
     });
   }
   var BV = {p:100, n:320, b:330, r:500, q:900, k:0};
@@ -5214,7 +5228,9 @@ body.dnd-dragging,body.dnd-dragging *{cursor:grabbing !important;}
     var tf = timeFindings(A), sug = timeSuggest(A), timeBody;
     if(A.time.has) timeBody = ps(tf) + (sug ? '<p class="hint" style="margin-top:8px;">' + esc(sug) + '</p>' : '');
     else timeBody = '<p class="an-note">There are no clock tags in this PGN, so I cannot check time per move. Games from Lichess or Chess.com include them. (Games played on Pawniac do not record per-move times yet.)</p>' + (sug ? '<p class="an-note">' + esc(sug) + '</p>' : '');
-    var eng = A.engineKind === 'stockfish' ? 'Analysed with Stockfish running in your browser.' : 'Stockfish could not be loaded, so this used a small built-in engine. Explanations are less reliable.';
+    var ds = A.ev.map(function(e){ return e.depth || 0; }).filter(function(d){ return d > 0; });
+    var avgD = ds.length ? Math.round(ds.reduce(function(a, b){ return a + b; }, 0) / ds.length) : 0;
+    var eng = A.engineKind === 'stockfish' ? 'Analysed with Stockfish running in your browser (average search depth ' + avgD + ').' : 'Stockfish could not be loaded, so this used a small built-in engine. Explanations are less reliable.';
     var title = esc((A.hdr.White || 'White') + ' vs ' + (A.hdr.Black || 'Black')) + (A.hdr.Result ? ' &middot; ' + esc(A.hdr.Result) : '');
     var nPr = practiceItems().length;
     return '<div class="card"><h2>' + title + '</h2><p class="desc" style="margin-bottom:12px;">' + eng + '</p>' +
@@ -5434,7 +5450,7 @@ body.dnd-dragging,body.dnd-dragging *{cursor:grabbing !important;}
   };
 })();
 </script>
-<!-- ===== END STEP 16 v2 ===== -->
+<!-- ===== END STEP 16 v3 ===== -->
   <!-- ===== PAWNIAC STEP 17: TIME PER MOVE (saved with every game) + ANALYZE SENDS THE TIMES (paste at the very bottom, below step 16) ===== -->
 <script>
 (function(){
