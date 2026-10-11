@@ -4093,7 +4093,7 @@ body.dnd-dragging,body.dnd-dragging *{cursor:grabbing !important;}
 })();
 </script>
 <!-- ===== END STEP 15 v2 ===== -->
-<!-- ===== PAWNIAC STEP 16 v3: ANALYZE, now searches to a fixed depth (replaces the old step 16 block completely) ===== -->
+<!-- ===== PAWNIAC STEP 16 v4: ANALYZE (replaces the whole old step 16 block) ===== -->
 <style>
 .an-in textarea{width:100%;min-height:130px;border:1px solid #d8d1bf;border-radius:7px;padding:10px 12px;font-size:12.5px;font-family:monospace;resize:vertical;background:#fff;color:inherit;}
 [data-theme=dark] .an-in textarea{background:#1b1a17;border-color:#4a463b;color:#e8e4d8;}
@@ -4191,6 +4191,8 @@ body.dnd-dragging,body.dnd-dragging *{cursor:grabbing !important;}
     if(isMate(cp)) return (cp > 0 ? '+' : '-') + 'M' + mateN(cp);
     var v = cp / 100; return (v >= 0 ? '+' : '') + v.toFixed(2);
   }
+  // takes an eval from the player's point of view and prints it from WHITE's point of view (+ = White ahead, - = Black ahead)
+  function fw(cp, me){ return fmtEval(me === 'w' ? cp : -cp); }
   function fmtSec(s){ s = Math.round(s); return s < 60 ? s + 's' : Math.floor(s / 60) + 'm ' + (s % 60 < 10 ? '0' : '') + (s % 60) + 's'; }
   function fenParts(fen){ var p = fen.split(' '); return {turn:p[1], rights:p[2] || '-', full:parseInt(p[5], 10) || 1}; }
   function moveNumText(fen){ var p = fenParts(fen); return p.full + (p.turn === 'w' ? '.' : '...'); }
@@ -4440,6 +4442,20 @@ body.dnd-dragging,body.dnd-dragging *{cursor:grabbing !important;}
     });
     return res.sort(function(a, b){ return b.net - a.net; });
   }
+  // after `mv` is played by `color`, which valuable enemy pieces does the moved piece attack at once? (a fork)
+  function forkOf(fen, mv, color){
+    try{
+      var c = new Chess(fen), made = c.move({from:mv.from, to:mv.to, promotion:mv.promotion});
+      if(!made) return null;
+      var c2 = new Chess(flipTurn(c.fen(), color)), seen = {}, t = [];
+      c2.moves({verbose:true}).forEach(function(x){
+        if(x.from !== mv.to || !x.captured || x.captured === 'k' || seen[x.to]) return;
+        if(VAL[x.captured] >= 3 || VAL[x.captured] > VAL[mv.piece]){ seen[x.to] = 1; t.push('the ' + NAMES[x.captured] + ' on ' + x.to); }
+      });
+      if(/[+#]/.test(made.san)) t.push('the king');
+      return t.length >= 2 ? t.slice(0, 3).join(' and ') : null;
+    }catch(e){ return null; }
+  }
   function weakPawns(fen, color){
     var c = new Chess(fen), b = c.board(), cnt = [0,0,0,0,0,0,0,0], list = [];
     for(var r = 0; r < 8; r++) for(var f = 0; f < 8; f++){ var p = b[r][f]; if(p && p.type === 'p' && p.color === color) cnt[f]++; }
@@ -4476,7 +4492,7 @@ body.dnd-dragging,body.dnd-dragging *{cursor:grabbing !important;}
 
   function evalBlock(fen, cpMe, me){
     var opp = me === 'w' ? 'b' : 'w', F = features(fen), M = F[me], O = F[opp], lines = [];
-    lines.push(whoWords(cpMe) + ' (' + fmtEval(cpMe) + ').');
+    lines.push(whoWords(cpMe) + ' (' + fw(cpMe, me) + ').');
     if(!isMate(cpMe)) lines.push('That figure is about ' + Math.abs(cpMe / 100).toFixed(1) + ' pawns in ' + (cpMe >= 0 ? 'your' : "your opponent's") + ' favour. Engines squeeze the whole board into that one number.');
     var md = M.mat - O.mat, matIdx = lines.length;
     lines.push(md === 0 ? 'Material is even (pawn 1, minor piece 3, rook 5, queen 9).' : (md > 0 ? 'You are up ' : 'You are down ') + plural(Math.abs(md), 'point') + ' of material.');
@@ -4741,7 +4757,17 @@ body.dnd-dragging,body.dnd-dragging *{cursor:grabbing !important;}
     king:'Get the king safe before starting an attack.',
     quiet:'Not every mistake is a tactic. Compare candidate moves by what each one improves: your worst-placed piece, king safety, or a pawn break.'
   };
-  function bump(A, key){ A.rep.theme[key] = (A.rep.theme[key] || 0) + 1; return A.rep.theme[key]; }
+  LESSON.structure = 'Before pushing pawns or moving the pieces next to your king, check what the move weakens: king cover, pawn chains, squares your pieces needed.';
+  LESSON.threat = 'Before each move, ask "what is my opponent threatening right now?" and answer that first.';
+  // how each pattern reads in the report: "You <text> ..."
+  var PNAME = {
+    hang:'left a piece capturable', mate:'allowed a forced mate', missed:'missed a tactic that was on the board',
+    opening:'broke opening principles', king:'left your king in the centre too long', structure:'weakened your pawn structure or king cover',
+    free:'passed up free material', threat:"ignored your opponent's threat"
+  };
+  // theme[key] is the list of move indexes where that idea caught you out
+  function bump(A, key, mi){ var t = A.rep.theme[key] || (A.rep.theme[key] = []); t.push(mi); return t.length; }
+  function movesList(A, arr){ return arr.map(function(j){ return mvNo(A, j); }).join(', '); }
 
   function explainMine(A, i){
     var m = A.moves[i], S = A.stats[i], me = A.me, opp = A.opp, fenB = A.fens[i], fenA = A.fens[i + 1];
@@ -4775,7 +4801,7 @@ body.dnd-dragging,body.dnd-dragging *{cursor:grabbing !important;}
         missed = 'You could have won ' + thing + ' on ' + w0.to + ' with ' + w0.san + '.';
         var sc = (A.rep.sq[w0.to] = (A.rep.sq[w0.to] || 0) + 1);
         if(sc >= 2) repeat.push('Again, the same chance on ' + w0.to + '. This is the ' + (sc === 2 ? 'second' : sc === 3 ? 'third' : sc + 'th') + ' time you let it go.');
-        bump(A, 'free'); lessonKey = 'free';
+        bump(A, 'free', i); lessonKey = 'free';
       }
     }catch(e){ console.error(e); }
 
@@ -4859,8 +4885,9 @@ body.dnd-dragging,body.dnd-dragging *{cursor:grabbing !important;}
           why.push('You had a forced checkmate' + (mn ? ' in ' + mn : '') + ': <span class="an-line">' + esc(sanLine(fenB, evB.pv, 2 * (mn || 1))) + '</span>');
           cons.push('Missed a forced mate.'); lessonKey = lessonKey || 'missed';
         } else if(bm && bestInfo && bestInfo.net >= 2){
-          why.push('You missed a tactic: ' + bestSan + ' wins about ' + plural(bestInfo.net, 'point') + ' of material.');
-          cons.push('Missed a material-winning tactic.'); lessonKey = lessonKey || 'missed';
+          var fk = forkOf(fenB, bm, me), how = bm.captured ? ' (a capture)' : (/[+#]/.test(bestSan) ? ' (a check)' : '');
+          why.push('You missed a tactic: ' + bestSan + how + (fk ? ', which attacks ' + fk + ' at once,' : '') + ' and wins about ' + plural(bestInfo.net, 'point') + ' of material.');
+          cons.push(fk ? 'Missed a fork.' : 'Missed a material-winning tactic.'); lessonKey = lessonKey || 'missed';
         }
         // their plan after your move
         if(refInfo && refInfo.sans.length >= 3 && refInfo.sans[0].charAt(0) === refInfo.sans[2].charAt(0) && /[NBRQK]/.test(refInfo.sans[0].charAt(0)))
@@ -4883,12 +4910,14 @@ body.dnd-dragging,body.dnd-dragging *{cursor:grabbing !important;}
         if(fA[me].shield < fB[me].shield && fA.total >= 25) bits.push('it thins the pawn shield in front of your king');
         if(fB[me].bishops >= 2 && fA[me].bishops < 2) bits.push('it gives up the bishop pair');
         if(fA[me].centre < fB[me].centre) bits.push('it gives up a central pawn');
-        if(bits.length){ why.push('There is no immediate tactic, but ' + bits.join(' and ') + '.'); cons.push(cap(bits[0]) + '.'); }
-        else{
-          why.push('There is no single tactic to point at. The move is slower than the alternative and lets your opponent improve with tempo: from your side the position went from ' + fmtEval(S.cpBefore) + ' to ' + fmtEval(S.cpAfter) + '.');
+        if(bits.length){
+          why.push('There is no immediate tactic, but ' + bits.join(' and ') + '.'); cons.push(cap(bits[0]) + '.');
+          lessonKey = 'structure';
+        } else {
+          why.push('There is no single tactic to point at. The move is slower than the alternative and lets your opponent improve with tempo: the eval went from ' + fw(S.cpBefore, me) + ' to ' + fw(S.cpAfter, me) + ' (+ = White ahead).');
           cons.push('Quiet move that hands over the initiative.');
+          lessonKey = 'quiet';
         }
-        lessonKey = lessonKey || 'quiet';
       }
     } else {
       if(label === 'best') why.push("This is the engine's top choice.");
@@ -4900,7 +4929,6 @@ body.dnd-dragging,body.dnd-dragging *{cursor:grabbing !important;}
       else if(Math.abs(S.cpAfter) < 60) why.push('The game stays balanced.');
       if(m.captured && VAL[m.captured] === VAL[m.piece] && S.cpAfter >= 150) pros.push('An even trade when ahead: simplifying makes the advantage easier to convert.');
       if(!pros.length && !notes.length) pros.push('Keeps your position healthy and your pieces coordinated.');
-      if(label !== 'best' && bm) cons.push('The engine slightly preferred ' + bestSan + '.');
       if(S.cpAfter <= -150) cons.push('Even with good moves, the position is worse for you.');
     }
 
@@ -4913,20 +4941,27 @@ body.dnd-dragging,body.dnd-dragging *{cursor:grabbing !important;}
       else if(bd.tags.indexOf('castle') >= 0) reason = 'It gets your king safe first.';
       else if(bd.tags.indexOf('develop') >= 0) reason = 'It develops a new piece instead.';
       else if(bd.tags.indexOf('centre') >= 0) reason = 'It takes the centre.';
-      else reason = 'It keeps the evaluation at ' + fmtEval(S.cpBefore) + ' where your move dropped it to ' + fmtEval(S.cpAfter) + '.';
+      else reason = 'It keeps the eval at ' + fw(S.cpBefore, me) + ' where your move dropped it to ' + fw(S.cpAfter, me) + ' (+ = White ahead).';
       better = {san:bestSan, text:cap(bd.text) + '. ' + reason, line:sanLine(fenB, evB.pv, 5)};
     }
 
-    // ----- repeated themes
-    if(lessonKey && lessonKey !== 'free'){
-      var c = bump(A, lessonKey);
-      if(c >= 2) repeat.push('This is the ' + (c === 2 ? 'second' : c === 3 ? 'third' : c + 'th') + ' time this game the same idea has caught you out. ' + LESSON[lessonKey]);
+    // ----- repeated themes (real patterns: same kind of error, with the earlier move numbers)
+    if(lessonKey && lessonKey !== 'free' && lessonKey !== 'quiet'){
+      var c = bump(A, lessonKey, i);
+      if(c >= 2) repeat.push('Pattern: you ' + PNAME[lessonKey] + ' again (earlier on move ' + movesList(A, A.rep.theme[lessonKey].slice(0, -1)) + '). ' + LESSON[lessonKey]);
+    }
+    if(threat){
+      var ct = bump(A, 'threat', i);
+      if(ct >= 2) repeat.push('Pattern: you ' + PNAME.threat + ' again (earlier on move ' + movesList(A, A.rep.theme.threat.slice(0, -1)) + '). ' + LESSON.threat);
     }
     var tm = A.time.spent[i];
     return {
       mine:true, mode:mode, label:label, i:i,
       title:moveNumText(fenB) + ' ' + m.san,
-      evalLine:'You: ' + fmtEval(S.cpBefore) + '  ->  ' + fmtEval(S.cpAfter) + "  (positive = you're better)",
+      evalLine:'Eval: ' + fw(S.cpBefore, me) + '  ->  ' + fw(S.cpAfter, me) + '  (+ = White ahead, - = Black ahead). ' +
+        (S.cpAfter - S.cpBefore < -15 ? 'This move cost you about ' + (Math.abs(S.cpAfter - S.cpBefore) / 100).toFixed(1) + ' pawns.'
+         : S.cpAfter - S.cpBefore > 15 ? 'This move improved your position by about ' + ((S.cpAfter - S.cpBefore) / 100).toFixed(1) + ' pawns.'
+         : 'Your position stayed about the same.'),
       what:'This move ' + d.text + '.',
       why:why, better:better, pros:pros, cons:cons, notes:notes, trade:trade, missed:missed, weakT:weakT, threat:threat, plan:plan, repeat:repeat,
       engine:evalBlock(fenA, S.cpAfter, A.me),
@@ -5166,7 +5201,7 @@ body.dnd-dragging,body.dnd-dragging *{cursor:grabbing !important;}
 
   function panelHtml(){
     if(A.sel === 0){
-      return '<div class="an-title">Start of the game</div><p class="desc" style="margin-top:8px;">You are analyzing as ' + (A.me === 'w' ? 'White' : 'Black') + '. Step through with the arrows (or your keyboard arrow keys), click a move, or click the thin bar under the board. Your moves get a coloured dot and a coach explanation. Your opponent\'s moves only get a note when they matter to you.</p>' +
+      return '<div class="an-title">Start of the game</div><p class="desc" style="margin-top:8px;">You are analyzing as ' + (A.me === 'w' ? 'White' : 'Black') + '. Step through with the arrows (or your keyboard arrow keys), click a move, or click the thin bar under the board. Your moves get a coloured dot and a coach explanation. Your opponent\'s moves only get a note when they matter to you. Evals use the standard sign: + means White is ahead, - means Black is ahead.</p>' +
         sec('How the engine sees it', ps(evalBlock(A.fens[0], pov(A, A.ev[0].cp), A.me)));
     }
     var E = explain(A, A.sel - 1);
@@ -5221,10 +5256,31 @@ body.dnd-dragging,body.dnd-dragging *{cursor:grabbing !important;}
     var moments = swings.length ? '<p class="desc" style="margin:14px 0 0;">Your turning points: ' + swings.map(function(x){
       return '<span class="an-moment" data-ply="' + (x.i + 1) + '">' + esc(moveNumText(A.fens[x.i]) + ' ' + A.moves[x.i].san) + ' (' + LABEL[A.stats[x.i].label].t.toLowerCase() + ')</span>';
     }).join(', ') + '. Click one to jump to it.</p>' : '<p class="desc" style="margin:14px 0 0;">No big turning points against you. A clean game.</p>';
-    var recur = [];
-    Object.keys(A.rep.sq).forEach(function(s){ if(A.rep.sq[s] >= 2) recur.push('You passed up the same free material on ' + s + ' ' + A.rep.sq[s] + ' times.'); });
-    var names = {hang:'leaving pieces hanging', mate:'walking into mating attacks', missed:'missing tactics', opening:'breaking opening principles', king:'leaving the king in the centre', quiet:'quiet positional slips', free:'missing free material'};
-    Object.keys(A.rep.theme).forEach(function(k){ if(A.rep.theme[k] >= 2 && names[k]) recur.push('This game you kept ' + names[k] + ' (' + A.rep.theme[k] + ' times). ' + LESSON[k]); });
+
+    // ---- real patterns ----
+    var recur = [], sqHit = false;
+    Object.keys(A.rep.sq).forEach(function(s){ if(A.rep.sq[s] >= 2){ sqHit = true; recur.push('You passed up the same free material on ' + s + ' ' + A.rep.sq[s] + ' times.'); } });
+    Object.keys(A.rep.theme).forEach(function(k){
+      var l = A.rep.theme[k];
+      if(k === 'free' && sqHit) return;
+      if(l.length >= 2 && PNAME[k]) recur.push('You ' + PNAME[k] + ' ' + l.length + ' times (moves ' + movesList(A, l) + '). ' + (LESSON[k] || ''));
+    });
+    // which piece caused most of your big mistakes
+    var byPiece = {};
+    myIdx(A).forEach(function(i){
+      var lb = A.stats[i].label;
+      if(lb === 'mistake' || lb === 'blunder'){ var p = A.moves[i].piece; (byPiece[p] = byPiece[p] || []).push(i); }
+    });
+    Object.keys(byPiece).forEach(function(p){
+      if(byPiece[p].length >= 3) recur.push('Most of your big mistakes were ' + NAMES[p] + ' moves (moves ' + movesList(A, byPiece[p]) + '). Slow down and double-check before moving your ' + NAMES[p] + '.');
+    });
+    // do the mistakes cluster after trades or after your opponent checks?
+    var afterCheck = myIdx(A).filter(function(i){
+      var lb = A.stats[i].label, pv = i > 0 ? A.moves[i - 1] : null;
+      return (lb === 'mistake' || lb === 'blunder') && pv && /[+]/.test(pv.san);
+    });
+    if(afterCheck.length >= 2) recur.push('You went wrong ' + afterCheck.length + ' times right after being checked (moves ' + movesList(A, afterCheck) + '). List every legal way out of check before choosing one.');
+
     var tf = timeFindings(A), sug = timeSuggest(A), timeBody;
     if(A.time.has) timeBody = ps(tf) + (sug ? '<p class="hint" style="margin-top:8px;">' + esc(sug) + '</p>' : '');
     else timeBody = '<p class="an-note">There are no clock tags in this PGN, so I cannot check time per move. Games from Lichess or Chess.com include them. (Games played on Pawniac do not record per-move times yet.)</p>' + (sug ? '<p class="an-note">' + esc(sug) + '</p>' : '');
@@ -5324,6 +5380,30 @@ body.dnd-dragging,body.dnd-dragging *{cursor:grabbing !important;}
   function startPractice(){
     PR = {items:practiceItems(), k:0, score:0, res:[], sel:null, tries:0, hint:0, state:'ask', msg:'', msgCls:'', busy:false, fin:false, points:0};
   }
+  // hints get more specific with every press: 1 = the idea, 2 = which piece, 3 = its square
+  function hintTexts(i, level){
+    var out = [], fen = A.fens[i], best = A.ev[i].best, bm = best ? tryMove(fen, best) : null;
+    if(!bm) return out;
+    var me = A.me, opp = A.opp, s1;
+    if(level >= 1){
+      try{
+        var thr = winsFor(fen, opp).filter(function(w){ return w.net >= 2; });
+        var fk = forkOf(fen, bm, me), fl = bm.flags || '';
+        if(A.stats[i].cpBefore >= 9000) s1 = 'There is a forced checkmate here. List every check you have.';
+        else if(fk) s1 = 'Look for a move that attacks two valuable things at once.';
+        else if(bm.captured) s1 = 'A capture works here. Which of their pieces is loose, or can be won with a good trade?';
+        else if(/[+#]/.test(bm.san)) s1 = 'A forcing check is the key. Checks first, then captures, then threats.';
+        else if(thr.length) s1 = 'Your opponent is threatening to win material (' + thr[0].san + ' takes your ' + NAMES[thr[0].piece] + '). Deal with that first.';
+        else if(fl.indexOf('k') >= 0 || fl.indexOf('q') >= 0) s1 = 'Think about your king: can it be made safe right now?';
+        else if(i < 24 && (bm.piece === 'n' || bm.piece === 'b') && bm.from.charAt(1) === (me === 'w' ? '1' : '8')) s1 = 'Think development: which of your pieces is still sitting at home?';
+        else s1 = 'There is no big tactic. Ask which of your pieces is worst placed, and how to improve it.';
+      }catch(e){ s1 = 'Run a safety check first: what is attacked, and what is defended?'; }
+      out.push(s1);
+    }
+    if(level >= 2) out.push('The best move is made with your ' + NAMES[bm.piece] + '.');
+    if(level >= 3) out.push('That piece is highlighted on the board.');
+    return out;
+  }
   function renderPractice(){
     var box = document.getElementById('anPracticeTab');
     if(!box || !A) return;
@@ -5344,16 +5424,16 @@ body.dnd-dragging,body.dnd-dragging *{cursor:grabbing !important;}
     if(PR.sel && PR.state === 'ask'){
       dests = new Chess(fen).moves({verbose:true}).filter(function(x){ return x.from === PR.sel; }).map(function(x){ return x.to; });
     }
-    var opts = {sel:PR.sel, dests:dests, hintFrom:(PR.hint >= 2 && PR.state === 'ask') ? A.ev[i].best.slice(0, 2) : null};
+    var opts = {sel:PR.sel, dests:dests, hintFrom:(PR.hint >= 3 && PR.state === 'ask') ? A.ev[i].best.slice(0, 2) : null};
     var arrows = [];
     if(PR.state !== 'ask') arrows.push({from:A.ev[i].best.slice(0, 2), to:A.ev[i].best.slice(2, 4), color:'#1f9d55'});
     var bestMv = tryMove(fen, A.ev[i].best), bestSan = bestMv ? bestMv.san : A.ev[i].best;
     var side = '<div class="an-title">Position ' + (PR.k + 1) + ' of ' + PR.items.length + '</div>' +
       '<p class="an-note" style="margin-top:8px;">In your game you played <b>' + esc(m.san) + '</b> here (a ' + A.stats[i].label + ', move ' + mvNo(A, i) + '). Find a better move: click a piece, then a square.</p>';
     if(PR.state === 'ask'){
-      if(PR.hint >= 1) side += '<div class="an-fb">Hint: look at your <b>' + NAMES[A.ev[i].best ? (new Chess(fen).get(A.ev[i].best.slice(0, 2)) || {type:'p'}).type : 'p'] + '</b>.' + (PR.hint >= 2 ? ' Its square is highlighted.' : '') + '</div>';
+      if(PR.hint >= 1) side += '<div class="an-fb"><b>Hint:</b> ' + hintTexts(i, PR.hint).map(esc).join(' ') + '</div>';
       if(PR.msg) side += '<div class="an-fb ' + PR.msgCls + '">' + esc(PR.msg) + '</div>';
-      side += '<div class="an-prbtns"><button class="secondary" id="prHint"' + (PR.busy || PR.hint >= 2 ? ' disabled' : '') + '>' + (PR.hint === 0 ? 'Hint' : 'More help') + '</button><button class="secondary danger" id="prShow"' + (PR.busy ? ' disabled' : '') + '>Show answer</button></div>';
+      side += '<div class="an-prbtns"><button class="secondary" id="prHint"' + (PR.busy || PR.hint >= 3 ? ' disabled' : '') + '>' + (PR.hint === 0 ? 'Hint' : 'More help') + '</button><button class="secondary danger" id="prShow"' + (PR.busy ? ' disabled' : '') + '>Show answer</button></div>';
     } else {
       side += '<div class="an-fb ' + (PR.msgCls || '') + '">' + esc(PR.msg) + '</div>';
       side += sec('The best move was ' + esc(bestSan), (E.better ? '<p class="an-note">' + esc(E.better.text) + '</p><span class="an-line">' + esc(E.better.line) + '</span>' : '') +
@@ -5364,7 +5444,7 @@ body.dnd-dragging,body.dnd-dragging *{cursor:grabbing !important;}
     box.innerHTML = '<div class="card"><div class="an-main"><div>' + boardHtml(fen, null, arrows, flip, opts) + '</div><div class="an-side">' + side + '</div></div></div>';
     if(PR.state === 'ask'){
       box.querySelectorAll('.sq[data-sq]').forEach(function(cell){ cell.style.cursor = 'pointer'; cell.onclick = function(){ prClick(cell.dataset.sq); }; });
-      var hb = document.getElementById('prHint'); if(hb) hb.onclick = function(){ PR.hint = Math.min(2, PR.hint + 1); renderPractice(); };
+      var hb = document.getElementById('prHint'); if(hb) hb.onclick = function(){ PR.hint = Math.min(3, PR.hint + 1); renderPractice(); };
       var sb = document.getElementById('prShow'); if(sb) sb.onclick = function(){ prFinish(false, 'Here is the answer.', 'wrong'); };
     } else {
       document.getElementById('prNext').onclick = function(){
@@ -5399,7 +5479,7 @@ body.dnd-dragging,body.dnd-dragging *{cursor:grabbing !important;}
     PR.busy = false;
     if(!PR || PR.items[PR.k] !== i || PR.state !== 'ask') return;
     if(okMove) prFinish(true, 'Also strong! ' + mv.san + ' is not the engine\'s first choice, but it is just as good.', 'good');
-    else { PR.tries++; PR.msg = 'Not quite: ' + mv.san + ' does not solve the problem. Try again' + (PR.hint < 2 ? ' or ask for a hint.' : '.'); PR.msgCls = 'wrong'; renderPractice(); }
+    else { PR.tries++; PR.msg = 'Not quite: ' + mv.san + ' does not solve the problem. Try again' + (PR.hint < 3 ? ' or ask for a hint.' : '.'); PR.msgCls = 'wrong'; renderPractice(); }
   }
   function prFinish(ok, msg, cls){
     var i = PR.items[PR.k], pts = ok ? ((PR.tries === 0 && PR.hint === 0) ? 1 : 0.5) : 0;
@@ -5450,7 +5530,7 @@ body.dnd-dragging,body.dnd-dragging *{cursor:grabbing !important;}
   };
 })();
 </script>
-<!-- ===== END STEP 16 v3 ===== -->
+<!-- ===== END STEP 16 v4 ===== -->
   <!-- ===== PAWNIAC STEP 17: TIME PER MOVE (saved with every game) + ANALYZE SENDS THE TIMES (paste at the very bottom, below step 16) ===== -->
 <script>
 (function(){
