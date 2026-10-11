@@ -4093,7 +4093,7 @@ body.dnd-dragging,body.dnd-dragging *{cursor:grabbing !important;}
 })();
 </script>
 <!-- ===== END STEP 15 v2 ===== -->
-<!-- ===== PAWNIAC STEP 16 v4: ANALYZE (replaces the whole old step 16 block) ===== -->
+<!-- ===== PAWNIAC STEP 16 v5: ANALYZE (replaces the whole old step 16 block) ===== -->
 <style>
 .an-in textarea{width:100%;min-height:130px;border:1px solid #d8d1bf;border-radius:7px;padding:10px 12px;font-size:12.5px;font-family:monospace;resize:vertical;background:#fff;color:inherit;}
 [data-theme=dark] .an-in textarea{background:#1b1a17;border-color:#4a463b;color:#e8e4d8;}
@@ -4181,6 +4181,7 @@ body.dnd-dragging,body.dnd-dragging *{cursor:grabbing !important;}
     'https://cdn.jsdelivr.net/npm/stockfish.js@10.0.2/stockfish.js',
     'https://unpkg.com/stockfish.js@10.0.2/stockfish.js'
   ];
+  var ORTH = [[1,0],[-1,0],[0,1],[0,-1]], DIAG = [[1,1],[1,-1],[-1,1],[-1,-1]];
   function esc(s){ return String(s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
   function cap(s){ return s.charAt(0).toUpperCase() + s.slice(1); }
   function plural(n, w){ return n + ' ' + w + (n === 1 ? '' : 's'); }
@@ -4201,6 +4202,7 @@ body.dnd-dragging,body.dnd-dragging *{cursor:grabbing !important;}
     try{ var c = new Chess(fen); return c.move({from:uci.slice(0, 2), to:uci.slice(2, 4), promotion:uci.slice(4, 5) || undefined}); }
     catch(e){ return null; }
   }
+  function sqName(f, r){ return 'abcdefgh'[f] + (r + 1); }   // r = rank - 1
   // everything below speaks from the point of view of the player (A.me)
   function pov(A, cpW){ return A.me === 'w' ? cpW : -cpW; }
   function whoWords(cp){
@@ -4248,7 +4250,7 @@ body.dnd-dragging,body.dnd-dragging *{cursor:grabbing !important;}
       ENGINE = {kind:'stockfish', w:await loadStockfish()};
       setStatus('Warming up the engine...');
       ENGINE.w.postMessage('ucinewgame');
-      try{ await sfEval(ENGINE.w, 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1', 300); }catch(e){}
+      try{ await sfEval(ENGINE.w, 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1', 300, 1); }catch(e){}
     }catch(e){ ENGINE = {kind:'basic'}; }
     return ENGINE;
   }
@@ -4260,29 +4262,39 @@ body.dnd-dragging,body.dnd-dragging *{cursor:grabbing !important;}
     if(ms <= 800) return {depth:12, cap:6000};
     return {depth:14, cap:12000};
   }
-  function sfEval(w, fen, ms){
+  function scoreToCp(L){
+    if(!L) return 0;
+    if(L.type === 'mate') return L.val === 0 ? -10000 : (L.val > 0 ? 10000 - 10 * L.val : -(10000 - 10 * (-L.val)));
+    return L.val;
+  }
+  // multi = how many lines to search (1 = just the best move; 3 also returns the next two best moves)
+  function sfEval(w, fen, ms, multi){
+    multi = multi || 1;
     return new Promise(function(resolve, reject){
-      var last = null;
-      var guard = setTimeout(function(){ w.removeEventListener('message', h); reject(new Error('engine timed out')); }, 60000);
+      var lines = {};
+      var guard = setTimeout(function(){ w.removeEventListener('message', h); reject(new Error('engine timed out')); }, 90000);
       function h(e){
         var line = String(e.data);
         if(line.indexOf('info') === 0 && line.indexOf(' score ') > 0 && line.indexOf(' pv ') > 0 && !/lowerbound|upperbound/.test(line)){
-          var m = /score (cp|mate) (-?\d+)/.exec(line), p = / pv (.+)$/.exec(line), d = / depth (\d+)/.exec(line);
-          if(m && p) last = {type:m[1], val:parseInt(m[2], 10), pv:p[1].trim().split(/\s+/), depth:d ? parseInt(d[1], 10) : 0};
+          var m = /score (cp|mate) (-?\d+)/.exec(line), p = / pv (.+)$/.exec(line), d = / depth (\d+)/.exec(line), mp = / multipv (\d+)/.exec(line);
+          if(m && p) lines[mp ? parseInt(mp[1], 10) : 1] = {type:m[1], val:parseInt(m[2], 10), pv:p[1].trim().split(/\s+/), depth:d ? parseInt(d[1], 10) : 0};
         } else if(line.indexOf('bestmove') === 0){
           clearTimeout(guard); w.removeEventListener('message', h);
-          var bm = line.split(' ')[1], cp = 0;
-          if(last){
-            if(last.type === 'mate') cp = last.val === 0 ? -10000 : (last.val > 0 ? 10000 - 10 * last.val : -(10000 - 10 * (-last.val)));
-            else cp = last.val;
+          var bm = line.split(' ')[1], main = lines[1] || null, alts = [];
+          if(multi > 1 && main){
+            for(var k = 2; k <= multi; k++){
+              var L = lines[k];
+              if(L && L.pv.length && L.depth >= main.depth - 1) alts.push({cp:scoreToCp(L), best:L.pv[0], pv:L.pv});
+            }
           }
-          resolve({cp:cp, best:(bm && bm !== '(none)') ? bm : null, pv:last ? last.pv : [], depth:last ? last.depth : 0});
+          resolve({cp:scoreToCp(main), best:(bm && bm !== '(none)') ? bm : null, pv:main ? main.pv : [], depth:main ? main.depth : 0, alts:alts});
         }
       }
       w.addEventListener('message', h);
+      w.postMessage('setoption name MultiPV value ' + multi);
       w.postMessage('position fen ' + fen);
       var lim = sfLimits(ms);
-      w.postMessage('go depth ' + lim.depth + ' movetime ' + lim.cap);
+      w.postMessage('go depth ' + lim.depth + ' movetime ' + lim.cap * (multi > 1 ? 2 : 1));
     });
   }
   var BV = {p:100, n:320, b:330, r:500, q:900, k:0};
@@ -4358,18 +4370,20 @@ body.dnd-dragging,body.dnd-dragging *{cursor:grabbing !important;}
     var cp = bestScore;
     if(Math.abs(cp) > 29000){ var n = Math.ceil((30000 - Math.abs(cp)) / 2); cp = (cp > 0 ? 1 : -1) * (10000 - 10 * n); }
     var uci = bestMove ? bestMove.from + bestMove.to + (bestMove.promotion || '') : null;
-    return {cp:cp, best:uci, pv:uci ? [uci] : [], depth:doneDepth};
+    return {cp:cp, best:uci, pv:uci ? [uci] : [], depth:doneDepth, alts:[]};
   }
   // evaluation of a position from WHITE's point of view
-  async function evalFen(eng, fen, ms){
+  async function evalFen(eng, fen, ms, multi){
     var c = new Chess(fen), turn = fenParts(fen).turn;
     if(c.game_over()){
       var cp0 = 0;
       if(c.in_checkmate()) cp0 = turn === 'w' ? -10000 : 10000;
-      return {cp:cp0, best:null, pv:[], depth:0};
+      return {cp:cp0, best:null, pv:[], depth:0, alts:[]};
     }
-    var r = eng.kind === 'stockfish' ? await sfEval(eng.w, fen, ms) : basicEval(fen, ms);
-    return {cp:(turn === 'w' ? r.cp : -r.cp), best:r.best, pv:r.pv, depth:r.depth};
+    var r = eng.kind === 'stockfish' ? await sfEval(eng.w, fen, ms, multi) : basicEval(fen, ms);
+    var sign = turn === 'w' ? 1 : -1;
+    return {cp:sign * r.cp, best:r.best, pv:r.pv, depth:r.depth,
+            alts:(r.alts || []).map(function(a){ return {cp:sign * a.cp, best:a.best, pv:a.pv}; })};
   }
 
   // =====================================================================
@@ -4442,7 +4456,9 @@ body.dnd-dragging,body.dnd-dragging *{cursor:grabbing !important;}
     });
     return res.sort(function(a, b){ return b.net - a.net; });
   }
-  // after `mv` is played by `color`, which valuable enemy pieces does the moved piece attack at once? (a fork)
+
+  // ---------- tactics: fork, pin, skewer, discovered attack, back-rank / smothered mate ----------
+  // after `mv` is played by `color`, which valuable enemy pieces does the moved piece attack at once?
   function forkOf(fen, mv, color){
     try{
       var c = new Chess(fen), made = c.move({from:mv.from, to:mv.to, promotion:mv.promotion});
@@ -4456,6 +4472,100 @@ body.dnd-dragging,body.dnd-dragging *{cursor:grabbing !important;}
       return t.length >= 2 ? t.slice(0, 3).join(' and ') : null;
     }catch(e){ return null; }
   }
+  function kingSq(c, color){
+    var b = c.board();
+    for(var r = 0; r < 8; r++) for(var f = 0; f < 8; f++){
+      var p = b[r][f];
+      if(p && p.type === 'k' && p.color === color) return 'abcdefgh'[f] + (8 - r);
+    }
+    return null;
+  }
+  // the first two pieces met when sliding from `sq` in direction d
+  function firstTwo(c, sq, d){
+    var f = 'abcdefgh'.indexOf(sq.charAt(0)), r = parseInt(sq.charAt(1), 10) - 1, found = [];
+    for(var k = 1; k < 8 && found.length < 2; k++){
+      var nf = f + d[0] * k, nr = r + d[1] * k;
+      if(nf < 0 || nf > 7 || nr < 0 || nr > 7) break;
+      var s = sqName(nf, nr), p = c.get(s);
+      if(p) found.push({sq:s, type:p.type, color:p.color});
+    }
+    return found;
+  }
+  // names the tactic that the move `mv` (a verbose chess.js move) creates in position `fen`, or null
+  function tacticOf(fen, mv){
+    try{
+      var col = mv.color, enemy = col === 'w' ? 'b' : 'w';
+      var c = new Chess(fen), made = c.move({from:mv.from, to:mv.to, promotion:mv.promotion});
+      if(!made) return null;
+      if(made.san.slice(-1) === '#'){
+        var ek = kingSq(c, enemy);
+        if(!ek) return null;
+        if((made.piece === 'r' || made.piece === 'q') && ek.charAt(1) === (enemy === 'w' ? '1' : '8') && made.to.charAt(1) === ek.charAt(1))
+          return {name:'back-rank mate', text:'a back-rank mate: the king is boxed in by its own pawns'};
+        if(made.piece === 'n'){
+          var kf = 'abcdefgh'.indexOf(ek.charAt(0)), kr = parseInt(ek.charAt(1), 10) - 1, blocked = true;
+          for(var df = -1; df <= 1; df++) for(var dr = -1; dr <= 1; dr++){
+            if(!df && !dr) continue;
+            var nf = kf + df, nr = kr + dr;
+            if(nf < 0 || nf > 7 || nr < 0 || nr > 7) continue;
+            var q = c.get(sqName(nf, nr));
+            if(!q || q.color !== enemy) blocked = false;
+          }
+          if(blocked) return {name:'smothered mate', text:'a smothered mate: the king is surrounded by its own pieces'};
+        }
+        return null;
+      }
+      var fk = forkOf(fen, mv, col);
+      if(fk) return {name:'fork', text:'a fork: it attacks ' + fk + ' at once'};
+      // pin / skewer made by the piece that just moved
+      if(made.piece === 'b' || made.piece === 'r' || made.piece === 'q'){
+        var dirs = made.piece === 'b' ? DIAG : (made.piece === 'r' ? ORTH : ORTH.concat(DIAG));
+        for(var di = 0; di < dirs.length; di++){
+          var two = firstTwo(c, made.to, dirs[di]);
+          if(two.length < 2 || two[0].color !== enemy || two[1].color !== enemy) continue;
+          var a = two[0], b2 = two[1];
+          if(a.type !== 'k' && (b2.type === 'k' || (VAL[a.type] >= 3 && VAL[b2.type] >= 5 && VAL[b2.type] > VAL[a.type])))
+            return {name:'pin', text:'a pin: the ' + NAMES[a.type] + ' on ' + a.sq + ' is stuck in front of the ' + NAMES[b2.type] + ' on ' + b2.sq};
+          if((a.type === 'k' || (VAL[a.type] >= 5 && VAL[a.type] > VAL[b2.type])) && b2.type !== 'k' && VAL[b2.type] >= 3)
+            return {name:'skewer', text:'a skewer: the ' + NAMES[a.type] + ' on ' + a.sq + ' has to move, and then the ' + NAMES[b2.type] + ' on ' + b2.sq + ' falls'};
+        }
+      }
+      // discovered attack: moving this piece uncovers one of your own sliders
+      var key = function(x){ return x.from + x.to; };
+      var worth = function(x){ return (x.piece === 'b' || x.piece === 'r' || x.piece === 'q') && x.captured && x.captured !== 'k' && (VAL[x.captured] >= 5 || VAL[x.captured] > VAL[x.piece]); };
+      var before = {};
+      capsFor(fen, col).forEach(function(x){ if(worth(x)) before[key(x)] = 1; });
+      var disc = capsFor(c.fen(), col).filter(function(x){ return worth(x) && x.from !== made.to && !before[key(x)]; });
+      if(disc.length) return {name:'discovered attack', text:'a discovered attack: moving the ' + NAMES[made.piece] + ' uncovers your ' + NAMES[disc[0].piece] + ' on ' + disc[0].from + ', which now attacks the ' + NAMES[disc[0].captured] + ' on ' + disc[0].to};
+    }catch(e){ console.error('tactic detection failed', e); }
+    return null;
+  }
+  // the tactic in the final (mating) move of a line
+  function mateMoveTactic(fen, pv){
+    try{
+      var c = new Chess(fen);
+      for(var k = 0; k < pv.length; k++){
+        var u = pv[k], before = c.fen(), mv = c.move({from:u.slice(0, 2), to:u.slice(2, 4), promotion:u.slice(4, 5) || undefined});
+        if(!mv) return null;
+        if(mv.san.slice(-1) === '#') return tacticOf(before, mv);
+      }
+    }catch(e){}
+    return null;
+  }
+  var TACT_TIP = {
+    'fork':'Before each move, look for a square where one piece can attack two of their pieces at once (knights are the usual culprits).',
+    'pin':'Look for lines running through two of their pieces, and check that none of your own pieces is lined up in front of your king or queen.',
+    'skewer':'When a king, queen or rook sits on a line with something behind it, attack the front piece. Check your own lines for the same danger.',
+    'discovered attack':'Every time you move a piece, ask what it uncovers behind it. The best discoveries come with a threat of their own.',
+    'back-rank mate':'Give your king an escape square (a "luft" pawn move) and check that no rook or queen can land on your back rank with check.',
+    'smothered mate':'When your king is hemmed in by your own pieces, watch out for knight checks.'
+  };
+  function noteT(A, tc, i){
+    if(!tc || !TACT_TIP[tc.name]) return;
+    var l = A.rep.tacts[tc.name] || (A.rep.tacts[tc.name] = []);
+    if(l.indexOf(i) < 0) l.push(i);
+  }
+
   function weakPawns(fen, color){
     var c = new Chess(fen), b = c.board(), cnt = [0,0,0,0,0,0,0,0], list = [];
     for(var r = 0; r < 8; r++) for(var f = 0; f < 8; f++){ var p = b[r][f]; if(p && p.type === 'p' && p.color === color) cnt[f]++; }
@@ -4491,9 +4601,16 @@ body.dnd-dragging,body.dnd-dragging *{cursor:grabbing !important;}
   }
 
   function evalBlock(fen, cpMe, me){
+    // a forced mate overrides everything: no positional talk
+    if(isMate(cpMe)){
+      var mn = mateN(cpMe);
+      return [cpMe > 0
+        ? 'You have a forced checkmate' + (mn ? ' in ' + mn : '') + '. Nothing else matters: just play the mating line.'
+        : 'Your opponent has a forced checkmate' + (mn ? ' in ' + mn : '') + '. Only forcing resistance (checks, or captures that break the attack) can delay it.'];
+    }
     var opp = me === 'w' ? 'b' : 'w', F = features(fen), M = F[me], O = F[opp], lines = [];
     lines.push(whoWords(cpMe) + ' (' + fw(cpMe, me) + ').');
-    if(!isMate(cpMe)) lines.push('That figure is about ' + Math.abs(cpMe / 100).toFixed(1) + ' pawns in ' + (cpMe >= 0 ? 'your' : "your opponent's") + ' favour. Engines squeeze the whole board into that one number.');
+    lines.push('That figure is about ' + Math.abs(cpMe / 100).toFixed(1) + ' pawns in ' + (cpMe >= 0 ? 'your' : "your opponent's") + ' favour. Engines squeeze the whole board into that one number.');
     var md = M.mat - O.mat, matIdx = lines.length;
     lines.push(md === 0 ? 'Material is even (pawn 1, minor piece 3, rook 5, queen 9).' : (md > 0 ? 'You are up ' : 'You are down ') + plural(Math.abs(md), 'point') + ' of material.');
     var fac = [];
@@ -4519,7 +4636,7 @@ body.dnd-dragging,body.dnd-dragging *{cursor:grabbing !important;}
     var agn = fac.filter(function(x){ return x.s * lead < 0; }).sort(function(a, b){ return Math.abs(b.s) - Math.abs(a.s); }).slice(0, 1);
     var matLead = md > 0 ? 'you' : (md < 0 ? 'your opponent' : null), evLead = cpMe >= 60 ? 'you' : (cpMe <= -60 ? 'your opponent' : null);
     if(matLead && evLead && matLead !== evLead) lines[matIdx] += ' Even so, ' + evLead + (evLead === 'you' ? ' have' : ' has') + ' the better position' + (sup.length ? ' (' + sup[0].t + ')' : '') + ': activity, king safety and threats outweigh the extra material.';
-    if(Math.abs(cpMe) < 60 && !isMate(cpMe)) lines.push('The factors roughly cancel out' + (fac.length ? ': ' + fac.slice(0, 2).map(function(x){ return x.t; }).join('; ') : '') + '.');
+    if(Math.abs(cpMe) < 60) lines.push('The factors roughly cancel out' + (fac.length ? ': ' + fac.slice(0, 2).map(function(x){ return x.t; }).join('; ') : '') + '.');
     else {
       if(sup.length) lines.push('What supports it: ' + sup.map(function(x){ return x.t; }).join('; ') + '.');
       if(agn.length) lines.push('Working the other way: ' + agn[0].t + '.');
@@ -4572,6 +4689,72 @@ body.dnd-dragging,body.dnd-dragging *{cursor:grabbing !important;}
     }
     return out.join(' ');
   }
+  // plies in a forced-mate line: 2n-1 if the side to move is the one mating, 2n if it is being mated
+  function mateLine(fen, pv, n, stmMates){ return sanLine(fen, pv, stmMates ? 2 * n - 1 : 2 * n); }
+
+  // =====================================================================
+  //  opening book (main lines only)
+  // =====================================================================
+  var BOOK_SRC = [
+    ['e4', "King's Pawn Opening"], ['d4', "Queen's Pawn Opening"], ['c4', 'English Opening'], ['Nf3', 'Reti Opening'],
+    ['g3', "King's Fianchetto Opening"], ['b3', 'Nimzo-Larsen Attack'], ['f4', "Bird's Opening"],
+    ['e4 e5', 'Open Game (1.e4 e5)'], ['e4 e5 Nf3 Nc6', "King's Knight Opening"],
+    ['e4 e5 Nf3 Nc6 Bb5', 'Ruy Lopez'], ['e4 e5 Nf3 Nc6 Bb5 a6', 'Ruy Lopez: Morphy Defence'],
+    ['e4 e5 Nf3 Nc6 Bb5 a6 Ba4 Nf6 O-O Be7 Re1 b5 Bb3 d6 c3 O-O h3', 'Ruy Lopez: Closed, main line'],
+    ['e4 e5 Nf3 Nc6 Bb5 a6 Ba4 Nf6 O-O Nxe4 d4 b5 Bb3 d5 dxe5 Be6', 'Ruy Lopez: Open Variation'],
+    ['e4 e5 Nf3 Nc6 Bb5 Nf6 O-O Nxe4 d4 Nd6 Bxc6 dxc6 dxe5 Nf5 Qxd8 Kxd8', 'Ruy Lopez: Berlin Defence'],
+    ['e4 e5 Nf3 Nc6 Bc4', 'Italian Game'], ['e4 e5 Nf3 Nc6 Bc4 Bc5', 'Italian Game: Giuoco Piano'],
+    ['e4 e5 Nf3 Nc6 Bc4 Bc5 c3 Nf6 d3', 'Italian Game: Giuoco Pianissimo'], ['e4 e5 Nf3 Nc6 Bc4 Bc5 b4', 'Evans Gambit'],
+    ['e4 e5 Nf3 Nc6 Bc4 Nf6', 'Italian Game: Two Knights Defence'], ['e4 e5 Nf3 Nc6 Bc4 Nf6 Ng5 d5 exd5 Nxd5 Nxf7', 'Fried Liver Attack'],
+    ['e4 e5 Nf3 Nc6 d4 exd4 Nxd4', 'Scotch Game'], ['e4 e5 Nf3 Nc6 d4 exd4 Bc4', 'Scotch Gambit'],
+    ['e4 e5 Nf3 Nc6 Nc3 Nf6', 'Four Knights Game'], ['e4 e5 Nf3 Nc6 Nc3 Nf6 Bb5', 'Four Knights: Spanish Variation'],
+    ['e4 e5 Nf3 Nf6', "Petrov's Defence"], ['e4 e5 Nf3 Nf6 Nxe5 d6 Nf3 Nxe4 d4 d5 Bd3 Nc6 O-O Be7', "Petrov's Defence: main line"],
+    ['e4 e5 Nf3 d6', 'Philidor Defence'], ['e4 e5 f4', "King's Gambit"], ['e4 e5 f4 exf4', "King's Gambit Accepted"], ['e4 e5 f4 Bc5', "King's Gambit Declined"],
+    ['e4 e5 Bc4', "Bishop's Opening"], ['e4 e5 Nc3', 'Vienna Game'], ['e4 e5 d4 exd4 Qxd4', 'Centre Game'],
+    ['e4 c5', 'Sicilian Defence'], ['e4 c5 Nf3', 'Sicilian Defence: Open'],
+    ['e4 c5 Nf3 d6 d4 cxd4 Nxd4 Nf6 Nc3 a6', 'Sicilian: Najdorf'], ['e4 c5 Nf3 d6 d4 cxd4 Nxd4 Nf6 Nc3 g6', 'Sicilian: Dragon'],
+    ['e4 c5 Nf3 Nc6 d4 cxd4 Nxd4 Nf6 Nc3 e5', 'Sicilian: Sveshnikov'], ['e4 c5 Nf3 e6 d4 cxd4 Nxd4 Nc6', 'Sicilian: Taimanov'],
+    ['e4 c5 Nf3 e6 d4 cxd4 Nxd4 a6', 'Sicilian: Kan'], ['e4 c5 c3', 'Sicilian: Alapin'], ['e4 c5 Nc3', 'Sicilian: Closed'],
+    ['e4 c5 Nf3 Nc6 Bb5', 'Sicilian: Rossolimo'], ['e4 c5 Nf3 d6 Bb5', 'Sicilian: Moscow Variation'],
+    ['e4 e6', 'French Defence'], ['e4 e6 d4 d5', 'French Defence: main line'], ['e4 e6 d4 d5 e5', 'French: Advance Variation'],
+    ['e4 e6 d4 d5 Nc3 Bb4', 'French: Winawer'], ['e4 e6 d4 d5 Nd2', 'French: Tarrasch'], ['e4 e6 d4 d5 Nc3 Nf6', 'French: Classical'], ['e4 e6 d4 d5 exd5', 'French: Exchange'],
+    ['e4 c6', 'Caro-Kann Defence'], ['e4 c6 d4 d5', 'Caro-Kann: main line'], ['e4 c6 d4 d5 e5', 'Caro-Kann: Advance Variation'],
+    ['e4 c6 d4 d5 exd5 cxd5 c4', 'Caro-Kann: Panov Attack'], ['e4 c6 d4 d5 Nc3 dxe4 Nxe4', 'Caro-Kann: Classical'],
+    ['e4 d5', 'Scandinavian Defence'], ['e4 d5 exd5 Qxd5 Nc3 Qa5', 'Scandinavian: main line'], ['e4 d5 exd5 Nf6', 'Scandinavian: Modern Variation'],
+    ['e4 d6 d4 Nf6 Nc3 g6', 'Pirc Defence'], ['e4 g6', 'Modern Defence'], ['e4 Nf6 e5 Nd5', "Alekhine's Defence"],
+    ['d4 d5', 'Closed Game (1.d4 d5)'], ['d4 d5 c4', "Queen's Gambit"], ['d4 d5 c4 e6', "Queen's Gambit Declined"],
+    ['d4 d5 c4 e6 Nc3 Nf6 Bg5', "Queen's Gambit Declined: Orthodox"], ['d4 d5 c4 dxc4', "Queen's Gambit Accepted"],
+    ['d4 d5 c4 c6', 'Slav Defence'], ['d4 d5 c4 c6 Nf3 Nf6 Nc3 dxc4', 'Slav: main line'],
+    ['d4 d5 Bf4', 'London System'], ['d4 d5 Nf3 Nf6 Bf4', 'London System'], ['d4 Nf6 Bf4', 'London System'],
+    ['d4 d5 Nf3 Nf6 e3 e6 Bd3', 'Colle System'], ['d4 d5 c4 e6 Nf3 Nf6 g3', 'Catalan Opening'], ['d4 Nf6 c4 e6 g3', 'Catalan Opening'],
+    ['d4 Nf6', 'Indian Defence'], ['d4 Nf6 c4 e6', 'Indian Game: e6 systems'], ['d4 Nf6 c4 e6 Nc3 Bb4', 'Nimzo-Indian Defence'],
+    ['d4 Nf6 c4 e6 Nf3 b6', "Queen's Indian Defence"], ['d4 Nf6 c4 g6', "King's Indian Defence"], ['d4 Nf6 c4 g6 Nc3 Bg7 e4 d6', "King's Indian: Classical set-up"],
+    ['d4 Nf6 c4 g6 Nc3 d5', 'Grunfeld Defence'], ['d4 Nf6 c4 c5', 'Benoni Defence'], ['d4 f5', 'Dutch Defence'],
+    ['c4 e5', 'English: Reversed Sicilian'], ['c4 c5', 'English: Symmetrical'], ['c4 Nf6', 'English: Anglo-Indian'],
+    ['Nf3 d5', 'Reti: 1...d5'], ['Nf3 Nf6 g3', "Reti / King's Indian Attack set-up"]
+  ];
+  var BOOK = BOOK_SRC.map(function(x){ return {m:x[0].split(' '), n:x[1]}; });
+  function bookInfo(A){
+    if(A.hdr.FEN || A.hdr.SetUp === '1') return null;
+    var game = A.moves.map(function(m){ return m.san.replace(/[+#]/g, ''); });
+    var bestLen = 0, name = null, nameLen = 0;
+    BOOK.forEach(function(L){
+      var k = 0;
+      while(k < L.m.length && k < game.length && L.m[k] === game[k]) k++;
+      if(k > bestLen) bestLen = k;
+      if(k === L.m.length && k >= nameLen){ name = L.n; nameLen = k; }
+    });
+    if(bestLen === 0) return null;
+    var lines = [];
+    lines.push(name ? 'Opening: ' + name + '.' : 'No named opening matched this game.');
+    if(bestLen < A.moves.length){
+      var mv = A.moves[bestLen], S = A.stats[bestLen], mine = mv.color === A.me, mn = mvNo(A, bestLen);
+      var bad = (S.label === 'inaccuracy' || S.label === 'mistake' || S.label === 'blunder');
+      if(mine) lines.push('You left my opening book on move ' + mn + ' with ' + mv.san + '. ' + (bad ? 'The engine rates it as ' + (S.label === 'inaccuracy' ? 'an inaccuracy' : 'a ' + S.label) + ', so this is a good place to review.' : 'The engine is fine with it.'));
+      else lines.push('Your opponent left my opening book on move ' + mn + ' with ' + mv.san + '. ' + (bad ? 'The engine rates it as ' + (S.label === 'inaccuracy' ? 'an inaccuracy' : 'a ' + S.label) + ', so you could have punished it.' : 'The engine finds it fine.'));
+    } else lines.push('The game stayed inside my opening book to the very end.');
+    return {name:name, lines:lines};
+  }
 
   // =====================================================================
   //  PGN + clocks
@@ -4618,7 +4801,7 @@ body.dnd-dragging,body.dnd-dragging *{cursor:grabbing !important;}
   // =====================================================================
   function build(parsed, ev, side, tc){
     var A = {moves:parsed.moves, fens:parsed.fens, hdr:parsed.hdr, clocks:parsed.clocks, ev:ev, stats:[], cache:{}, sel:0,
-             me:side, opp:side === 'w' ? 'b' : 'w', tc:tc, rep:{theme:{}, sq:{}}};
+             me:side, opp:side === 'w' ? 'b' : 'w', tc:tc, rep:{theme:{}, sq:{}, tacts:{}, state:null}};
     A.flip = (side === 'b');
     A.moves.forEach(function(m, i){
       var sign = m.color === 'w' ? 1 : -1, cpB = sign * ev[i].cp, cpA = sign * ev[i + 1].cp;
@@ -4661,6 +4844,28 @@ body.dnd-dragging,body.dnd-dragging *{cursor:grabbing !important;}
     R.est = est; R.base = est / 40; R.far = Math.max(R.base * 3, 8);
     return R;
   }
+  // do your mistakes come when the clock is low?
+  function timePressure(A){
+    var out = [];
+    if(!A.clocks) return out;
+    var init = A.time.init || 0, lowT = Math.max(30, init * 0.1), n = 0, nLow = 0, bad = 0, badLow = 0;
+    myIdx(A).forEach(function(i){
+      var clk = A.clocks[i];
+      if(typeof clk !== 'number') return;
+      var lb = A.stats[i].label, isBad = (lb === 'mistake' || lb === 'blunder'), low = clk < lowT;
+      n++; if(isBad) bad++;
+      if(low){ nLow++; if(isBad) badLow++; }
+    });
+    if(n < 8) return out;
+    var lowTxt = 'under ' + fmtSec(lowT);
+    if(nLow >= 3 && badLow >= 2 && badLow >= bad * 0.5)
+      out.push(badLow + ' of your ' + plural(bad, 'mistake') + ' and blunders came with ' + lowTxt + ' on the clock, in just ' + nLow + ' of your ' + n + ' moves. Time pressure is costing you points: spend less early.');
+    else if(nLow >= 3 && badLow === 0)
+      out.push('You played ' + nLow + ' moves with ' + lowTxt + ' left and made no mistakes in them. You keep your head under time pressure.');
+    else if(bad >= 2 && badLow === 0)
+      out.push('None of your ' + plural(bad, 'big mistake') + ' came in time trouble. They happened with plenty of time, so the fix is a safety check before each move, not speed.');
+    return out;
+  }
   function timeFindings(A){
     var R = A.time, out = [];
     if(!R.has) return out;
@@ -4683,6 +4888,7 @@ body.dnd-dragging,body.dnd-dragging *{cursor:grabbing !important;}
     var fast = m.filter(function(x){ return x.t <= 2 && x.i >= 10 && (A.stats[x.i].label === 'mistake' || A.stats[x.i].label === 'blunder'); });
     if(fast.length) out.push('Quick blunders: ' + fast.slice(0, 3).map(function(x){ return 'move ' + mvNo(A, x.i) + ' (' + A.moves[x.i].san + ')'; }).join(', ') + ' took ' + (fast.length > 1 ? 'almost no time' : fmtSec(fast[0].t)) + '. A 5-second safety check (what can they take or threaten after this?) would have caught it.');
     if(R.init > 0 && R.last < R.init * 0.1) out.push('You finished with only ' + fmtSec(R.last) + ' left. That is time trouble, which is why spending less early matters.');
+    timePressure(A).forEach(function(t){ out.push(t); });
     if(out.length === 1) out.push('No time problems stood out. Good clock management.');
     return out;
   }
@@ -4755,23 +4961,119 @@ body.dnd-dragging,body.dnd-dragging *{cursor:grabbing !important;}
     free:'Before you play your plan, ask: is anything of theirs hanging or undefended? Free material beats any plan.',
     opening:'In the opening: develop knights and bishops, fight for the centre, castle early, and avoid moving the same piece twice.',
     king:'Get the king safe before starting an attack.',
-    quiet:'Not every mistake is a tactic. Compare candidate moves by what each one improves: your worst-placed piece, king safety, or a pawn break.'
+    quiet:'Not every mistake is a tactic. Compare candidate moves by what each one improves: your worst-placed piece, king safety, or a pawn break.',
+    structure:'Before pushing pawns or moving the pieces next to your king, check what the move weakens: king cover, pawn chains, squares your pieces needed.',
+    threat:'Before each move, ask "what is my opponent threatening right now?" and answer that first.',
+    endgame:'Endgames are decided by king activity, passed pawns and rook activity. Check all three before every endgame move.',
+    conv:'When you are winning: simplify, trade pieces, remove their counterplay, and double-check every move for safety.'
   };
-  LESSON.structure = 'Before pushing pawns or moving the pieces next to your king, check what the move weakens: king cover, pawn chains, squares your pieces needed.';
-  LESSON.threat = 'Before each move, ask "what is my opponent threatening right now?" and answer that first.';
   // how each pattern reads in the report: "You <text> ..."
   var PNAME = {
-    hang:'left a piece capturable', mate:'allowed a forced mate', missed:'missed a tactic that was on the board',
+    hang:'left a piece capturable', mate:'allowed a forced mate', missed:'missed a tactic or a forced win that was on the board',
     opening:'broke opening principles', king:'left your king in the centre too long', structure:'weakened your pawn structure or king cover',
-    free:'passed up free material', threat:"ignored your opponent's threat"
+    free:'passed up free material', threat:"ignored your opponent's threat", endgame:'slipped in the endgame', conv:'let a winning position slip'
   };
   // theme[key] is the list of move indexes where that idea caught you out
   function bump(A, key, mi){ var t = A.rep.theme[key] || (A.rep.theme[key] = []); t.push(mi); return t.length; }
   function movesList(A, arr){ return arr.map(function(j){ return mvNo(A, j); }).join(', '); }
+  function evLine(S, me){
+    var d = S.cpAfter - S.cpBefore, txt = '';
+    if(!isMate(S.cpBefore) && !isMate(S.cpAfter)){
+      txt = d < -15 ? 'This move cost you about ' + (Math.abs(d) / 100).toFixed(1) + ' pawns.'
+          : d > 15 ? 'This move improved your position by about ' + (d / 100).toFixed(1) + ' pawns.'
+          : 'Your position stayed about the same.';
+    }
+    return 'Eval: ' + fw(S.cpBefore, me) + '  ->  ' + fw(S.cpAfter, me) + (txt ? '. ' + txt : '');
+  }
+
+  // ---- positional comments on your good moves ----
+  function posNotes(m, fA, me, opp){
+    var out = [], f = 'abcdefgh'.indexOf(m.to.charAt(0)), rk = parseInt(m.to.charAt(1), 10), rel = me === 'w' ? rk : 9 - rk, dir = me === 'w' ? 1 : -1;
+    if(m.piece === 'r'){
+      var own = fA[me].pawnsFiles[f], their = fA[opp].pawnsFiles[f];
+      if(!own && !their) out.push('Your rook takes an open file, with no pawns in the way. Rooks belong on open files.');
+      else if(!own) out.push('Your rook sits on a half-open file, pressing on their pawn.');
+      if(rel === 7 && !m.captured) out.push('A rook on the seventh rank attacks pawns and cramps their king.');
+    }
+    if(m.piece === 'n' && rel >= 4 && rel <= 6){
+      var prot = fA[me].pawns.some(function(p){ return Math.abs(p.f - f) === 1 && (8 - p.r) === rk - dir; });
+      var chase = fA[opp].pawns.some(function(p){ var pr = 8 - p.r; return Math.abs(p.f - f) === 1 && (me === 'w' ? pr > rk : pr < rk); });
+      if(prot && !chase) out.push('Your knight reaches an outpost on ' + m.to + ': a pawn protects it and no enemy pawn can ever chase it away.');
+    }
+    if(m.piece === 'b' && ['b2', 'g2', 'b7', 'g7'].indexOf(m.to) >= 0 && !m.captured) out.push('The bishop on the long diagonal eyes the whole board and their king.');
+    if(m.piece === 'p' && !m.promotion){
+      var isP = !fA[opp].pawns.some(function(q){ return Math.abs(q.f - f) <= 1 && (me === 'w' ? (8 - q.r) > rk : (8 - q.r) < rk); });
+      if(isP && rel >= 5) out.push('Your passed pawn advances. Passed pawns are strongest with the king or a rook behind them.');
+    }
+    return out.slice(0, 2);
+  }
+  // ---- endgame tips for mistakes made in the endgame ----
+  function endgameTips(m, fenB, fB, me, opp){
+    var tips = [], onlyKP = fB.w.nonPawn === 0 && fB.b.nonPawn === 0, noQ = !/[qQ]/.test(fenB.split(' ')[0]), k = fB[me].king;
+    if(k && m.piece !== 'k' && noQ && Math.max(Math.abs(k.f - 3.5), Math.abs(k.r - 3.5)) >= 2.5)
+      tips.push('In the endgame your king is a fighting piece. Yours is still on the edge: bring it toward the centre and the pawns.');
+    if(fB[opp].passed > 0) tips.push('They have a passed pawn. Stop it early: put your rook behind it or bring your king over to blockade it.');
+    else if(fB[me].passed > 0 && m.piece !== 'p') tips.push('You have a passed pawn. Push it with support, or place a rook behind it. Passed pawns win endgames.');
+    if(onlyKP) tips.push('In king-and-pawn endings the opposition and counting moves decide everything. Count the race before you move a pawn.');
+    else if(fB[me].nonPawn === 5 && fB[opp].nonPawn === 5) tips.push('In rook endings an active rook is worth more than a pawn: keep it behind passed pawns or on the 7th rank, never passive.');
+    return tips.slice(0, 2);
+  }
+
+  // ---- a move when a forced mate is involved: only mate talk ----
+  function explainMate(A, i){
+    var m = A.moves[i], S = A.stats[i], me = A.me, fenB = A.fens[i], fenA = A.fens[i + 1], evB = A.ev[i], evA = A.ev[i + 1], label = S.label;
+    var tm = A.time.spent[i], why = [], better = null, lessonKey = null, repeat = [], whyTitle = 'The mate', tc = null;
+    var bm = (evB.best && evB.best !== S.uci) ? tryMove(fenB, evB.best) : null;
+    var mB = S.cpBefore, mA = S.cpAfter, nB = isMate(mB) ? mateN(mB) : 0, nA = isMate(mA) ? mateN(mA) : 0;
+    if(m.san.slice(-1) === '#'){
+      tc = tacticOf(fenB, m);
+      why.push('Checkmate' + (tc ? ': ' + tc.text : '') + '. The game is over.');
+    } else if(mB >= 9000 && mA >= 9000){
+      if(S.uci === evB.best) why.push('You found the fastest forced mate (mate in ' + nB + '): <span class="an-line">' + esc(mateLine(fenB, evB.pv, nB, true)) + '</span>');
+      else if(nA <= nB - 1) why.push('A different way to keep the forced mate, and just as fast (mate in ' + nB + ').');
+      else why.push('You still have a forced mate, but this move makes it slower: mate in ' + nA + ' after it, instead of ' + nB + '.');
+      if(bm && nA > nB - 1) better = {san:bm.san, text:'It keeps the fastest mate (in ' + nB + ').', line:mateLine(fenB, evB.pv, nB, true)};
+    } else if(mB >= 9000){
+      why.push('You had a forced checkmate in ' + nB + ' and this move throws it away: <span class="an-line">' + esc(mateLine(fenB, evB.pv, nB, true)) + '</span>');
+      tc = mateMoveTactic(fenB, evB.pv);
+      if(tc){ why.push('The mate is ' + tc.text + '.'); noteT(A, tc, i); }
+      if(bm) better = {san:bm.san, text:'It keeps the forced mate going.', line:mateLine(fenB, evB.pv, nB, true)};
+      lessonKey = 'missed';
+    } else if(mA >= 9000){
+      why.push('Your move creates a forced checkmate in ' + nA + '! <span class="an-line">' + esc(mateLine(fenA, evA.pv, nA, false)) + '</span>');
+      tc = mateMoveTactic(fenA, evA.pv);
+      if(tc) why.push('It ends with ' + tc.text + '.');
+    } else if(mB <= -9000 && mA <= -9000){
+      var nBo = mateN(mB), nAo = mateN(mA);
+      if(S.uci === evB.best || nAo >= nBo) why.push('You are facing a forced mate (in ' + nBo + ') and this is the most stubborn defence: it delays the mate as long as possible.');
+      else why.push('You are facing a forced mate, and this move lets them deliver it faster (in ' + nAo + ' instead of ' + nBo + ').');
+      whyTitle = 'The mating attack';
+    } else if(mA <= -9000){
+      var n2 = mateN(mA);
+      why.push('This move allows a forced checkmate in ' + n2 + ': <span class="an-line">' + esc(mateLine(fenA, evA.pv, n2, true)) + '</span>');
+      tc = mateMoveTactic(fenA, evA.pv);
+      if(tc){ why.push('It ends with ' + tc.text + '.'); noteT(A, tc, i); }
+      if(bm) better = {san:bm.san, text:'It avoids the mate.', line:sanLine(fenB, evB.pv, 5)};
+      lessonKey = 'mate';
+    } else why.push('There is a forced mate on the board here.');
+    if(lessonKey){
+      var c = bump(A, lessonKey, i);
+      if(c >= 2) repeat.push('Pattern: you ' + PNAME[lessonKey] + ' again (earlier on move ' + movesList(A, A.rep.theme[lessonKey].slice(0, -1)) + '). ' + LESSON[lessonKey]);
+    }
+    return {
+      mine:true, mode:'mate', whyTitle:whyTitle, label:label, i:i, title:moveNumText(fenB) + ' ' + m.san,
+      evalLine:evLine(S, me), what:'', why:why, better:better, pros:[], cons:[], notes:[], trade:null, missed:null, weakT:null, threat:null, plan:null,
+      repeat:repeat, equal:[], posi:[], endTips:[], advice:null,
+      engine:evalBlock(fenA, S.cpAfter, me),
+      lesson:(lessonKey && (label === 'mistake' || label === 'blunder')) ? LESSON[lessonKey] : null,
+      time:(typeof tm === 'number') ? {t:tm, far:tm > A.time.far} : null
+    };
+  }
 
   function explainMine(A, i){
     var m = A.moves[i], S = A.stats[i], me = A.me, opp = A.opp, fenB = A.fens[i], fenA = A.fens[i + 1];
     var evB = A.ev[i], evA = A.ev[i + 1], label = S.label;
+    if(isMate(S.cpBefore) || isMate(S.cpAfter)) return explainMate(A, i);
     var bad = (label === 'mistake' || label === 'blunder'), minor = (label === 'inaccuracy');
     var mode = bad ? 'full' : (minor ? 'short' : 'ok');
     var d = describeMove(m, i), fA = features(fenA), fB = features(fenB);
@@ -4792,6 +5094,11 @@ body.dnd-dragging,body.dnd-dragging *{cursor:grabbing !important;}
     if(d.tags.indexOf('promo') >= 0) pros.push('Promotes: a huge material gain.');
     if(d.tags.indexOf('mate') >= 0) pros.push('Checkmate!');
     else if(d.tags.indexOf('check') >= 0) pros.push('Gives check, forcing a reply and gaining a tempo.');
+    // a tactic you played yourself
+    try{
+      var myT = tacticOf(fenB, m);
+      if(myT && myT.name !== 'back-rank mate' && myT.name !== 'smothered mate') pros.push('You played ' + myT.text + '.');
+    }catch(e){}
 
     // ----- missed free material
     try{
@@ -4854,11 +5161,7 @@ body.dnd-dragging,body.dnd-dragging *{cursor:grabbing !important;}
     // ----- why a mistake is a mistake
     if(bad || minor){
       if(bad){
-        if(S.cpAfter <= -9000){
-          var n = mateN(S.cpAfter);
-          why.push('It allows a forced checkmate' + (n ? ' in ' + n : '') + (refLine ? ': <span class="an-line">' + esc(refLine) + '</span>' : '.'));
-          cons.push('Leaves your king open to a forced mate.'); lessonKey = lessonKey || 'mate';
-        } else if(refInfo && refInfo.net <= -2){
+        if(refInfo && refInfo.net <= -2){
           var fc = refInfo.firstCap, sentence;
           if(fc && fc.color !== me && fc.ply === 0 && fc.to === m.to){
             var h0 = hangNow.filter(function(x){ return x.to === m.to; })[0];
@@ -4872,6 +5175,14 @@ body.dnd-dragging,body.dnd-dragging *{cursor:grabbing !important;}
           why.push('It leaves your ' + NAMES[hg.piece] + ' on ' + hg.to + ' en prise: ' + hg.san + ' wins it' + (hg.free ? ' for free.' : ' favourably.'));
           cons.push('Leaves a piece capturable.'); lessonKey = lessonKey || 'hang';
         }
+        // the tactic they now have
+        try{
+          var fm = evA.best ? tryMove(fenA, evA.best) : null;
+          if(fm){
+            var tcF = tacticOf(fenA, fm);
+            if(tcF){ why.push('Their best reply, ' + fm.san + ', is ' + tcF.text + '.'); noteT(A, tcF, i); }
+          }
+        }catch(e){}
         // threat you missed: they were already threatening what they then took
         try{
           var thr = winsFor(fenB, opp), nx = A.moves[i + 1];
@@ -4880,14 +5191,17 @@ body.dnd-dragging,body.dnd-dragging *{cursor:grabbing !important;}
             if(t0) threat = 'Your opponent was already threatening ' + t0.san + ' (winning your ' + NAMES[t0.piece] + ') before your move, and your move did not deal with it.';
           }
         }catch(e){}
-        if(bm && S.cpBefore >= 9000){
-          var mn = mateN(S.cpBefore);
-          why.push('You had a forced checkmate' + (mn ? ' in ' + mn : '') + ': <span class="an-line">' + esc(sanLine(fenB, evB.pv, 2 * (mn || 1))) + '</span>');
-          cons.push('Missed a forced mate.'); lessonKey = lessonKey || 'missed';
-        } else if(bm && bestInfo && bestInfo.net >= 2){
-          var fk = forkOf(fenB, bm, me), how = bm.captured ? ' (a capture)' : (/[+#]/.test(bestSan) ? ' (a check)' : '');
-          why.push('You missed a tactic: ' + bestSan + how + (fk ? ', which attacks ' + fk + ' at once,' : '') + ' and wins about ' + plural(bestInfo.net, 'point') + ' of material.');
-          cons.push(fk ? 'Missed a fork.' : 'Missed a material-winning tactic.'); lessonKey = lessonKey || 'missed';
+        // the tactic you missed
+        var tcM = bm ? tacticOf(fenB, bm) : null;
+        if(bm && bestInfo && bestInfo.net >= 2){
+          var how = bm.captured ? ' (a capture)' : (/[+#]/.test(bestSan) ? ' (a check)' : '');
+          why.push('You missed a tactic: ' + bestSan + (tcM ? ', ' + tcM.text : how) + '. It wins about ' + plural(bestInfo.net, 'point') + ' of material.');
+          cons.push(tcM ? 'Missed a ' + tcM.name + '.' : 'Missed a material-winning tactic.'); lessonKey = lessonKey || 'missed';
+          noteT(A, tcM, i);
+        } else if(bm && tcM && S.loss >= 10){
+          why.push('You missed a tactic: ' + bestSan + ' is ' + tcM.text + '.');
+          cons.push('Missed a ' + tcM.name + '.'); lessonKey = lessonKey || 'missed';
+          noteT(A, tcM, i);
         }
         // their plan after your move
         if(refInfo && refInfo.sans.length >= 3 && refInfo.sans[0].charAt(0) === refInfo.sans[2].charAt(0) && /[NBRQK]/.test(refInfo.sans[0].charAt(0)))
@@ -4914,7 +5228,7 @@ body.dnd-dragging,body.dnd-dragging *{cursor:grabbing !important;}
           why.push('There is no immediate tactic, but ' + bits.join(' and ') + '.'); cons.push(cap(bits[0]) + '.');
           lessonKey = 'structure';
         } else {
-          why.push('There is no single tactic to point at. The move is slower than the alternative and lets your opponent improve with tempo: the eval went from ' + fw(S.cpBefore, me) + ' to ' + fw(S.cpAfter, me) + ' (+ = White ahead).');
+          why.push('There is no single tactic to point at. The move is slower than the alternative and lets your opponent improve with tempo: the eval went from ' + fw(S.cpBefore, me) + ' to ' + fw(S.cpAfter, me) + '.');
           cons.push('Quiet move that hands over the initiative.');
           lessonKey = 'quiet';
         }
@@ -4935,14 +5249,56 @@ body.dnd-dragging,body.dnd-dragging *{cursor:grabbing !important;}
     // ----- what you should have played
     if(bm && S.loss >= 2){
       var bd = describeMove(bm, i), reason;
-      if(S.cpBefore >= 9000) reason = 'It leads to a forced mate.';
-      else if(bestInfo && bestInfo.net >= 1) reason = 'It wins about ' + plural(bestInfo.net, 'point') + ' of material by force.';
+      if(bestInfo && bestInfo.net >= 1) reason = 'It wins about ' + plural(bestInfo.net, 'point') + ' of material by force.';
       else if(bd.tags.indexOf('check') >= 0 || bd.tags.indexOf('mate') >= 0) reason = 'The check gains time and pushes them back.';
       else if(bd.tags.indexOf('castle') >= 0) reason = 'It gets your king safe first.';
       else if(bd.tags.indexOf('develop') >= 0) reason = 'It develops a new piece instead.';
       else if(bd.tags.indexOf('centre') >= 0) reason = 'It takes the centre.';
-      else reason = 'It keeps the eval at ' + fw(S.cpBefore, me) + ' where your move dropped it to ' + fw(S.cpAfter, me) + ' (+ = White ahead).';
+      else reason = 'It keeps the eval at ' + fw(S.cpBefore, me) + ' where your move dropped it to ' + fw(S.cpAfter, me) + '.';
       better = {san:bestSan, text:cap(bd.text) + '. ' + reason, line:sanLine(fenB, evB.pv, 5)};
+    }
+
+    // ----- several equally good moves (only when the engine really rates them the same)
+    var equal = [];
+    try{
+      if(evB.alts && evB.alts.length && evB.best && !isMate(evB.cp)){
+        var setU = [evB.best];
+        evB.alts.forEach(function(a){ if(a.best && !isMate(a.cp) && Math.abs(a.cp - evB.cp) <= 15 && setU.indexOf(a.best) < 0) setU.push(a.best); });
+        if(setU.length >= 2){
+          setU.slice(0, 3).forEach(function(u){
+            var mv2 = tryMove(fenB, u);
+            if(mv2) equal.push({san:mv2.san, text:cap(describeMove(mv2, i).text) + '.', played:u === S.uci});
+          });
+          if(equal.length < 2) equal = [];
+        }
+      }
+    }catch(e){ console.error(e); }
+
+    // ----- positional comments (good moves) and endgame tips (slips in the endgame)
+    var posi = (!bad && !minor) ? posNotes(m, fA, me, opp) : [];
+    var endTips = ((bad || minor) && S.phase === 'endgame') ? endgameTips(m, fenB, fB, me, opp) : [];
+
+    // ----- converting an advantage / defending a worse position
+    var st = S.cpBefore >= 250 ? 'win' : (S.cpBefore <= -250 ? 'lose' : null), advice = null;
+    var first = (A.rep.state !== st);
+    A.rep.state = st;
+    if(st && (first || bad)){
+      var al = [], atitle = st === 'win' ? 'Converting your advantage' : 'Defending a worse position';
+      if(st === 'win'){
+        if(bad) al.push('You were winning here, so this is exactly the moment to slow down: when ahead, every move must be safe first.');
+        if(fB[me].mat > fB[opp].mat && fB.total >= 12) al.push('You are ahead in material: trade pieces (not pawns) to simplify. Fewer pieces means fewer tricks for them.');
+        else if(fB[me].passed > 0) al.push('You have a passed pawn. Push it with support from your king or a rook behind it.');
+        else al.push('The engine says you are winning. Keep your king safe, trade their active pieces and avoid unnecessary risks.');
+        try{
+          var oppMoves = new Chess(fenA).moves().length;
+          if(fA.total <= 12 && oppMoves <= 3) al.push('Watch out for stalemate: after this move they have only ' + plural(oppMoves, 'legal move') + '. Make sure your next move still leaves them one.');
+        }catch(e){}
+        if(bad){ bump(A, 'conv', i); }
+      } else {
+        if(fB[me].mat < fB[opp].mat) al.push('You are behind: avoid trades, keep your pieces on, and look for counterplay (checks, a passed pawn, an attack on their king).');
+        else al.push('You are worse: look for the most resilient move. Keep every piece protected, make threats of your own, and aim for a fortress or perpetual check.');
+      }
+      advice = {title:atitle, lines:al};
     }
 
     // ----- repeated themes (real patterns: same kind of error, with the earlier move numbers)
@@ -4954,38 +5310,60 @@ body.dnd-dragging,body.dnd-dragging *{cursor:grabbing !important;}
       var ct = bump(A, 'threat', i);
       if(ct >= 2) repeat.push('Pattern: you ' + PNAME.threat + ' again (earlier on move ' + movesList(A, A.rep.theme.threat.slice(0, -1)) + '). ' + LESSON.threat);
     }
+    if(endTips.length){
+      var ce = bump(A, 'endgame', i);
+      if(ce >= 2) repeat.push('Pattern: you ' + PNAME.endgame + ' again (earlier on move ' + movesList(A, A.rep.theme.endgame.slice(0, -1)) + '). ' + LESSON.endgame);
+    }
     var tm = A.time.spent[i];
     return {
-      mine:true, mode:mode, label:label, i:i,
+      mine:true, mode:mode, label:label, i:i, whyTitle:'Why it is a turning point',
       title:moveNumText(fenB) + ' ' + m.san,
-      evalLine:'Eval: ' + fw(S.cpBefore, me) + '  ->  ' + fw(S.cpAfter, me) + '  (+ = White ahead, - = Black ahead). ' +
-        (S.cpAfter - S.cpBefore < -15 ? 'This move cost you about ' + (Math.abs(S.cpAfter - S.cpBefore) / 100).toFixed(1) + ' pawns.'
-         : S.cpAfter - S.cpBefore > 15 ? 'This move improved your position by about ' + ((S.cpAfter - S.cpBefore) / 100).toFixed(1) + ' pawns.'
-         : 'Your position stayed about the same.'),
+      evalLine:evLine(S, me),
       what:'This move ' + d.text + '.',
       why:why, better:better, pros:pros, cons:cons, notes:notes, trade:trade, missed:missed, weakT:weakT, threat:threat, plan:plan, repeat:repeat,
+      equal:equal, posi:posi, endTips:endTips, advice:advice,
       engine:evalBlock(fenA, S.cpAfter, A.me),
       lesson:(bad && lessonKey) ? LESSON[lessonKey] : null,
       time:(typeof tm === 'number') ? {t:tm, far:tm > A.time.far} : null
     };
   }
 
-  // an opponent's move, only as far as it matters to you
+  // an opponent's move: what it does, how good it was, what it threatens (only things the engine can back up)
   function explainOpp(A, i){
     var m = A.moves[i], S = A.stats[i], fenB = A.fens[i], fenA = A.fens[i + 1], me = A.me, opp = A.opp;
-    var d = describeMove(m, i), lines = [], tip = null;
-    var evA = A.ev[i + 1];
-    if(S.loss >= 10){
-      var rep = evA.best ? tryMove(fenA, evA.best) : null;
-      lines.push('Your opponent slipped here.' + (rep ? ' Your best reply was ' + rep.san + '.' : ''));
-      if(evA.best) lines.push('Line: ' + sanLine(fenA, evA.pv, 4));
+    var evA = A.ev[i + 1], evB = A.ev[i], cpA = pov(A, evA.cp), cpB = pov(A, evB.cp);
+    var d = describeMove(m, i), lines = [], title = moveNumText(fenB) + ' ' + m.san, what = 'Your opponent ' + d.text + '.';
+    // forced mate: only mate talk
+    if(isMate(cpA) || isMate(cpB)){
+      if(m.san.slice(-1) === '#') lines.push('That is checkmate.');
+      else if(cpA >= 9000){ var n1 = mateN(cpA); lines.push('Their move allows you a forced mate in ' + n1 + ': ' + mateLine(fenA, evA.pv, n1, false)); }
+      else if(cpA <= -9000){ var n2 = mateN(cpA); lines.push('After this move your opponent has a forced mate in ' + n2 + (evA.pv.length ? ': ' + mateLine(fenA, evA.pv, n2, true) : '') + '.'); }
+      else lines.push('There is a forced mate on the board.');
+      return {mine:false, title:title, what:what, lines:lines, tip:null, engine:evalBlock(fenA, cpA, me)};
     }
+    var fA = features(fenA), fB = features(fenB), purpose = [];
     try{
+      var tc = tacticOf(fenB, m);
+      if(tc) purpose.push('It is ' + tc.text + '.');
       var thr = winsFor(fenA, opp).filter(function(w){ return w.net >= 2; });
-      if(thr.length) tip = 'Watch out: they now threaten ' + thr[0].san + ', winning your ' + NAMES[thr[0].piece] + '. Deal with it.';
-      else if(d.tags.indexOf('check') >= 0 && d.tags.indexOf('mate') < 0) tip = 'This is check, so you have to respond to it first.';
-    }catch(e){}
-    return {mine:false, title:moveNumText(fenB) + ' ' + m.san, what:'Your opponent ' + d.text + '.', lines:lines, tip:tip, engine:evalBlock(fenA, pov(A, evA.cp), me)};
+      if(thr.length) purpose.push('It threatens ' + thr[0].san + ', winning your ' + NAMES[thr[0].piece] + '. Deal with that.');
+      else if(d.tags.indexOf('check') >= 0) purpose.push('It is check, so you must answer it first.');
+      var f = 'abcdefgh'.indexOf(m.to.charAt(0));
+      if(m.piece === 'r' && !fA[opp].pawnsFiles[f] && !fA[me].pawnsFiles[f]) purpose.push('Their rook takes an open file.');
+      if(fA[opp].passed > fB[opp].passed) purpose.push('It creates a passed pawn for them.');
+      if(fA[opp].shield < fB[opp].shield && fA.total >= 25) purpose.push('It loosens the pawns around their own king, which gives you something to aim at.');
+    }catch(e){ console.error(e); }
+    purpose.slice(0, 2).forEach(function(t){ lines.push(t); });
+    var gap = Math.abs(S.cpAfter - S.cpBefore) / 100;
+    if(S.label === 'best') lines.push("The engine agrees with this move.");
+    else if(S.label === 'excellent' || S.label === 'good') lines.push("A solid move, close to the engine's favourite.");
+    else if(S.label === 'inaccuracy') lines.push('A small inaccuracy: it costs them about ' + gap.toFixed(1) + ' pawns.');
+    else {
+      lines.push('They slipped: this move costs them about ' + gap.toFixed(1) + ' pawns.');
+      var rep = evA.best ? tryMove(fenA, evA.best) : null;
+      if(rep){ lines.push('Your best reply was ' + rep.san + '.'); lines.push('Line: ' + sanLine(fenA, evA.pv, 4)); }
+    }
+    return {mine:false, title:title, what:what, lines:lines, tip:null, engine:evalBlock(fenA, cpA, me)};
   }
   function explain(A, i){
     if(A.cache[i]) return A.cache[i];
@@ -4993,7 +5371,7 @@ body.dnd-dragging,body.dnd-dragging *{cursor:grabbing !important;}
     try{ out = mine ? explainMine(A, i) : explainOpp(A, i); }
     catch(e){
       console.error('explain failed', e);
-      out = mine ? {mine:true, mode:'ok', label:A.stats[i].label, title:A.moves[i].san, evalLine:'', what:'', why:["I couldn't build the full explanation for this move (" + e.message + ')'], better:null, pros:[], cons:[], notes:[], repeat:[], engine:[], lesson:null, time:null}
+      out = mine ? {mine:true, mode:'ok', whyTitle:'', label:A.stats[i].label, title:A.moves[i].san, evalLine:'', what:'', why:["I couldn't build the full explanation for this move (" + e.message + ')'], better:null, pros:[], cons:[], notes:[], repeat:[], equal:[], posi:[], endTips:[], advice:null, engine:[], lesson:null, time:null}
                  : {mine:false, title:A.moves[i].san, what:'', lines:[], tip:null, engine:[]};
     }
     A.cache[i] = out;
@@ -5108,7 +5486,9 @@ body.dnd-dragging,body.dnd-dragging *{cursor:grabbing !important;}
       for(var i = 0; i < total; i++){
         if(cancelFlag) throw new Error('Analysis cancelled.');
         setProg('Analyzing position ' + (i + 1) + ' of ' + total + ' with the ' + note + '...', Math.round(i / total * 100));
-        ev.push(await evalFen(eng, parsed.fens[i], ms));
+        // before YOUR moves, also look at the 2nd and 3rd best moves (to spot equally good options)
+        var multi = (i < parsed.moves.length && parsed.moves[i].color === side) ? 3 : 1;
+        ev.push(await evalFen(eng, parsed.fens[i], ms, multi));
         await new Promise(function(r){ setTimeout(r, 0); });
       }
       setProg('Writing your report...', 99);
@@ -5198,42 +5578,64 @@ body.dnd-dragging,body.dnd-dragging *{cursor:grabbing !important;}
   }
   function sec(title, inner){ return inner ? '<div class="an-sec"><h4>' + title + '</h4>' + inner + '</div>' : ''; }
   function ps(arr){ return arr.map(function(t){ return '<p class="an-note">' + esc(t) + '</p>'; }).join(''); }
+  function equalHtml(E){
+    if(!E.equal || !E.equal.length) return '';
+    return sec('Equally good options', '<p class="an-note">The engine rates these moves about the same, so choose by plan:</p>' +
+      E.equal.map(function(x){ return '<p class="an-note"><b>' + esc(x.san) + '</b>' + (x.played ? ' (you played this)' : '') + ': ' + esc(x.text) + '</p>'; }).join(''));
+  }
+  function adviceHtml(E){
+    return (E.advice && E.advice.lines.length) ? sec(E.advice.title, ps(E.advice.lines)) : '';
+  }
 
   function panelHtml(){
     if(A.sel === 0){
-      return '<div class="an-title">Start of the game</div><p class="desc" style="margin-top:8px;">You are analyzing as ' + (A.me === 'w' ? 'White' : 'Black') + '. Step through with the arrows (or your keyboard arrow keys), click a move, or click the thin bar under the board. Your moves get a coloured dot and a coach explanation. Your opponent\'s moves only get a note when they matter to you. Evals use the standard sign: + means White is ahead, - means Black is ahead.</p>' +
+      return '<div class="an-title">Start of the game</div><p class="desc" style="margin-top:8px;">You are analyzing as ' + (A.me === 'w' ? 'White' : 'Black') + '. Step through with the arrows (or your keyboard arrow keys), click a move, or click the thin bar under the board. Your moves get a coloured dot and a coach explanation. Your opponent\'s moves get a short note on what they do. Evals use the standard sign everywhere: + means White is ahead, - means Black is ahead.</p>' +
         sec('How the engine sees it', ps(evalBlock(A.fens[0], pov(A, A.ev[0].cp), A.me)));
     }
     var E = explain(A, A.sel - 1);
     if(!E.mine){
       return '<div class="an-title">' + esc(E.title) + ' <span class="hint">your opponent</span></div><p class="an-note" style="margin-top:8px;">' + esc(E.what) + '</p>' +
-        (E.lines.length ? ps(E.lines) : '') + (E.tip ? '<p class="an-note"><b>' + esc(E.tip) + '</b></p>' : (!E.lines.length ? '<p class="hint">Nothing here you need to act on.</p>' : '')) +
-        sec('Where that leaves you', ps(E.engine));
+        (E.lines.length ? ps(E.lines) : '') + sec('Where that leaves you', ps(E.engine));
     }
     var L = LABEL[E.label];
     var h = '<div class="an-title">' + esc(E.title) + ' <span class="an-chip" style="background:' + L.c + '">' + L.t + '</span></div><div class="an-evline">' + esc(E.evalLine) + '</div>';
     if(E.time) h += '<div class="an-time">\u23F1 ' + fmtSec(E.time.t) + (E.time.far ? ' <span class="an-bad">(far too long; guide: about ' + fmtSec(A.time.far) + ')</span>' : '') + '</div>';
+    if(E.mode === 'mate'){
+      h += sec(E.whyTitle, E.why.map(function(w){ return '<p class="an-note">' + w + '</p>'; }).join(''));
+      if(E.better) h += sec('Better was ' + esc(E.better.san), '<p class="an-note">' + esc(E.better.text) + '</p><span class="an-line">' + esc(E.better.line) + '</span>');
+      if(E.repeat.length) h += sec('A pattern', ps(E.repeat));
+      h += sec('Where that leaves you', ps(E.engine));
+      if(E.lesson) h += '<div class="an-tip">\uD83D\uDCA1 ' + esc(E.lesson) + '</div>';
+      return h;
+    }
     if(E.mode === 'short'){
       h += '<p class="an-note">Small slip, nothing much to worry about.</p>';
       if(E.better) h += '<p class="an-note">Slightly better was <b>' + esc(E.better.san) + '</b>.</p>';
       if(E.missed) h += '<p class="an-note">' + esc(E.missed) + '</p>';
       if(E.trade) h += '<p class="an-note">' + esc(E.trade) + '</p>';
+      h += equalHtml(E);
+      if(E.endTips.length) h += sec('Endgame tip', ps(E.endTips));
+      h += adviceHtml(E);
       if(E.repeat.length) h += ps(E.repeat);
       return h;
     }
     h += sec('What the move does', ps([E.what]));
     if(E.mode === 'full'){
-      if(E.why.length) h += sec('Why it is a turning point', E.why.map(function(w){ return '<p class="an-note">' + w + '</p>'; }).join(''));
+      if(E.why.length) h += sec(E.whyTitle, E.why.map(function(w){ return '<p class="an-note">' + w + '</p>'; }).join(''));
       if(E.threat) h += sec('A threat you missed', ps([E.threat]));
       if(E.better) h += sec('Better was ' + esc(E.better.san), '<p class="an-note">' + esc(E.better.text) + '</p><span class="an-line">' + esc(E.better.line) + '</span>');
       if(E.plan) h += sec("Your opponent's plan", ps([E.plan]));
     } else if(E.why.length){
       h += '<p class="an-note">' + E.why.map(function(w){ return esc(w.replace(/<[^>]+>/g, '')); }).join(' ') + '</p>';
     }
+    if(E.posi.length) h += sec('Positional', ps(E.posi));
+    h += equalHtml(E);
     if(E.missed) h += sec('Missed material', ps([E.missed]));
     if(E.trade) h += sec('Trade', ps([E.trade]));
     if(E.weakT) h += sec('Targeting weak pawns', ps([E.weakT]));
     if(E.notes.length) h += sec('Pawns and structure', ps(E.notes));
+    if(E.endTips.length) h += sec('Endgame tip', ps(E.endTips));
+    h += adviceHtml(E);
     if(E.repeat.length) h += sec('A pattern', ps(E.repeat));
     if(E.pros.length || E.cons.length){
       var both = E.pros.length && E.cons.length;
@@ -5265,6 +5667,10 @@ body.dnd-dragging,body.dnd-dragging *{cursor:grabbing !important;}
       if(k === 'free' && sqHit) return;
       if(l.length >= 2 && PNAME[k]) recur.push('You ' + PNAME[k] + ' ' + l.length + ' times (moves ' + movesList(A, l) + '). ' + (LESSON[k] || ''));
     });
+    Object.keys(A.rep.tacts).forEach(function(name){
+      var l = A.rep.tacts[name];
+      if(l.length >= 2) recur.push('You missed or fell for a ' + name + ' ' + l.length + ' times (moves ' + movesList(A, l) + '). ' + TACT_TIP[name]);
+    });
     // which piece caused most of your big mistakes
     var byPiece = {};
     myIdx(A).forEach(function(i){
@@ -5274,12 +5680,15 @@ body.dnd-dragging,body.dnd-dragging *{cursor:grabbing !important;}
     Object.keys(byPiece).forEach(function(p){
       if(byPiece[p].length >= 3) recur.push('Most of your big mistakes were ' + NAMES[p] + ' moves (moves ' + movesList(A, byPiece[p]) + '). Slow down and double-check before moving your ' + NAMES[p] + '.');
     });
-    // do the mistakes cluster after trades or after your opponent checks?
+    // do the mistakes cluster right after you were checked?
     var afterCheck = myIdx(A).filter(function(i){
       var lb = A.stats[i].label, pv = i > 0 ? A.moves[i - 1] : null;
       return (lb === 'mistake' || lb === 'blunder') && pv && /[+]/.test(pv.san);
     });
     if(afterCheck.length >= 2) recur.push('You went wrong ' + afterCheck.length + ' times right after being checked (moves ' + movesList(A, afterCheck) + '). List every legal way out of check before choosing one.');
+
+    var bk = bookInfo(A);
+    var bookCard = bk ? '<div class="card"><h2>Opening</h2>' + ps(bk.lines) + '<p class="hint">My opening book only has main lines, so leaving it is not automatically a mistake.</p></div>' : '';
 
     var tf = timeFindings(A), sug = timeSuggest(A), timeBody;
     if(A.time.has) timeBody = ps(tf) + (sug ? '<p class="hint" style="margin-top:8px;">' + esc(sug) + '</p>' : '');
@@ -5294,6 +5703,7 @@ body.dnd-dragging,body.dnd-dragging *{cursor:grabbing !important;}
         (N.pros.length ? sec('What went well', '<ul>' + N.pros.map(function(t){ return '<li>' + esc(t) + '</li>'; }).join('') + '</ul>') : '') +
         (N.cons.length ? sec('To work on', '<ul>' + N.cons.map(function(t){ return '<li>' + esc(t) + '</li>'; }).join('') + '</ul>') : '') +
         (recur.length ? sec('Patterns', '<ul>' + recur.map(function(t){ return '<li>' + esc(t) + '</li>'; }).join('') + '</ul>') : '') + '</div>' + moments + '</div>' +
+      bookCard +
       '<div class="card"><h2>Time per move</h2>' + timeBody + '</div>' +
       '<div class="card"><h2>Learn from your mistakes</h2><p class="desc">' + (nPr ? 'A quick round on ' + plural(nPr, 'position') + ' from your game where you made a mistake or blunder. Find the better move.' : 'You made no mistakes or blunders, so there is nothing to practise. Nice.') + '</p>' +
         (nPr ? '<button id="anToPractice">Start practice</button>' : '') + '</div>';
@@ -5388,9 +5798,13 @@ body.dnd-dragging,body.dnd-dragging *{cursor:grabbing !important;}
     if(level >= 1){
       try{
         var thr = winsFor(fen, opp).filter(function(w){ return w.net >= 2; });
-        var fk = forkOf(fen, bm, me), fl = bm.flags || '';
-        if(A.stats[i].cpBefore >= 9000) s1 = 'There is a forced checkmate here. List every check you have.';
-        else if(fk) s1 = 'Look for a move that attacks two valuable things at once.';
+        var tc = tacticOf(fen, bm), fl = bm.flags || '';
+        if(isMate(A.stats[i].cpBefore) && A.stats[i].cpBefore > 0) s1 = 'There is a forced checkmate here. List every check you have.';
+        else if(tc && tc.name === 'fork') s1 = 'Look for a move that attacks two valuable things at once.';
+        else if(tc && tc.name === 'pin') s1 = 'Look for a line running through two of their pieces: a pin is available.';
+        else if(tc && tc.name === 'skewer') s1 = 'A skewer is on: attack the valuable piece so that it must move and exposes another one behind it.';
+        else if(tc && tc.name === 'discovered attack') s1 = 'Move a piece out of the way so that another one of yours uncovers an attack.';
+        else if(tc && tc.name === 'back-rank mate') s1 = 'Their king has no escape squares. Think about the back rank.';
         else if(bm.captured) s1 = 'A capture works here. Which of their pieces is loose, or can be won with a good trade?';
         else if(/[+#]/.test(bm.san)) s1 = 'A forcing check is the key. Checks first, then captures, then threats.';
         else if(thr.length) s1 = 'Your opponent is threatening to win material (' + thr[0].san + ' takes your ' + NAMES[thr[0].piece] + '). Deal with that first.';
@@ -5473,7 +5887,7 @@ body.dnd-dragging,body.dnd-dragging *{cursor:grabbing !important;}
     PR.busy = true; PR.msg = 'Checking ' + mv.san + '...'; PR.msgCls = ''; renderPractice();
     var okMove = false;
     try{
-      var r = await evalFen(ENGINE, c.fen(), 500);
+      var r = await evalFen(ENGINE, c.fen(), 500, 1);
       okMove = winPct(pov(A, A.ev[i].cp)) - winPct(pov(A, r.cp)) <= 4;
     }catch(e){ console.error(e); }
     PR.busy = false;
@@ -5530,7 +5944,7 @@ body.dnd-dragging,body.dnd-dragging *{cursor:grabbing !important;}
   };
 })();
 </script>
-<!-- ===== END STEP 16 v4 ===== -->
+<!-- ===== END STEP 16 v5 ===== -->
   <!-- ===== PAWNIAC STEP 17: TIME PER MOVE (saved with every game) + ANALYZE SENDS THE TIMES (paste at the very bottom, below step 16) ===== -->
 <script>
 (function(){
