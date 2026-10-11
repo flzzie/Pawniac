@@ -4445,6 +4445,7 @@ body.dnd-dragging,body.dnd-dragging *{cursor:grabbing !important;}
         ' of a pawn in favour of ' + (cpW >= 0 ? 'White' : 'Black') + '. Engines convert everything on the board into that single number.');
     }
     var md = F.w.mat - F.b.mat;
+    var matIdx = lines.length;
     lines.push(md === 0 ? 'Material is even (pawn 1, minor piece 3, rook 5, queen 9).'
       : (md > 0 ? 'White' : 'Black') + ' is up ' + plural(Math.abs(md), 'point') + ' of material.');
     var fac = [];
@@ -4473,6 +4474,11 @@ body.dnd-dragging,body.dnd-dragging *{cursor:grabbing !important;}
     var lead = cpW >= 0 ? 1 : -1;
     var sup = fac.filter(function(x){ return x.s * lead > 0; }).sort(function(a, b){ return Math.abs(b.s) - Math.abs(a.s); }).slice(0, 3);
     var agn = fac.filter(function(x){ return x.s * lead < 0; }).sort(function(a, b){ return Math.abs(b.s) - Math.abs(a.s); }).slice(0, 1);
+    var matLead = md > 0 ? 'White' : (md < 0 ? 'Black' : null);
+    var evLead = cpW >= 60 ? 'White' : (cpW <= -60 ? 'Black' : null);
+    if(matLead && evLead && matLead !== evLead){
+      lines[matIdx] += ' But ' + evLead + ' has the better position' + (sup.length ? ' (' + sup[0].t + ')' : '') + ': the engine values activity, king safety and threats above that extra material.';
+    }
     if(Math.abs(cpW) < 60 && !isMate(cpW)){
       lines.push('The factors roughly cancel out' + (fac.length ? ': ' + fac.slice(0, 2).map(function(x){ return x.t; }).join('; ') : '') + '.');
     } else {
@@ -4606,7 +4612,7 @@ body.dnd-dragging,body.dnd-dragging *{cursor:grabbing !important;}
       else if(loss < 2) label = 'excellent';
       else if(loss < 5) label = 'good';
       else if(loss < 10) label = 'inaccuracy';
-      else if(loss < 20) label = 'mistake';
+      else if(loss < 15) label = 'mistake';
       else label = 'blunder';
       var F = features(A.fens[i]);
       A.stats.push({uci:uci, cpBefore:cpB, cpAfter:cpA, loss:loss, label:label, phase:F.phase});
@@ -4641,7 +4647,7 @@ body.dnd-dragging,body.dnd-dragging *{cursor:grabbing !important;}
     else if(S.acc >= 78) pros.push('Solid accuracy (' + Math.round(S.acc) + '%): mostly sensible, engine-approved moves.');
     else if(S.acc >= 62) cons.push('Accuracy of ' + Math.round(S.acc) + '% is inconsistent. A few moves swung the game.');
     else cons.push('Accuracy of ' + Math.round(S.acc) + '% means many moves gave away ground.');
-    if(good >= Math.ceil(S.idx.length * 0.6)) pros.push(plural(good, 'move') + ' were best or excellent.');
+    if(good >= Math.ceil(S.idx.length * 0.6)) pros.push(good + ' of ' + S.idx.length + ' moves were best or excellent.');
     if(S.counts.blunder === 0 && S.counts.mistake === 0) pros.push('No blunders or mistakes. Great discipline.');
     if(S.counts.blunder > 0) cons.push(plural(S.counts.blunder, 'blunder') + '. Each one is a chance to learn: review them first.');
     if(S.counts.mistake > 0) cons.push(plural(S.counts.mistake, 'mistake') + ' cost real advantage.');
@@ -4764,7 +4770,7 @@ body.dnd-dragging,body.dnd-dragging *{cursor:grabbing !important;}
           cons.push(cap(bits[0]) + '.');
         } else {
           why.push("There is no single tactic to point at. The move is slower than the alternative and lets your opponent improve with tempo: the position went from " +
-            fmtEval(S.cpBefore) + ' to ' + fmtEval(S.cpAfter) + ' for you.');
+            fmtEval(A.ev[i].cp) + ' to ' + fmtEval(A.ev[i + 1].cp) + " (from White's side).");
           cons.push('Quiet move that hands over the initiative.');
         }
         lessonKey = lessonKey || 'quiet';
@@ -4796,7 +4802,7 @@ body.dnd-dragging,body.dnd-dragging *{cursor:grabbing !important;}
       else if(bd.tags.indexOf('castle') >= 0) reason = 'It gets the king safe first.';
       else if(bd.tags.indexOf('develop') >= 0) reason = 'It develops a new piece instead.';
       else if(bd.tags.indexOf('centre') >= 0) reason = 'It takes the centre.';
-      else reason = 'It keeps the evaluation at ' + fmtEval(S.cpBefore) + ' where your move dropped it to ' + fmtEval(S.cpAfter) + '.';
+      else reason = 'It keeps the evaluation at ' + fmtEval(A.ev[i].cp) + ' where your move changed it to ' + fmtEval(A.ev[i + 1].cp) + " (White's side).";
       better = {san:bestSan, text:cap(bd.text) + '. ' + reason, line:sanLine(fenB, evB.pv, 5)};
     }
 
@@ -4812,7 +4818,7 @@ body.dnd-dragging,body.dnd-dragging *{cursor:grabbing !important;}
     return {
       title:moveNumText(fenB) + ' ' + m.san,
       label:label,
-      evalLine:fmtEval(S.cpBefore) + '  ->  ' + fmtEval(S.cpAfter) + '  (' + (mover === 'w' ? 'White' : 'Black') + ' point of view)',
+      evalLine:fmtEval(A.ev[i].cp) + '  ->  ' + fmtEval(A.ev[i + 1].cp) + "  (always from White's side: + means White is better)",
       what:cap(d.text) + '.',
       why:why, better:better, pros:pros, cons:cons,
       engine:evalBlock(fenA, A.ev[i + 1].cp),
@@ -4826,7 +4832,7 @@ body.dnd-dragging,body.dnd-dragging *{cursor:grabbing !important;}
     catch(e){
       console.error('explain failed', e);
       var S = A.stats[i];
-      out = {title:A.moves[i].san, label:S.label, evalLine:fmtEval(S.cpBefore) + '  ->  ' + fmtEval(S.cpAfter), what:'',
+      out = {title:A.moves[i].san, label:S.label, evalLine:fmtEval(A.ev[i].cp) + '  ->  ' + fmtEval(A.ev[i + 1].cp), what:'',
         why:["I couldn't build the full explanation for this move (" + esc(e.message) + ')'], better:null, pros:[], cons:[], engine:[], lesson:null};
     }
     A.cache[i] = out;
@@ -5054,10 +5060,11 @@ body.dnd-dragging,body.dnd-dragging *{cursor:grabbing !important;}
       E.why.map(function(w){ return '<p style="margin-bottom:6px;">' + w + '</p>'; }).join('') + '</div>';
     if(E.better) h += '<div class="an-sec"><h4>Better was ' + esc(E.better.san) + '</h4><p>' + esc(E.better.text) + '</p><span class="an-line">' + esc(E.better.line) + '</span></div>';
     if(E.pros.length || E.cons.length){
-      h += '<div class="an-sec an-pc"><div class="an-pros"><h4>Pros</h4>' +
-        (E.pros.length ? '<ul>' + E.pros.map(function(p){ return '<li>' + esc(p) + '</li>'; }).join('') + '</ul>' : '<p>-</p>') + '</div>' +
-        '<div class="an-cons"><h4>Cons</h4>' +
-        (E.cons.length ? '<ul>' + E.cons.map(function(p){ return '<li>' + esc(p) + '</li>'; }).join('') + '</ul>' : '<p>-</p>') + '</div></div>';
+      var both = E.pros.length && E.cons.length;
+      h += '<div class="an-sec an-pc"' + (both ? '' : ' style="grid-template-columns:1fr;"') + '>' +
+        (E.pros.length ? '<div class="an-pros"><h4>Pros</h4><ul>' + E.pros.map(function(p){ return '<li>' + esc(p) + '</li>'; }).join('') + '</ul></div>' : '') +
+        (E.cons.length ? '<div class="an-cons"><h4>Cons</h4><ul>' + E.cons.map(function(p){ return '<li>' + esc(p) + '</li>'; }).join('') + '</ul></div>' : '') +
+        '</div>';
     }
     if(E.engine.length) h += '<div class="an-sec"><h4>How the engine sees the position</h4>' + E.engine.map(function(l){ return '<p style="margin-bottom:5px;">' + esc(l) + '</p>'; }).join('') + '</div>';
     // de-emphasized: a small inline tip instead of a full labelled section
@@ -5080,8 +5087,9 @@ body.dnd-dragging,body.dnd-dragging *{cursor:grabbing !important;}
         '</div>';
     }).join('');
     var swings = A.stats.map(function(s, i){ return {i:i, loss:s.loss}; })
-      .filter(function(x){ return x.loss >= 10; }).sort(function(a, b){ return b.loss - a.loss; }).slice(0, 3);
-    var moments = swings.length ? '<p class="desc" style="margin:14px 0 0;">Turning points: ' + swings.map(function(x){
+      .filter(function(x){ return x.loss >= 10; }).sort(function(a, b){ return b.loss - a.loss; }).slice(0, 3)
+      .sort(function(a, b){ return a.i - b.i; });
+    var moments = swings.length ? '<p class="desc" style="margin:14px 0 0;">Biggest swings, in move order: ' + swings.map(function(x){
       var m = A.moves[x.i], lb = LABEL[A.stats[x.i].label];
       return '<span class="an-moment" data-ply="' + (x.i + 1) + '">' + esc(moveNumText(A.fens[x.i]) + ' ' + m.san) + ' (' + lb.t.toLowerCase() + ')</span>';
     }).join(', ') + '.</p>' : '<p class="desc" style="margin:14px 0 0;">No big swings. A clean game.</p>';
