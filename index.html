@@ -3692,7 +3692,7 @@ body.no-last #screen-game .sq.dark.last:not(.from){background:#b58863;}
 }
 </style>
 <!-- ===== END STEP 14 ===== -->
-  <!-- ===== PAWNIAC STEP 15: DRAG & DROP + PREMOVES ===== -->
+<!-- ===== PAWNIAC STEP 15 v2: DRAG & DROP + PREMOVES (premoves can now recapture) ===== -->
 <style>
 body.dnd-on #screen-game .board{touch-action:none;}
 .sq.dnd-from{cursor:grab;}
@@ -3744,7 +3744,9 @@ body.dnd-dragging,body.dnd-dragging *{cursor:grabbing !important;}
     return (target && target.closest) ? target.closest('#screen-game .sq[data-sq]') : null;
   }
 
-  // squares a piece could premove to (ignores blockers and checks, like lichess)
+  // squares a piece could premove to (ignores enemy blockers and checks, like lichess).
+  // Squares holding YOUR OWN piece count too: that is how you premove a recapture,
+  // because the square only becomes capturable after your opponent takes your piece.
   function pmDests(chess, from, color){
     var p = chess.get(from);
     if(!p || p.color !== color) return [];
@@ -3755,8 +3757,9 @@ body.dnd-dragging,body.dnd-dragging *{cursor:grabbing !important;}
       dirs.forEach(function(d){
         for(var i = 1; i <= max; i++){
           var s = sqAt(f + d[0] * i, r + d[1] * i);
-          if(!s || own(s)) break;
+          if(!s) break;
           out.push(s);
+          if(own(s)) break;        // can aim at your own piece (recapture) but not past it
         }
       });
     }
@@ -3780,7 +3783,7 @@ body.dnd-dragging,body.dnd-dragging *{cursor:grabbing !important;}
         var two = sqAt(f, r + 2 * dir);
         if(r === start && two && !own(two)) out.push(two);
       }
-      [-1, 1].forEach(function(df){ var s = sqAt(f + df, r + dir); if(s && !own(s)) out.push(s); });
+      [-1, 1].forEach(function(df){ var s = sqAt(f + df, r + dir); if(s) out.push(s); });   // diagonals: captures and recaptures
     }
     return out;
   }
@@ -3876,6 +3879,15 @@ body.dnd-dragging,body.dnd-dragging *{cursor:grabbing !important;}
     } else if(canPremoveNow(c)){
       var pc = chess.get(sq);
       if(!pc || pc.color !== c.me.side) return;
+      // a piece is already picked up and this square of yours is one of its targets: that is a
+      // recapture premove, so queue it instead of switching the selection to this piece
+      if(pmSel && pmSel !== sq && pmDests(chess, pmSel, c.me.side).indexOf(sq) >= 0){
+        e.preventDefault();
+        PM = {gid:currentGameId, from:pmSel, to:sq};
+        pmSel = null;
+        drawGame();
+        return;
+      }
       mode = 'premove';
       dests = pmDests(chess, sq, c.me.side);
     } else {
@@ -3966,7 +3978,7 @@ body.dnd-dragging,body.dnd-dragging *{cursor:grabbing !important;}
     var c = ctx();
     if(!c || !canPremoveNow(c)) return;
     var sq = cell.dataset.sq, chess = new Chess(c.g.fen), p = chess.get(sq);
-    if(p && p.color === c.me.side) return;                   // picking a piece is handled on pointerdown
+    if(p && p.color === c.me.side) return;                   // your own pieces are handled on pointerdown
     if(pmSel && pmDests(chess, pmSel, c.me.side).indexOf(sq) >= 0){
       PM = {gid:currentGameId, from:pmSel, to:sq};
       pmSel = null;
@@ -4023,7 +4035,7 @@ body.dnd-dragging,body.dnd-dragging *{cursor:grabbing !important;}
         pmDests(chess, pmSel, side).forEach(function(s){
           var el = mark(s, 'pm-dest');
           var q = chess.get(s);
-          if(el && q && q.color !== side) el.classList.add('pm-cap');
+          if(el && q) el.classList.add('pm-cap');          // any occupied square gets the capture ring
         });
       }
     }
@@ -4080,7 +4092,7 @@ body.dnd-dragging,body.dnd-dragging *{cursor:grabbing !important;}
   if(scr0) new MutationObserver(addCard).observe(scr0, {childList:true});
 })();
 </script>
-<!-- ===== END STEP 15 ===== -->
+<!-- ===== END STEP 15 v2 ===== -->
 <!-- ===== PAWNIAC STEP 16 v2: ANALYZE, YOUR PERSPECTIVE + TIME + PRACTICE (replaces the old step 16 block completely) ===== -->
 <style>
 .an-in textarea{width:100%;min-height:130px;border:1px solid #d8d1bf;border-radius:7px;padding:10px 12px;font-size:12.5px;font-family:monospace;resize:vertical;background:#fff;color:inherit;}
