@@ -5903,6 +5903,13 @@ body.dnd-dragging,body.dnd-dragging *{cursor:grabbing !important;}
     renderPractice();
   }
 
+  // read-only access for the PDF report (step 20)
+  window.__anHook = {
+    data: function(){ return A; },
+    panel: function(k){ var old = A.sel; A.sel = k; try{ return panelHtml(); } finally { A.sel = old; } },
+    report: function(){ return reportHtml(); }
+  };
+
   // ---- "Analyze this game" button on a finished game ----
   function gamePgn(g){
     var s = g.seats || {};
