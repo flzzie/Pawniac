@@ -4173,7 +4173,7 @@ body.dnd-dragging,body.dnd-dragging *{cursor:grabbing !important;}
   var VAL = {p:1, n:3, b:3, r:5, q:9, k:0};
   var NAMES = {p:'pawn', n:'knight', b:'bishop', r:'rook', q:'queen', k:'king'};
   var LABEL = {
-    best:{t:'Best move', c:'#1f9d55'}, excellent:{t:'Excellent', c:'#4caf50'}, good:{t:'Good', c:'#5f9ea0'},
+    book:{t:'Book move', c:'#6b8fb5'}, best:{t:'Best move', c:'#1f9d55'}, excellent:{t:'Excellent', c:'#4caf50'}, good:{t:'Good', c:'#5f9ea0'},
     inaccuracy:{t:'Inaccuracy', c:'#d4a800'}, mistake:{t:'Mistake', c:'#e67e22'}, blunder:{t:'Blunder', c:'#d64545'}
   };
   var SF_URLS = [
@@ -4736,6 +4736,7 @@ body.dnd-dragging,body.dnd-dragging *{cursor:grabbing !important;}
   var BOOK = BOOK_SRC.map(function(x){ return {m:x[0].split(' '), n:x[1]}; });
   function bookInfo(A){
     if(A.hdr.FEN || A.hdr.SetUp === '1') return null;
+    try{ var oc = (window.__anPlus && window.__anPlus.openingCard) ? window.__anPlus.openingCard(A) : null; if(oc) return oc; }catch(e){ console.error(e); }
     var game = A.moves.map(function(m){ return m.san.replace(/[+#]/g, ''); });
     var bestLen = 0, name = null, nameLen = 0;
     BOOK.forEach(function(L){
@@ -4812,6 +4813,9 @@ body.dnd-dragging,body.dnd-dragging *{cursor:grabbing !important;}
       else if(loss < 10) label = 'inaccuracy';
       else if(loss < 15) label = 'mistake';
       else label = 'blunder';
+      var plus = null;
+      try{ plus = window.__anPlus ? window.__anPlus.adjust(A, i, label, loss) : null; }catch(e){ console.error(e); }
+      if(plus){ label = plus.label; loss = plus.loss; }
       A.stats.push({uci:uci, cpBefore:cpB, cpAfter:cpA, loss:loss, label:label, phase:features(A.fens[i]).phase});
     });
     A.time = timeReport(A);
@@ -4912,7 +4916,7 @@ body.dnd-dragging,body.dnd-dragging *{cursor:grabbing !important;}
     return {firstBad:firstBad, slips:slips, best:best};
   }
   function sideSummary(A){
-    var counts = {best:0, excellent:0, good:0, inaccuracy:0, mistake:0, blunder:0}, accSum = 0, n = 0;
+    var counts = {book:0, best:0, excellent:0, good:0, inaccuracy:0, mistake:0, blunder:0}, accSum = 0, n = 0;
     var phases = {opening:[], middlegame:[], endgame:[]}, maxAdv = -99999, maxAdvIdx = -1;
     myIdx(A).forEach(function(i){
       var s = A.stats[i]; n++; counts[s.label]++;
@@ -4925,7 +4929,7 @@ body.dnd-dragging,body.dnd-dragging *{cursor:grabbing !important;}
     return {counts:counts, acc:accSum / (n || 1), n:n, phaseAvg:phaseAvg, maxAdv:maxAdv, maxAdvIdx:maxAdvIdx};
   }
   function coachNotes(A, S){
-    var pros = [], cons = [], good = S.counts.best + S.counts.excellent, st = stretches(A);
+    var pros = [], cons = [], good = S.counts.best + S.counts.excellent + (S.counts.book || 0), st = stretches(A);
     if(st.firstBad === null) pros.push('No serious mistakes all game. That is rare and worth being proud of.');
     else pros.push('Until move ' + mvNo(A, st.firstBad) + ', nothing went seriously wrong' + (st.slips ? ' (just ' + plural(st.slips, 'small slip') + ', nothing to worry about).' : '.'));
     if(st.best.len >= 6) pros.push('Your cleanest stretch ran from move ' + mvNo(A, st.best.a) + ' to move ' + mvNo(A, st.best.b) + ' (' + st.best.len + ' solid moves in a row).');
@@ -5090,7 +5094,12 @@ body.dnd-dragging,body.dnd-dragging *{cursor:grabbing !important;}
     if(d.tags.indexOf('develop') >= 0) pros.push('Develops a piece, bringing more of your army into the game.');
     if(d.tags.indexOf('castle') >= 0) pros.push('Gets your king safe and activates a rook.');
     if(d.tags.indexOf('centre') >= 0) pros.push('Fights for the centre, where pieces are most active.');
-    if(d.tags.indexOf('capture') >= 0) pros.push('Wins a ' + NAMES[m.captured] + ' (' + plural(VAL[m.captured], 'point') + ').');
+    if(d.tags.indexOf('capture') >= 0){
+      var cn = null;
+      try{ cn = window.__anPlus ? window.__anPlus.captureNote(A, i) : null; }catch(e){}
+      if(cn) (cn.kind === 'loss' ? cons : pros).push(cn.text);
+      else pros.push('Takes a ' + NAMES[m.captured] + ' (' + plural(VAL[m.captured], 'point') + ').');
+    }
     if(d.tags.indexOf('promo') >= 0) pros.push('Promotes: a huge material gain.');
     if(d.tags.indexOf('mate') >= 0) pros.push('Checkmate!');
     else if(d.tags.indexOf('check') >= 0) pros.push('Gives check, forcing a reply and gaining a tempo.');
@@ -5234,7 +5243,12 @@ body.dnd-dragging,body.dnd-dragging *{cursor:grabbing !important;}
         }
       }
     } else {
-      if(label === 'best') why.push("This is the engine's top choice.");
+      if(label === 'book'){
+        var bw = null;
+        try{ bw = window.__anPlus ? window.__anPlus.bookWhy(A, i) : null; }catch(e){}
+        why.push.apply(why, bw || ['This is a known opening move.']);
+      }
+      else if(label === 'best') why.push("This is the engine's top choice.");
       else if(label === 'excellent') why.push("Practically as good as the engine's favourite.");
       else why.push('A fine move. A slightly stronger option existed, but nothing is lost.');
       if(d.tags.indexOf('mate') >= 0) why.push('It ends the game.');
@@ -5242,7 +5256,12 @@ body.dnd-dragging,body.dnd-dragging *{cursor:grabbing !important;}
       else if(S.cpAfter <= -150) why.push('The position is difficult, but this is a resilient defence.');
       else if(Math.abs(S.cpAfter) < 60) why.push('The game stays balanced.');
       if(m.captured && VAL[m.captured] === VAL[m.piece] && S.cpAfter >= 150) pros.push('An even trade when ahead: simplifying makes the advantage easier to convert.');
-      if(!pros.length && !notes.length) pros.push('Keeps your position healthy and your pieces coordinated.');
+      if(!pros.length && !notes.length){
+        var wl = null;
+        try{ wl = window.__anPlus ? window.__anPlus.whyList(A, i, S.uci, [S.uci].concat(evA.pv || [])) : null; }catch(e){}
+        if(wl && wl.length) wl.forEach(function(t){ pros.push(t); });
+        else pros.push('Keeps your position healthy and your pieces coordinated.');
+      }
       if(S.cpAfter <= -150) cons.push('Even with good moves, the position is worse for you.');
     }
 
@@ -5255,7 +5274,9 @@ body.dnd-dragging,body.dnd-dragging *{cursor:grabbing !important;}
       else if(bd.tags.indexOf('develop') >= 0) reason = 'It develops a new piece instead.';
       else if(bd.tags.indexOf('centre') >= 0) reason = 'It takes the centre.';
       else reason = 'It keeps the eval at ' + fw(S.cpBefore, me) + ' where your move dropped it to ' + fw(S.cpAfter, me) + '.';
-      better = {san:bestSan, text:cap(bd.text) + '. ' + reason, line:sanLine(fenB, evB.pv, 5)};
+      var wt = null;
+      try{ wt = window.__anPlus ? window.__anPlus.whyText(A, i, evB.best, evB.pv) : null; }catch(e){}
+      better = {san:bestSan, text:wt || (cap(bd.text) + '. ' + reason), line:sanLine(fenB, evB.pv, 5)};
     }
 
     // ----- several equally good moves (only when the engine really rates them the same)
@@ -5267,7 +5288,12 @@ body.dnd-dragging,body.dnd-dragging *{cursor:grabbing !important;}
         if(setU.length >= 2){
           setU.slice(0, 3).forEach(function(u){
             var mv2 = tryMove(fenB, u);
-            if(mv2) equal.push({san:mv2.san, text:cap(describeMove(mv2, i).text) + '.', played:u === S.uci});
+            if(mv2){
+              var pvU = (u === evB.best) ? evB.pv : ((evB.alts.filter(function(a){ return a.best === u; })[0] || {}).pv || [u]);
+              var wtU = null;
+              try{ wtU = window.__anPlus ? window.__anPlus.whyText(A, i, u, pvU) : null; }catch(e){}
+              equal.push({san:mv2.san, text:wtU || (cap(describeMove(mv2, i).text) + '.'), played:u === S.uci});
+            }
           });
           if(equal.length < 2) equal = [];
         }
@@ -5355,7 +5381,8 @@ body.dnd-dragging,body.dnd-dragging *{cursor:grabbing !important;}
     }catch(e){ console.error(e); }
     purpose.slice(0, 2).forEach(function(t){ lines.push(t); });
     var gap = Math.abs(S.cpAfter - S.cpBefore) / 100;
-    if(S.label === 'best') lines.push("The engine agrees with this move.");
+    if(S.label === 'book') lines.push('A known opening move' + ((A.book && A.book[i] && A.book[i].n) ? ' (' + A.book[i].n + ')' : '') + '.');
+    else if(S.label === 'best') lines.push("The engine agrees with this move.");
     else if(S.label === 'excellent' || S.label === 'good') lines.push("A solid move, close to the engine's favourite.");
     else if(S.label === 'inaccuracy') lines.push('A small inaccuracy: it costs them about ' + gap.toFixed(1) + ' pawns.');
     else {
@@ -5492,6 +5519,7 @@ body.dnd-dragging,body.dnd-dragging *{cursor:grabbing !important;}
         await new Promise(function(r){ setTimeout(r, 0); });
       }
       setProg('Writing your report...', 99);
+      try{ if(window.__anPlus && window.__anPlus.ready) await window.__anPlus.ready; }catch(e){}
       A = build(parsed, ev, side, tc);
       A.engineKind = eng.kind; A.sel = 0; activeTab = 'board'; PR = null;
       setProg('', 0);
@@ -5610,7 +5638,7 @@ body.dnd-dragging,body.dnd-dragging *{cursor:grabbing !important;}
     }
     if(E.mode === 'short'){
       h += '<p class="an-note">Small slip, nothing much to worry about.</p>';
-      if(E.better) h += '<p class="an-note">Slightly better was <b>' + esc(E.better.san) + '</b>.</p>';
+      if(E.better) h += '<p class="an-note">Slightly better was <b>' + esc(E.better.san) + '</b>' + (E.better.text ? ': ' + esc(E.better.text) : '.') + '</p>';
       if(E.missed) h += '<p class="an-note">' + esc(E.missed) + '</p>';
       if(E.trade) h += '<p class="an-note">' + esc(E.trade) + '</p>';
       h += equalHtml(E);
@@ -5650,7 +5678,7 @@ body.dnd-dragging,body.dnd-dragging *{cursor:grabbing !important;}
 
   function reportHtml(){
     var S = sideSummary(A), N = coachNotes(A, S), st = stretches(A);
-    var chips = ['best', 'excellent', 'good', 'inaccuracy', 'mistake', 'blunder'].map(function(k){
+    var chips = ['book', 'best', 'excellent', 'good', 'inaccuracy', 'mistake', 'blunder'].filter(function(k){ return k !== 'book' || S.counts.book; }).map(function(k){
       return '<span class="an-chip" style="background:' + LABEL[k].c + '">' + S.counts[k] + ' ' + LABEL[k].t.toLowerCase() + '</span>';
     }).join('');
     var swings = myIdx(A).map(function(i){ return {i:i, loss:A.stats[i].loss}; }).filter(function(x){ return x.loss >= 10; })
@@ -5688,7 +5716,7 @@ body.dnd-dragging,body.dnd-dragging *{cursor:grabbing !important;}
     if(afterCheck.length >= 2) recur.push('You went wrong ' + afterCheck.length + ' times right after being checked (moves ' + movesList(A, afterCheck) + '). List every legal way out of check before choosing one.');
 
     var bk = bookInfo(A);
-    var bookCard = bk ? '<div class="card"><h2>Opening</h2>' + ps(bk.lines) + '<p class="hint">My opening book only has main lines, so leaving it is not automatically a mistake.</p></div>' : '';
+    var bookCard = bk ? '<div class="card"><h2>Opening</h2>' + ps(bk.lines) + '<p class="hint">' + esc(bk.note || 'My opening book only has main lines, so leaving it is not automatically a mistake.') + '</p></div>' : '';
 
     var tf = timeFindings(A), sug = timeSuggest(A), timeBody;
     if(A.time.has) timeBody = ps(tf) + (sug ? '<p class="hint" style="margin-top:8px;">' + esc(sug) + '</p>' : '');
@@ -5903,6 +5931,7 @@ body.dnd-dragging,body.dnd-dragging *{cursor:grabbing !important;}
     renderPractice();
   }
 
+  window.__anCtx = {VAL:VAL, NAMES:NAMES, tryMove:tryMove, tacticOf:tacticOf, winsFor:winsFor, capsFor:capsFor, flipTurn:flipTurn, features:features, posNotes:posNotes, sanLine:sanLine, plural:plural};
   // read-only access for the PDF report (step 20)
   window.__anHook = {
     data: function(){ return A; },
