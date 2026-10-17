@@ -7631,4 +7631,87 @@ body.dnd-dragging,body.dnd-dragging *{cursor:grabbing !important;}
 })();
 </script>
 <!-- ===== END STEP 23 ===== -->
+  <!-- ===== PAWNIAC STEP 24: BLINDFOLD BOARD MINIGAME ===== -->
+<style>
+.sq.bb-ok{box-shadow:inset 0 0 0 999px rgba(46,166,111,.45);}
+.sq.bb-bad{box-shadow:inset 0 0 0 999px rgba(214,69,69,.5);}
+.bb-bar{height:10px;border-radius:5px;background:#e4ddcf;overflow:hidden;margin:10px 0 6px;}
+.bb-bar div{height:100%;background:#1f6f5c;width:100%;}
+[data-theme=dark] .bb-bar{background:#3a372f;}
+.bb-pal{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px;}
+.bb-pal .tcbtn{padding:3px;}
+.bb-pal .piece-img{width:34px;height:34px;display:block;}
+.bb-btns{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;}
+</style>
+<script>
+(function(){
+  var MAXL=29, LIVES=3, FILES='abcdefgh';
+  var PAL=['wk','wq','wr','wb','wn','wp','bk','bq','br','bb','bn','bp'];
+  var S={phase:'idle',level:1,rl:1,lives:LIVES,score:0,n:4,pos:null,placed:{},sel:null,secs:0,t0:0,timer:null,seen:{},
+         best:null,bestLoaded:false,msg:'',marks:null,last:0,next:'round',done:false,newBest:false,perfect:false,rid:0};
+
+  function esc(s){return String(s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
+  function nPieces(l){return 3+l;}                       // level 1 = 4 pieces (both kings count)
+  function secsFor(l){var n=nPieces(l);return Math.max(3,Math.round((2+n*0.6-(l-1)*0.1)*10)/10);}
+  function bestTxt(){return S.best?S.best.score+' points (level '+S.best.level+')':'none yet';}
+
+  // ---------- realistic positions: random played-out games ----------
+  function count(c){var n=0;c.board().forEach(function(r){r.forEach(function(p){if(p)n++;});});return n;}
+  function toMap(c){var m={};c.board().forEach(function(row,r){row.forEach(function(p,f){if(p)m[FILES[f]+(8-r)]=p.color+p.type;});});return m;}
+  function keyOf(m){return Object.keys(m).sort().map(function(k){return k+m[k];}).join(',');}
+  function gen(n){
+    for(var a=0;a<40;a++){
+      var c=new Chess(),plies=0,minP=10+Math.floor(Math.random()*14),ok=true;
+      while(plies<260){
+        var cnt=count(c);
+        if(cnt===n&&plies>=minP) break;
+        if(c.game_over()){ok=false;break;}
+        var caps=[],quiet=[];
+        c.moves({verbose:true}).forEach(function(m){(m.captured?caps:quiet).push(m);});
+        var pool;
+        if(cnt>n) pool=(plies>=6&&caps.length&&Math.random()<0.55)?caps:(quiet.length?quiet:caps);
+        else pool=quiet;                                  // already at the target: no more captures
+        if(!pool.length){ok=false;break;}
+        c.move(pool[Math.floor(Math.random()*pool.length)]);
+        plies++;
+      }
+      if(ok&&plies<260&&count(c)===n) return toMap(c);
+    }
+    // fallback: a quiet opening position, thinned out (kings always stay)
+    var c2=new Chess();
+    for(var i=0;i<24;i++){
+      var q=c2.moves({verbose:true}).filter(function(m){return !m.captured;});
+      if(!q.length) break;
+      c2.move(q[Math.floor(Math.random()*q.length)]);
+    }
+    var m2=toMap(c2),keys=Object.keys(m2).filter(function(k){return m2[k].charAt(1)!=='k';});
+    keys.sort(function(){return Math.random()-.5;});
+    while(Object.keys(m2).length>n&&keys.length) delete m2[keys.pop()];
+    return m2;
+  }
+
+  // ---------- drawing ----------
+  function pimg(code){
+    var c=code.charAt(0),t=code.charAt(1);
+    return '<img class="piece-img" src="'+pieceImgUrl(c,t)+'" alt="" draggable="false" onerror="this.outerHTML=\'<span style=&quot;font-size:1em;line-height:1;&quot;>'+PIECE_UNICODE[c][t]+'</span>\'">';
+  }
+  function boardHtml(map,marks){
+    var h='<div class="board">';
+    for(var r=0;r<8;r++)for(var f=0;f<8;f++){
+      var sq=FILES[f]+(8-r),cls='sq '+(((r+f)%2===0)?'light':'dark');
+      if(marks&&marks[sq]) cls+=' bb-'+marks[sq];
+      var co='';
+      if(f===0) co+='<span class="coord rank">'+(8-r)+'</span>';
+      if(r===7) co+='<span class="coord file">'+FILES[f]+'</span>';
+      h+='<div class="'+cls+'" data-bsq="'+sq+'">'+co+(map[sq]?pimg(map[sq]):'')+'</div>';
+    }
+    return h+'</div>';
+  }
+  function palHtml(){
+    function row(c){
+      return '<div class="bb-pal">'+PAL.filter(function(p){return p.charAt(0)===c;}).map(function(p){
+        return '<div class="tcbtn'+(S.sel===p?' active':'')+'" data-p="'+p+'">'+pimg(p)+'</div>';
+      }).join('')+'</div>';
+    }
+    return
 </html>
