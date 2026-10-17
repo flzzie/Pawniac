@@ -7979,7 +7979,7 @@ body.dnd-dragging,body.dnd-dragging *{cursor:grabbing !important;}
 
   // ---------- Discord (needs the small Cloud Function) ----------
   function discordLogin(){
-    if(!discordReady()){ renderAuthScreen('Discord login is not set up yet. Fill in the two Discord settings at the top of step 25.'); return; }
+    if(!discordReady()){ renderAuthScreen('Discord login is coming soon! For now, please sign up or log in with your email or Google.'); return; }
     var st = Array.from(crypto.getRandomValues(new Uint8Array(16))).map(function(b){ return b.toString(16).padStart(2, '0'); }).join('');
     try{
       sessionStorage.setItem(SS_STATE, st);
