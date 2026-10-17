@@ -8092,4 +8092,74 @@ body.dnd-dragging,body.dnd-dragging *{cursor:grabbing !important;}
 })();
 </script>
 <!-- ===== END STEP 25 ===== -->
+  <!-- ===== PAWNIAC STEP 26: VISUAL POLISH (paste at the very bottom, below step 25. Styles only, nothing else changes) ===== -->
+<style>
+/* ---------- 1. wider layout ---------- */
+html body .wrap{max-width:1240px;}
+html body #screen-lobby .card, html body #screen-waiting .card{max-width:none;}
+@media (min-width:1100px){ body{padding-left:32px;padding-right:32px;} }
+
+/* ---------- 2. bigger headings ---------- */
+h1{font-size:28px;letter-spacing:-0.7px;}
+.sub{font-size:14px;}
+.card h2{font-size:20px;font-weight:700;letter-spacing:-0.3px;margin-bottom:10px;}
+.card p.desc{font-size:14px;line-height:1.65;}
+.userbox .name{font-size:14.5px;}
+
+/* ---------- 3. subtle gradient cards ---------- */
+.card{
+  background:linear-gradient(160deg,#fffefb 0%,#f8f3e8 100%);
+  border-color:#e4ddcf;
+  box-shadow:0 1px 0 rgba(255,255,255,.9) inset, 0 6px 20px rgba(60,50,20,.07);
+  transition:border-color .18s, box-shadow .18s;
+}
+[data-theme=dark] .card{
+  background:linear-gradient(160deg,#2c2a26 0%,#222120 100%);
+  border-color:#3a372f;
+  box-shadow:0 1px 0 rgba(255,255,255,.05) inset, 0 10px 28px rgba(0,0,0,.35);
+}
+.card:hover{border-color:#bcd9cf;}
+[data-theme=dark] .card:hover{border-color:#3d6b5d;}
+#screen-game .card:hover{border-color:#e4ddcf;}
+[data-theme=dark] #screen-game .card:hover{border-color:#3a372f;}
+
+/* ---------- 4. hover lift and glow ---------- */
+button, .modebtn, .tcbtn{transition:transform .15s, box-shadow .15s, background .15s, border-color .15s;}
+button:not(:disabled):hover{transform:translateY(-1px);box-shadow:0 6px 16px rgba(31,111,92,.28);}
+button.secondary:not(:disabled):hover, .theme-toggle:hover{box-shadow:0 4px 12px rgba(0,0,0,.12);}
+button:not(:disabled):active{transform:translateY(0);box-shadow:none;}
+.modebtn:hover, .tcbtn:hover{transform:translateY(-2px);border-color:#1f6f5c;box-shadow:0 8px 20px rgba(31,111,92,.2);}
+.modebtn.active{box-shadow:0 0 0 1px #1f6f5c, 0 8px 22px rgba(31,111,92,.22);}
+[data-theme=dark] .modebtn.active{box-shadow:0 0 0 1px #3fa389, 0 8px 24px rgba(63,163,137,.25);}
+.lb-row{transition:background .15s;}
+.lb-row:hover{background:rgba(31,111,92,.08);}
+
+/* ---------- 5. login page: chessboard background ---------- */
+#screen-auth::before{
+  content:'';position:fixed;inset:0;z-index:-1;pointer-events:none;
+  background:repeating-conic-gradient(rgba(60,50,20,.055) 0 25%, transparent 0 50%) 0 0 / 88px 88px;
+  -webkit-mask-image:radial-gradient(ellipse 65% 60% at 50% 45%, #000 0%, transparent 100%);
+          mask-image:radial-gradient(ellipse 65% 60% at 50% 45%, #000 0%, transparent 100%);
+}
+[data-theme=dark] #screen-auth::before{
+  background:repeating-conic-gradient(rgba(255,255,255,.05) 0 25%, transparent 0 50%) 0 0 / 88px 88px;
+}
+#screen-auth .card{
+  position:relative;max-width:420px;padding:34px;
+  box-shadow:0 0 0 1px rgba(31,111,92,.12), 0 20px 60px rgba(31,111,92,.16);
+}
+[data-theme=dark] #screen-auth .card{
+  box-shadow:0 0 0 1px rgba(63,163,137,.18), 0 20px 70px rgba(31,111,92,.32);
+}
+#screen-auth .card h2{font-size:22px;}
+#screen-auth .card:hover{border-color:#e4ddcf;}
+[data-theme=dark] #screen-auth .card:hover{border-color:#3a372f;}
+
+/* respect people who turn animations off */
+@media (prefers-reduced-motion:reduce){
+  button, .modebtn, .tcbtn, .card, .lb-row{transition:none !important;}
+  button:hover, .modebtn:hover, .tcbtn:hover{transform:none !important;}
+}
+</style>
+<!-- ===== END STEP 26 ===== -->
 </html>
