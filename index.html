@@ -3691,7 +3691,7 @@ body.no-last #screen-game .sq.dark.last:not(.from){background:#b58863;}
   .lobby-left > .card:nth-child(5) > .row{margin-top:14px !important;}
 }
 </style>
-<!-- ===== PAWNIAC STEP 15 v3: DRAG & DROP + PREMOVES (premoves survive your opponent moving) ===== -->
+<!-- ===== PAWNIAC STEP 15 v4: DRAG & DROP + PREMOVES (premoves survive your opponent moving) ===== -->
 <style>
 body.dnd-on #screen-game .board{touch-action:none;}
 .sq.dnd-from{cursor:grab;}
@@ -3735,9 +3735,9 @@ body.dnd-dragging,body.dnd-dragging *{cursor:grabbing !important;}
     return c.myTurn && !pendingPromotion && !!c.g.announced &&
       ((c.g.mode === 'team' && c.me.role === 'hand') || (c.g.mode === 'random' && c.me.role === 'solo'));
   }
-  // premoves: Standard Chess only, while it is the opponent's turn
+  // premoves: Standard Chess and Piece Auction (once the army is placed), while it is the opponent's turn
   function canPremoveNow(c){
-    return P.premove && c.g.variant === 'standard' && c.g.mode === 'random' && !c.myTurn;
+    return P.premove && (c.g.variant === 'standard' || c.g.variant === 'auction') && c.g.mode === 'random' && !c.myTurn;
   }
   function cellOf(target){
     return (target && target.closest) ? target.closest('#screen-game .sq[data-sq]') : null;
@@ -3771,7 +3771,7 @@ body.dnd-dragging,body.dnd-dragging *{cursor:grabbing !important;}
     else if(p.type === 'k'){
       ray(ORTH.concat(DIAG), 1);
       var home = color === 'w' ? 0 : 7;
-      if(f === 4 && r === home){
+      if(f === 4 && r === home && !(window.gameState && window.gameState.variant === 'auction')){
         [6, 2].forEach(function(cf){ var s = sqAt(cf, home); if(s && !own(s)) out.push(s); });
       }
     } else if(p.type === 'p'){
@@ -4057,7 +4057,7 @@ body.dnd-dragging,body.dnd-dragging *{cursor:grabbing !important;}
   window.drawGame = function(){
     var g = gameState;
     try{
-      var std = !!g && g.status === 'active' && g.variant === 'standard' && P.premove;
+      var std = !!g && g.status === 'active' && (g.variant === 'standard' || g.variant === 'auction') && P.premove;
       if(PM && (!std || PM.gid !== currentGameId)) PM = null;
       if(pmSel && !std) pmSel = null;
       if(std){
@@ -4091,8 +4091,8 @@ body.dnd-dragging,body.dnd-dragging *{cursor:grabbing !important;}
     card.className = 'card';
     card.id = 'inputCard';
     card.innerHTML = '<h2>Moving pieces</h2><p class="desc">Saved on this device.</p>' +
-      row('dnd', 'Drag and drop', 'Drag pieces to move them (clicking still works). Works in Hand &amp; Brain and Standard.') +
-      row('premove', 'Premoves', 'Standard Chess only. Queue a move on your opponent\'s turn and it plays automatically if it is legal. Right-click or Esc cancels it.');
+      row('dnd', 'Drag and drop', 'Drag pieces to move them (clicking still works). Works in every game mode.') +
+      row('premove', 'Premoves', 'Standard Chess and Piece Auction. Queue a move on your opponent\'s turn and it plays automatically if it is legal. Right-click or Esc cancels it.');
     var reset = document.getElementById('setReset');
     var host = reset && reset.closest('.card');
     if(host) scr.insertBefore(card, host); else scr.appendChild(card);
@@ -4109,8 +4109,8 @@ body.dnd-dragging,body.dnd-dragging *{cursor:grabbing !important;}
   if(scr0) new MutationObserver(addCard).observe(scr0, {childList:true});
 })();
 </script>
-<!-- ===== END STEP 15 v3 ===== -->
-<!-- ===== PAWNIAC STEP 16 v6: ANALYZE (replaces the whole old step 16 block) ===== -->
+<!-- ===== END STEP 15 v4 ===== -->
+<!-- ===== PAWNIAC STEP 16 v8: ANALYZE (replaces the whole old step 16 block) ===== -->
 <style>
 .an-in textarea{width:100%;min-height:130px;border:1px solid #d8d1bf;border-radius:7px;padding:10px 12px;font-size:12.5px;font-family:monospace;resize:vertical;background:#fff;color:inherit;}
 [data-theme=dark] .an-in textarea{background:#1b1a17;border-color:#4a463b;color:#e8e4d8;}
@@ -4122,6 +4122,10 @@ body.dnd-dragging,body.dnd-dragging *{cursor:grabbing !important;}
 [data-theme=dark] .an-bar{background:#3a372f;}
 .an-main{display:flex;gap:22px;flex-wrap:wrap;align-items:flex-start;}
 .an-boardcol{display:flex;gap:8px;align-items:stretch;}
+.an-km{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-bottom:8px;font-size:12px;}
+.an-km b{margin-right:2px;}
+.an-kmc{border:1px solid #999;border-left-width:4px;border-radius:6px;padding:3px 8px;cursor:pointer;}
+.an-kmc:hover{background:rgba(31,111,92,.12);}
 .an-bw{position:relative;display:inline-block;}
 .an-bw svg.an-arrows{position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none;}
 .an-evalbar{width:14px;border-radius:3px;overflow:hidden;background:#2b2924;position:relative;flex-shrink:0;}
@@ -4207,7 +4211,8 @@ body.dnd-dragging,body.dnd-dragging *{cursor:grabbing !important;}
   function mateN(cp){ return Math.max(0, Math.round((10000 - Math.abs(cp)) / 10)); }
   function fmtEval(cp){
     if(isMate(cp)) return (cp > 0 ? '+' : '-') + 'M' + mateN(cp);
-    var v = cp / 100; return (v >= 0 ? '+' : '') + v.toFixed(2);
+    var v = cp / 100, ab = Math.abs(cp), wd = ab >= 900 ? ' (crushing)' : (ab >= 500 ? ' (winning)' : '');
+    return (v >= 0 ? '+' : '') + v.toFixed(2) + wd;
   }
   // takes an eval from the player's point of view and prints it from WHITE's point of view (+ = White ahead, - = Black ahead)
   function fw(cp, me){ return fmtEval(me === 'w' ? cp : -cp); }
@@ -4909,6 +4914,11 @@ body.dnd-dragging,body.dnd-dragging *{cursor:grabbing !important;}
     A.moves.forEach(function(m, i){
       var sign = m.color === 'w' ? 1 : -1, cpB = sign * ev[i].cp, cpA = sign * ev[i + 1].cp;
       var loss = Math.max(0, winPct(cpB) - winPct(cpA)), uci = m.from + m.to + (m.promotion || ''), label;
+      try{
+        var evI = ev[i], tops = [{u:evI.best, cp:evI.cp}].concat((evI.alts || []).map(function(x){ return {u:x.best, cp:x.cp}; }));
+        var hit = tops.filter(function(x){ return x.u === uci; })[0];
+        if(hit){ var l2 = Math.max(0, winPct(sign * evI.cp) - winPct(sign * hit.cp)); if(l2 < loss) loss = l2; }
+      }catch(e){}
       if(uci === ev[i].best) label = 'best';
       else if(loss < 2) label = 'excellent';
       else if(loss < 5) label = 'good';
@@ -4917,6 +4927,12 @@ body.dnd-dragging,body.dnd-dragging *{cursor:grabbing !important;}
       else label = 'blunder';
       if(i < bookN && loss < 12) label = 'book';                              // known theory is never an inaccuracy
       else if(label === 'inaccuracy' && i < 20 && loss < 8) label = 'good';   // opening evals are noisy: small differences are just choices
+      if((label === 'inaccuracy' || label === 'mistake' || label === 'blunder') && !isMate(cpB)){
+        var winning = (cpB >= 400 && cpA >= 250), lost = (cpB <= -400 && cpA <= -250), equalish = (Math.abs(cpB) <= 60 && Math.abs(cpA) <= 120);
+        if(winning || lost) label = (label === 'blunder') ? 'inaccuracy' : 'good';   // already decided: nothing here changes the result
+        else if(equalish && label === 'inaccuracy') label = 'good';
+        else if(i < 20 && label === 'mistake' && loss < 12) label = 'inaccuracy';
+      }
       var plus = null;
       try{ plus = window.__anPlus ? window.__anPlus.adjust(A, i, label, loss) : null; }catch(e){ console.error(e); }
       if(plus){ label = plus.label; loss = plus.loss; }
@@ -5276,6 +5292,63 @@ body.dnd-dragging,body.dnd-dragging *{cursor:grabbing !important;}
     if(d.tags.indexOf('kingmove') >= 0 && fB.total >= 25) cons.push('Moving the king around before the endgame costs safety.');
     if(m.piece !== 'p' && fA[me].shield < fB[me].shield && fA.total >= 25) cons.push('Loosens the pawns around your king.');
 
+    // ----- more coaching points (each one is computed from the position, never guessed)
+    try{
+      var extra = [], rel = function(sq){ var rk = parseInt(sq.charAt(1), 10); return me === 'w' ? rk : 9 - rk; };
+      var cA = new Chess(fenA), FL = 'abcdefgh', mf = FL.indexOf(m.to.charAt(0));
+      var isCastle = d.tags.indexOf('castle') >= 0;
+      // 1. rescued a piece that was under attack
+      var thrB = winsFor(fenB, opp).filter(function(x){ return x.to === m.from; });
+      if(thrB.length && !m.captured && !isCastle && !winsFor(fenA, opp).some(function(x){ return x.to === m.to; }))
+        extra.push('Saves your ' + NAMES[m.piece] + ': it was under attack on ' + m.from + ' and is safe on ' + m.to + '.');
+      // 2. a real threat (not already described as a fork)
+      if(!m.captured && !isCastle && (typeof myT === 'undefined' || !myT)){
+        var tempo = capsFor(fenA, me).filter(function(x){
+          if(x.from !== m.to || !x.captured || x.captured === 'k' || VAL[x.captured] < 3) return false;
+          var c5 = new Chess(flipTurn(fenA, me)); c5.move({from:x.from, to:x.to, promotion:x.promotion});
+          return VAL[x.captured] - seeGain(c5, x.to) >= 1;
+        });
+        if(tempo.length) extra.push('Makes a threat: your ' + NAMES[m.piece] + ' now attacks their ' + NAMES[tempo[0].captured] + ' on ' + tempo[0].to + ', so they have to deal with it.');
+      }
+      // 3. knight outpost: protected by a pawn, and no enemy pawn can ever challenge it
+      if(m.piece === 'n' && rel(m.to) >= 4 && rel(m.to) <= 6){
+        var orr = parseInt(m.to.charAt(1), 10), odir = me === 'w' ? 1 : -1;
+        var backed = [-1, 1].some(function(df){ var fl = FL.charAt(mf + df); if(!fl) return false; var q1 = cA.get(fl + (orr - odir)); return !!q1 && q1.type === 'p' && q1.color === me; });
+        var kicked = [-1, 1].some(function(df){
+          if(mf + df < 0 || mf + df > 7) return false;
+          for(var r2 = orr + odir; r2 >= 1 && r2 <= 8; r2 += odir){ var q2 = cA.get(FL.charAt(mf + df) + r2); if(q2 && q2.type === 'p' && q2.color === opp) return true; }
+          return false;
+        });
+        if(backed && !kicked) extra.push('Your knight reaches an outpost on ' + m.to + ': a pawn protects it and no enemy pawn can ever chase it away. A knight like this is very hard to dislodge.');
+      }
+      // 4. rooks: open files and the 7th rank
+      if(m.piece === 'r' && m.from.charAt(0) !== m.to.charAt(0)){
+        if(fA[me].pawnsFiles[mf] === 0 && fA[opp].pawnsFiles[mf] === 0) extra.push('Your rook takes the open ' + m.to.charAt(0) + '-file: with no pawns in the way it can invade their position.');
+        else if(fA[me].pawnsFiles[mf] === 0 && fA[opp].pawnsFiles[mf] > 0 && fA.phase !== 'opening') extra.push('Your rook goes to a half-open file (none of your pawns on it), where it presses on their pawn.');
+      }
+      if(m.piece === 'r' && rel(m.to) === 7 && !m.captured){
+        var pawns7 = 0; for(var f7 = 0; f7 < 8; f7++){ var q7 = cA.get(FL.charAt(f7) + m.to.charAt(1)); if(q7 && q7.type === 'p' && q7.color === opp) pawns7++; }
+        if(pawns7 >= 1) extra.push('A rook on the 7th rank attacks their pawns from behind and cramps their king. This is one of the strongest places for a rook.');
+      }
+      // 5. passed pawns
+      if(!(m.piece === 'p' && !m.captured) && fA[me].passed > fB[me].passed) extra.push('You now have a passed pawn: no enemy pawn can stop it by pawns alone, so it is a long-term asset.');
+      if(fA[opp].passed > fB[opp].passed) cons.push('This leaves your opponent with a passed pawn.');
+      if(m.piece === 'p' && m.captured && fA[me].weak > fB[me].weak) notes.push('The capture leaves you with doubled or isolated pawns, a small long-term weakness.');
+      // 6. endgame ideas
+      if(fA.phase === 'endgame'){
+        if(m.piece === 'k' && !isCastle) extra.push('In the endgame the king is a fighting piece, so bringing it toward the centre and the pawns is right.');
+        if(m.piece === 'p' && !m.captured){
+          var pr = parseInt(m.to.charAt(1), 10), pd = me === 'w' ? 1 : -1, free = true;
+          [-1, 0, 1].forEach(function(df){
+            if(mf + df < 0 || mf + df > 7) return;
+            for(var r3 = pr + pd; r3 >= 1 && r3 <= 8; r3 += pd){ var q3 = cA.get(FL.charAt(mf + df) + r3); if(q3 && q3.type === 'p' && q3.color === opp) free = false; }
+          });
+          if(free) extra.push('Pushing a passed pawn in the endgame forces their pieces to stop it, which ties them down.');
+        }
+      }
+      extra.slice(0, 2).forEach(function(t){ pros.push(t); });
+    }catch(e){ console.error('coaching points failed', e); }
+
     // ----- why a mistake is a mistake
     if(bad || minor){
       if(bad){
@@ -5346,8 +5419,9 @@ body.dnd-dragging,body.dnd-dragging *{cursor:grabbing !important;}
           why.push('There is no immediate tactic, but ' + bits.join(' and ') + '.'); cons.push(cap(bits[0]) + '.');
           lessonKey = 'structure';
         } else {
-          why.push('There is no single tactic to point at. The move is slower than the alternative and lets your opponent improve with tempo: the eval went from ' + fw(S.cpBefore, me) + ' to ' + fw(S.cpAfter, me) + '.');
-          cons.push('Quiet move that hands over the initiative.');
+          why.push('Nothing concrete goes wrong here: no piece is lost and no tactic appears. The engine just rates ' + (bestSan ? bestSan : 'another move') + ' a little higher (' + fw(S.cpBefore, me) + ' before your move, ' + fw(S.cpAfter, me) + ' after).');
+          if(bm){ var bd3 = describeMove(bm, i); notes.push('The idea behind ' + bestSan + ': it ' + bd3.text + '.'); }
+          cons.push('A slightly less precise choice than ' + (bestSan || 'the engine move') + ', but not a real error.');
           lessonKey = 'quiet';
         }
       }
@@ -5693,8 +5767,16 @@ body.dnd-dragging,body.dnd-dragging *{cursor:grabbing !important;}
       '<line x1="0" y1="' + H / 2 + '" x2="' + W + '" y2="' + H / 2 + '" stroke="#999" stroke-width="1" stroke-dasharray="4 4" opacity=".6"/>' +
       '<line x1="' + cx + '" y1="0" x2="' + cx + '" y2="' + H + '" stroke="#e0532e" stroke-width="2"/></svg>';
   }
+  function kmHtml(){
+    var km = myIdx(A).filter(function(j){ return A.stats[j].loss >= 8; })
+      .sort(function(a, b){ return A.stats[b].loss - A.stats[a].loss; }).slice(0, 5).sort(function(a, b){ return a - b; });
+    if(!km.length) return '';
+    return '<div class="an-km"><b>Key moments</b>' + km.map(function(j){
+      return '<span class="an-kmc" data-ply="' + (j + 1) + '" style="border-left-color:' + LABEL[A.stats[j].label].c + '" title="' + LABEL[A.stats[j].label].t + '">' + moveNumText(A.fens[j]) + esc(A.moves[j].san) + '</span>';
+    }).join('') + '</div>';
+  }
   function movesHtml(){
-    var h = '';
+    var h = kmHtml();
     for(var i = 0; i < A.moves.length; i += 2){
       var cells = '';
       for(var k = 0; k < 2; k++){
@@ -5884,7 +5966,7 @@ body.dnd-dragging,body.dnd-dragging *{cursor:grabbing !important;}
     if(A.sel > 0){
       var m = A.moves[A.sel - 1], S = A.stats[A.sel - 1];
       last = {from:m.from, to:m.to};
-      var bad = ['inaccuracy', 'mistake', 'blunder'].indexOf(S.label) >= 0, bu = A.ev[A.sel - 1].best;
+      var bad = ['good', 'inaccuracy', 'mistake', 'blunder'].indexOf(S.label) >= 0, bu = A.ev[A.sel - 1].best;
       if(m.color === A.me && bad && bu) arrows.push({from:bu.slice(0, 2), to:bu.slice(2, 4), color:'#1f9d55'});
     }
     document.getElementById('anBoard').innerHTML = boardHtml(fen, last, arrows, A.flip);
@@ -6089,7 +6171,7 @@ body.dnd-dragging,body.dnd-dragging *{cursor:grabbing !important;}
   };
 })();
 </script>
-<!-- ===== END STEP 16 v6 ===== -->
+<!-- ===== END STEP 16 v8 ===== -->
   <!-- ===== PAWNIAC STEP 17: TIME PER MOVE (saved with every game) + ANALYZE SENDS THE TIMES (paste at the very bottom, below step 16) ===== -->
 <script>
 (function(){
@@ -8452,4 +8534,58 @@ html body #screen-auth .card .so-btns button{padding:14px;}
 })();
 </script>
 <!-- ===== END STEP 29 ===== -->
+  <!-- ===== PAWNIAC STEP 30: PLAYER TITLES (GM, IM, ...) next to names (paste at the very bottom, below step 29) ===== -->
+<style>
+.ttl{display:inline-block;font-size:.72em;font-weight:800;letter-spacing:.4px;line-height:1;padding:2px 5px;margin-right:5px;border-radius:4px;color:#fff;background:#6b6a63;vertical-align:.08em;text-decoration:none;}
+.ttl.t-GM,.ttl.t-WGM{background:#c0392b;}
+.ttl.t-IM,.ttl.t-WIM{background:#8e44ad;}
+.ttl.t-FM,.ttl.t-WFM{background:#2c6fbb;}
+.ttl.t-CM,.ttl.t-WCM,.ttl.t-NM{background:#1f7a5c;}
+.ttl.t-Mod,.ttl.t-Dev{background:#c58a1a;}
+</style>
+<script>
+(function(){
+  // Titles are stored in the database at hb/titles/<username> (for example "GM").
+  // Players cannot write there; only you can, from the Firebase Console.
+  var T = {}, loaded = false, queued = false;
+  function esc(s){ return String(s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+  function load(){
+    try{
+      db.ref('hb/titles').once('value').then(function(s){
+        var v = s.exists() ? s.val() : {};
+        T = {};
+        Object.keys(v || {}).forEach(function(k){ if(/^[A-Za-z]{2,4}$/.test(String(v[k]))) T[k] = String(v[k]).toUpperCase() === 'MOD' ? 'Mod' : String(v[k]).toUpperCase(); });
+        loaded = true; paint();
+      }).catch(function(){});
+    }catch(e){}
+  }
+  function badge(t){ return '<span class="ttl t-' + esc(t) + '" title="' + esc(t) + '">' + esc(t) + '</span>'; }
+  function tag(el, name){
+    if(!name || !T[name] || el.dataset.ttl === T[name]) return;
+    el.dataset.ttl = T[name];
+    el.insertAdjacentHTML('afterbegin', badge(T[name]));
+  }
+  function paint(){
+    queued = false;
+    if(!loaded) return;
+    document.querySelectorAll('.user-link[data-user]').forEach(function(el){ tag(el, el.dataset.user); });
+    var ub = document.querySelector('#userbox .name');
+    if(ub && typeof ME !== 'undefined' && ME && ME.username) tag(ub, ME.username);
+    document.querySelectorAll('.pf-name, .lb-name').forEach(function(el){
+      var n = (el.textContent || '').trim().split(/\s+/)[0];
+      tag(el, n);
+    });
+  }
+  function schedule(){ if(!queued){ queued = true; requestAnimationFrame(paint); } }
+  new MutationObserver(schedule).observe(document.body, {childList:true, subtree:true});
+  load();
+  // pick up a title you just added: refresh whenever the lobby or leaderboard opens
+  var prevShow = window.showScreen, last = 0;
+  window.showScreen = function(n){
+    prevShow(n);
+    if((n === 'lobby' || n === 'leaderboard') && Date.now() - last > 60000){ last = Date.now(); load(); }
+  };
+})();
+</script>
+<!-- ===== END STEP 30 ===== -->
 </html>
