@@ -4110,7 +4110,7 @@ body.dnd-dragging,body.dnd-dragging *{cursor:grabbing !important;}
 })();
 </script>
 <!-- ===== END STEP 15 v3 ===== -->
-<!-- ===== PAWNIAC STEP 16 v5: ANALYZE (replaces the whole old step 16 block) ===== -->
+<!-- ===== PAWNIAC STEP 16 v6: ANALYZE (replaces the whole old step 16 block) ===== -->
 <style>
 .an-in textarea{width:100%;min-height:130px;border:1px solid #d8d1bf;border-radius:7px;padding:10px 12px;font-size:12.5px;font-family:monospace;resize:vertical;background:#fff;color:inherit;}
 [data-theme=dark] .an-in textarea{background:#1b1a17;border-color:#4a463b;color:#e8e4d8;}
@@ -4460,6 +4460,19 @@ body.dnd-dragging,body.dnd-dragging *{cursor:grabbing !important;}
 
   // captures `color` could make in this position (as if it were their turn)
   function capsFor(fen, color){ try{ return new Chess(flipTurn(fen, color)).moves({verbose:true}); }catch(e){ return []; } }
+  // what the side to move can win by capturing on `sq`, counting every recapture (cheapest attacker first)
+  function seeGain(c, sq, depth){
+    depth = depth || 0;
+    if(depth > 7) return 0;
+    var caps = c.moves({verbose:true}).filter(function(x){ return x.to === sq && x.captured; });
+    if(!caps.length) return 0;
+    caps.sort(function(p, q){ return (p.piece === 'k' ? 100 : VAL[p.piece]) - (q.piece === 'k' ? 100 : VAL[q.piece]); });
+    var x = caps[0];
+    c.move({from:x.from, to:x.to, promotion:x.promotion});
+    var g = VAL[x.captured] - seeGain(c, sq, depth + 1);
+    c.undo();
+    return Math.max(0, g);
+  }
   // captures that win material for `color`: free pieces, or trades that win points
   function winsFor(fen, color){
     var res = [];
@@ -4468,7 +4481,7 @@ body.dnd-dragging,body.dnd-dragging *{cursor:grabbing !important;}
       var c2 = new Chess(flipTurn(fen, color));
       c2.move({from:m.from, to:m.to, promotion:m.promotion});
       var recap = c2.moves({verbose:true}).filter(function(x){ return x.to === m.to && x.captured; });
-      var net = VAL[m.captured] - (recap.length ? VAL[m.piece] : 0);
+      var net = VAL[m.captured] - seeGain(c2, m.to);
       if(net >= 1) res.push({from:m.from, to:m.to, piece:m.captured, san:m.san, net:net, free:!recap.length});
     });
     return res.sort(function(a, b){ return b.net - a.net; });
@@ -4480,12 +4493,27 @@ body.dnd-dragging,body.dnd-dragging *{cursor:grabbing !important;}
     try{
       var c = new Chess(fen), made = c.move({from:mv.from, to:mv.to, promotion:mv.promotion});
       if(!made) return null;
-      var c2 = new Chess(flipTurn(c.fen(), color)), seen = {}, t = [];
-      c2.moves({verbose:true}).forEach(function(x){
-        if(x.from !== mv.to || !x.captured || x.captured === 'k' || seen[x.to]) return;
-        if(VAL[x.captured] >= 3 || VAL[x.captured] > VAL[mv.piece]){ seen[x.to] = 1; t.push('the ' + NAMES[x.captured] + ' on ' + x.to); }
+      var after = c.fen(), enemy = color === 'w' ? 'b' : 'w';
+      // 1. the forking piece must be safe: if it can just be taken, it is not a fork
+      var unsafe = false;
+      capsFor(after, enemy).filter(function(x){ return x.to === mv.to; }).forEach(function(x){
+        if(unsafe) return;
+        var c3 = new Chess(flipTurn(after, enemy));
+        c3.move({from:x.from, to:x.to, promotion:x.promotion});
+        if(VAL[made.piece] - seeGain(c3, mv.to) >= 1) unsafe = true;
       });
-      if(/[+#]/.test(made.san)) t.push('the king');
+      if(unsafe) return null;
+      // 2. each target must actually be winnable: unprotected, or worth more than the forking piece
+      var seen = {}, t = [];
+      capsFor(after, color).forEach(function(x){
+        if(x.from !== mv.to || !x.captured || x.captured === 'k' || seen[x.to]) return;
+        if(!(VAL[x.captured] >= 3 || VAL[x.captured] > VAL[mv.piece])) return;
+        var c4 = new Chess(flipTurn(after, color));
+        c4.move({from:x.from, to:x.to, promotion:x.promotion});
+        if(VAL[x.captured] - seeGain(c4, x.to) >= 1){ seen[x.to] = 1; t.push('the ' + NAMES[x.captured] + ' on ' + x.to); }
+      });
+      var check = /[+#]/.test(made.san);
+      if(check && t.length >= 1){ t.push('the king'); return t.slice(0, 3).join(' and '); }
       return t.length >= 2 ? t.slice(0, 3).join(' and ') : null;
     }catch(e){ return null; }
   }
@@ -4681,15 +4709,34 @@ body.dnd-dragging,body.dnd-dragging *{cursor:grabbing !important;}
     return {text:bits.join(', '), tags:tags};
   }
   function pvInfo(fen, ucis, plies, side){
-    var c = new Chess(fen), net = 0, firstCap = null, sans = [];
-    for(var k = 0; k < ucis.length && k < plies; k++){
-      var u = ucis[k], mv = c.move({from:u.slice(0, 2), to:u.slice(2, 4), promotion:u.slice(4, 5) || undefined});
-      if(!mv) break;
-      sans.push(mv.san);
+    var c = new Chess(fen), net = 0, firstCap = null, sans = [], last = null;
+    function count(mv, k){
       var v = 0;
       if(mv.captured) v += VAL[mv.captured];
       if(mv.promotion) v += VAL[mv.promotion] - 1;
       if(v){ net += (mv.color === side ? v : -v); if(!firstCap) firstCap = {san:mv.san, color:mv.color, captured:mv.captured, to:mv.to, piece:mv.piece, ply:k}; }
+    }
+    for(var k = 0; k < ucis.length; k++){
+      // past the horizon we only keep going to finish a capture sequence
+      if(k >= plies && !(last && last.captured)) break;
+      if(k >= plies + 4) break;
+      var u = ucis[k], mv = c.move({from:u.slice(0, 2), to:u.slice(2, 4), promotion:u.slice(4, 5) || undefined});
+      if(!mv) break;
+      sans.push(mv.san);
+      count(mv, k);
+      last = mv;
+    }
+    // the line stops right after a capture: let the other side take back if that is sensible
+    var guard = 0;
+    while(last && last.captured && guard < 4){
+      var rec = c.moves({verbose:true}).filter(function(x){ return x.to === last.to && x.captured; });
+      if(!rec.length) break;
+      rec.sort(function(p, q){ return (p.piece === 'k' ? 100 : VAL[p.piece]) - (q.piece === 'k' ? 100 : VAL[q.piece]); });
+      var r0 = rec[0], mv2 = c.move({from:r0.from, to:r0.to, promotion:r0.promotion});
+      if(!mv2) break;
+      var worse = VAL[last.piece] < VAL[mv2.piece] && c.moves({verbose:true}).some(function(x){ return x.to === mv2.to && x.captured; });
+      if(worse){ c.undo(); break; }
+      count(mv2, 99); last = mv2; guard++;
     }
     return {net:net, firstCap:firstCap, sans:sans};
   }
@@ -4748,7 +4795,28 @@ body.dnd-dragging,body.dnd-dragging *{cursor:grabbing !important;}
     ['d4 Nf6 c4 e6 Nf3 b6', "Queen's Indian Defence"], ['d4 Nf6 c4 g6', "King's Indian Defence"], ['d4 Nf6 c4 g6 Nc3 Bg7 e4 d6', "King's Indian: Classical set-up"],
     ['d4 Nf6 c4 g6 Nc3 d5', 'Grunfeld Defence'], ['d4 Nf6 c4 c5', 'Benoni Defence'], ['d4 f5', 'Dutch Defence'],
     ['c4 e5', 'English: Reversed Sicilian'], ['c4 c5', 'English: Symmetrical'], ['c4 Nf6', 'English: Anglo-Indian'],
-    ['Nf3 d5', 'Reti: 1...d5'], ['Nf3 Nf6 g3', "Reti / King's Indian Attack set-up"]
+    ['Nf3 d5', 'Reti: 1...d5'], ['Nf3 Nf6 g3', "Reti / King's Indian Attack set-up"],
+    ['e4 e5 Nf3 Nc6 Bc4 Bc5 c3', 'Italian Game: Giuoco Piano, 4.c3'], ['e4 e5 Nf3 Nc6 Bc4 Bc5 c3 Nf6 d4 exd4 cxd4 Bb4+', 'Giuoco Piano: Greco main line'],
+    ['e4 e5 Nf3 Nc6 Bc4 Bc5 d3', 'Italian Game: Giuoco Pianissimo, 4.d3'], ['e4 e5 Nf3 Nc6 Bc4 Bc5 d3 Nf6 c3 d6 O-O O-O', 'Giuoco Pianissimo: main line'],
+    ['e4 e5 Nf3 Nc6 Bc4 Bc5 d3 Nf6 O-O d6 c3', 'Giuoco Pianissimo: 5.O-O'], ['e4 e5 Nf3 Nc6 Bc4 Bc5 O-O Nf6 d3 d6', 'Giuoco Pianissimo: 4.O-O'],
+    ['e4 e5 Nf3 Nc6 Bc4 Bc5 Nc3', 'Italian Game: Four Knights set-up'], ['e4 e5 Nf3 Nc6 Bc4 Bc5 Bxf7+', 'Italian Game: Jerome Gambit'],
+    ['e4 e5 Nf3 Nc6 Bc4 Nf6 d3', 'Two Knights: 4.d3'], ['e4 e5 Nf3 Nc6 Bc4 Nf6 Ng5 d5 exd5 Na5 Bb5+ c6 dxc6 bxc6 Be2', 'Two Knights: Knight Attack, main line'],
+    ['e4 e5 Nf3 Nc6 Bc4 Nf6 d4 exd4 O-O Nxe4', 'Two Knights: Max Lange Attack set-up'], ['e4 e5 Nf3 Nc6 Bc4 Nf6 Ng5 Bc5', 'Two Knights: Traxler'],
+    ['e4 e5 Nf3 Nc6 Bb5 a6 Ba4 Nf6 O-O Be7', 'Ruy Lopez: Closed'], ['e4 e5 Nf3 Nc6 Bb5 a6 Bxc6 dxc6', 'Ruy Lopez: Exchange'],
+    ['e4 e5 Nf3 Nc6 Bb5 Nf6 d3', 'Ruy Lopez: Berlin, 4.d3'], ['e4 e5 Nf3 Nc6 Bb5 f5', 'Ruy Lopez: Schliemann'],
+    ['e4 e5 Nf3 Nc6 d4 exd4 Nxd4 Nf6 Nxc6 bxc6 e5 Qe7 Qe2 Nd5 c4', 'Scotch: Mieses variation'], ['e4 e5 Nf3 Nc6 d4 exd4 Nxd4 Bc5', 'Scotch: Classical'],
+    ['e4 e5 Nf3 Nc6 d4 exd4 Nxd4 Nf6', 'Scotch: Schmidt'], ['e4 e5 Nf3 Nc6 d4 exd4 Nxd4 Qh4', 'Scotch: Steinitz'],
+    ['e4 c5 Nf3 d6 d4 cxd4 Nxd4 Nf6 Nc3 a6 Be3 e5', 'Najdorf: English Attack'], ['e4 c5 Nf3 d6 d4 cxd4 Nxd4 Nf6 Nc3 a6 Bg5 e6', 'Najdorf: 6.Bg5'],
+    ['e4 c5 Nf3 d6 d4 cxd4 Nxd4 Nf6 Nc3 a6 Be2 e5', 'Najdorf: 6.Be2'], ['e4 c5 Nf3 Nc6 d4 cxd4 Nxd4 g6', 'Sicilian: Accelerated Dragon'],
+    ['e4 c5 Nf3 d6 d4 cxd4 Nxd4 Nf6 Nc3 e6', 'Sicilian: Scheveningen set-up'], ['e4 c5 Nf3 e6 d4 cxd4 Nxd4 Nf6 Nc3 d6', 'Sicilian: Scheveningen'],
+    ['e4 c5 Nf3 Nc6 d4 cxd4 Nxd4 Nf6 Nc3 d6', 'Sicilian: Classical'], ['e4 c5 Nf3 e6 Nc3', 'Sicilian: Paulsen set-up'],
+    ['d4 d5 c4 e6 Nc3 Nf6 Nf3 Be7', "Queen's Gambit Declined: main line"], ['d4 d5 c4 e6 Nc3 Nf6 Bg5 Be7 e3 O-O Nf3', "Queen's Gambit Declined: Orthodox, main line"],
+    ['d4 d5 c4 e6 Nf3 Nf6 Nc3 Be7', "Queen's Gambit Declined: 4.Nf3"], ['d4 d5 c4 c6 Nf3 Nf6 Nc3 e6', 'Semi-Slav Defence'],
+    ['d4 d5 Bf4 Nf6 e3 e6 Nf3 Bd6 Bg3 O-O Nbd2 c5 c3 Nc6', 'London System: main line'], ['d4 Nf6 Nf3 g6 Bf4', 'London System: vs King\'s Indian'],
+    ['d4 Nf6 Nf3 e6 e3', 'Queen\'s Pawn: 2.Nf3 e6 3.e3'], ['d4 d5 Nf3 Nf6 c4', "Queen's Gambit: 2.Nf3 move order"],
+    ['d4 Nf6 c4 e6 Nc3 Bb4 e3 O-O Bd3 d5 Nf3 c5', 'Nimzo-Indian: Rubinstein'], ['d4 Nf6 c4 g6 Nc3 Bg7 e4 d6 Nf3 O-O Be2 e5', "King's Indian: Classical main line"],
+    ['e4 e6 d4 d5 Nc3 Nf6 Bg5 Be7 e5 Nfd7', 'French: Classical main line'], ['e4 c6 d4 d5 Nc3 dxe4 Nxe4 Bf5 Ng3 Bg6 h4 h6', 'Caro-Kann: Classical main line'],
+    ['e4 d5 exd5 Qxd5 Nc3 Qa5 d4 Nf6 Nf3 c6', 'Scandinavian: Qa5 main line']
   ];
   var BOOK = BOOK_SRC.map(function(x){ return {m:x[0].split(' '), n:x[1]}; });
   function bookInfo(A){
@@ -4821,6 +4889,23 @@ body.dnd-dragging,body.dnd-dragging *{cursor:grabbing !important;}
     var A = {moves:parsed.moves, fens:parsed.fens, hdr:parsed.hdr, clocks:parsed.clocks, ev:ev, stats:[], cache:{}, sel:0,
              me:side, opp:side === 'w' ? 'b' : 'w', tc:tc, rep:{theme:{}, sq:{}, tacts:{}, state:null}};
     A.flip = (side === 'b');
+    // how many moves of this game are known opening theory
+    var bookN = 0; A.book = [];
+    try{
+      if(!parsed.hdr.FEN && parsed.hdr.SetUp !== '1'){
+        var gs = parsed.moves.map(function(mm){ return mm.san.replace(/[+#]/g, ''); });
+        BOOK.forEach(function(L){ var k = 0; while(k < L.m.length && k < gs.length && L.m[k] === gs[k]) k++; if(k > bookN) bookN = k; });
+        for(var q = 0; q < bookN; q++){
+          var nm = null;
+          BOOK.forEach(function(L){
+            if(L.m.length !== q + 1) return;
+            for(var z = 0; z <= q; z++) if(L.m[z] !== gs[z]) return;
+            nm = L.n;
+          });
+          A.book[q] = {n:nm};
+        }
+      }
+    }catch(e){ bookN = 0; }
     A.moves.forEach(function(m, i){
       var sign = m.color === 'w' ? 1 : -1, cpB = sign * ev[i].cp, cpA = sign * ev[i + 1].cp;
       var loss = Math.max(0, winPct(cpB) - winPct(cpA)), uci = m.from + m.to + (m.promotion || ''), label;
@@ -4830,6 +4915,8 @@ body.dnd-dragging,body.dnd-dragging *{cursor:grabbing !important;}
       else if(loss < 10) label = 'inaccuracy';
       else if(loss < 15) label = 'mistake';
       else label = 'blunder';
+      if(i < bookN && loss < 12) label = 'book';                              // known theory is never an inaccuracy
+      else if(label === 'inaccuracy' && i < 20 && loss < 8) label = 'good';   // opening evals are noisy: small differences are just choices
       var plus = null;
       try{ plus = window.__anPlus ? window.__anPlus.adjust(A, i, label, loss) : null; }catch(e){ console.error(e); }
       if(plus){ label = plus.label; loss = plus.loss; }
@@ -5112,10 +5199,15 @@ body.dnd-dragging,body.dnd-dragging *{cursor:grabbing !important;}
     if(d.tags.indexOf('castle') >= 0) pros.push('Gets your king safe and activates a rook.');
     if(d.tags.indexOf('centre') >= 0) pros.push('Fights for the centre, where pieces are most active.');
     if(d.tags.indexOf('capture') >= 0){
-      var cn = null;
-      try{ cn = window.__anPlus ? window.__anPlus.captureNote(A, i) : null; }catch(e){}
-      if(cn) (cn.kind === 'loss' ? cons : pros).push(cn.text);
-      else pros.push('Takes a ' + NAMES[m.captured] + ' (' + plural(VAL[m.captured], 'point') + ').');
+      try{
+        var cAfter = new Chess(fenA), back = cAfter.moves({verbose:true}).filter(function(x){ return x.to === m.to && x.captured; }).length;
+        var cnet = VAL[m.captured] - seeGain(cAfter, m.to);
+        if(m.captured === 'p' && m.piece === 'p' && !back) pros.push('Wins a pawn.');
+        else if(!back) pros.push('Wins a free ' + NAMES[m.captured] + ' (' + plural(VAL[m.captured], 'point') + ').');
+        else if(cnet >= 1) pros.push('Wins material: you take a ' + NAMES[m.captured] + ' and, even if they take back, you stay about ' + plural(cnet, 'point') + ' ahead.');
+        else if(cnet === 0) notes.push('An even trade: your ' + NAMES[m.piece] + ' for their ' + NAMES[m.captured] + '. Nobody wins material here, so judge it by what it does to the position.');
+        else cons.push('You take a ' + NAMES[m.captured] + ', but they win material back: about ' + plural(Math.abs(cnet), 'point') + ' net.');
+      }catch(e){ pros.push('Takes a ' + NAMES[m.captured] + '.'); }
     }
     if(d.tags.indexOf('promo') >= 0) pros.push('Promotes: a huge material gain.');
     if(d.tags.indexOf('mate') >= 0) pros.push('Checkmate!');
@@ -5123,7 +5215,7 @@ body.dnd-dragging,body.dnd-dragging *{cursor:grabbing !important;}
     // a tactic you played yourself
     try{
       var myT = tacticOf(fenB, m);
-      if(myT && myT.name !== 'back-rank mate' && myT.name !== 'smothered mate') pros.push('You played ' + myT.text + '.');
+      if(myT && myT.name !== 'back-rank mate' && myT.name !== 'smothered mate' && S.loss < 8) pros.push('You played ' + myT.text + '.');
     }catch(e){}
 
     // ----- missed free material
@@ -5997,7 +6089,7 @@ body.dnd-dragging,body.dnd-dragging *{cursor:grabbing !important;}
   };
 })();
 </script>
-<!-- ===== END STEP 16 v5 ===== -->
+<!-- ===== END STEP 16 v6 ===== -->
   <!-- ===== PAWNIAC STEP 17: TIME PER MOVE (saved with every game) + ANALYZE SENDS THE TIMES (paste at the very bottom, below step 16) ===== -->
 <script>
 (function(){
