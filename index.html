@@ -8534,9 +8534,10 @@ html body #screen-auth .card .so-btns button{padding:14px;}
 })();
 </script>
 <!-- ===== END STEP 29 ===== -->
-<!-- ===== PAWNIAC STEP 30: PLAYER TITLES (GM, IM, ...) next to names (paste at the very bottom, below step 29) ===== -->
+<!-- ===== PAWNIAC STEP 30 v2: PLAYER TITLES (GM, IM, ...) next to names (paste at the very bottom, below step 29) ===== -->
 <style>
-.ttl{display:inline-block;font-size:.72em;font-weight:800;letter-spacing:.4px;line-height:1;padding:3px 6px;margin-right:9px !important;border-radius:4px;color:#fff;background:#d62d2d;vertical-align:.08em;text-decoration:none;}
+.ttl,.pf-name[data-ttl]::before{display:inline-block;font-size:.72em;font-weight:800;letter-spacing:.4px;line-height:1;padding:3px 6px;margin-right:9px !important;border-radius:4px;color:#fff;background:#d62d2d;vertical-align:.08em;text-decoration:none;text-transform:none;}
+.pf-name[data-ttl]::before{content:attr(data-ttl);}
 </style>
 <script>
 (function(){
@@ -8558,6 +8559,9 @@ html body #screen-auth .card .so-btns button{padding:14px;}
   function tag(el, name){
     if(!name || !T[name] || el.dataset.ttl === T[name]) return;
     el.dataset.ttl = T[name];
+    // profile name: the badge is drawn by CSS (::before), so the text stays clean
+    // and the other steps that check the name text keep working
+    if(el.classList.contains('pf-name')) return;
     el.insertAdjacentHTML('afterbegin', badge(T[name]));
   }
   function paint(){
@@ -8582,7 +8586,7 @@ html body #screen-auth .card .so-btns button{padding:14px;}
   };
 })();
 </script>
-<!-- ===== END STEP 30 ===== -->
+<!-- ===== END STEP 30 v2 ===== -->
 <!-- ===== PAWNIAC STEP 31 v2: LEADERBOARD TAB FIX + NO RATING FOR GAMES THAT NEVER STARTED (replace old step 31; paste at the very bottom) ===== -->
 <script>
 (function(){
