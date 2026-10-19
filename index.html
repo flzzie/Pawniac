@@ -10089,7 +10089,7 @@ html body #screen-auth .card .so-btns button{padding:14px;}
 })();
 </script>
 <!-- ===== END STEP 35 v4 ===== -->
-  <!-- ===== PAWNIAC STEP 36 v2: WATCH LIVE GAMES + SHAREABLE LINK #/watch/CODE (replaces step 36; paste at the very bottom) ===== -->
+<!-- ===== PAWNIAC STEP 36 v3: WATCH LIVE GAMES + SHAREABLE LINK #/watch/CODE (replaces step 36; paste at the very bottom) ===== -->
 <style>
 #screen-watch{--sq:clamp(30px,9vw,72px);}
 #watchCard{order:-1;margin-top:12px;max-width:none;}
@@ -10112,13 +10112,14 @@ html body #screen-auth .card .so-btns button{padding:14px;}
   function pimg(c, t){
     return '<img class="piece-img" src="' + pieceImgUrl(c, t) + '" alt="" draggable="false" onerror="this.outerHTML=\'<span style=&quot;font-size:1em;line-height:1;&quot;>' + PIECE_UNICODE[c][t] + '</span>\'">';
   }
+  function nameHtml(n){ return '<span class="user-link" data-user="' + esc(n) + '">' + esc(n) + '</span>'; }   // step 30 adds the title badge to these
   function names(g, side){
     var s = g.seats || {};
     if(g.mode === 'team'){
       var b = s[side === 'w' ? 'whiteBrain' : 'blackBrain'], h = s[side === 'w' ? 'whiteHand' : 'blackHand'];
-      return esc((b || '?') + ' & ' + (h || '?'));
+      return nameHtml(b || '?') + ' &amp; ' + nameHtml(h || '?');
     }
-    return esc(s[side === 'w' ? 'white' : 'black'] || '?');
+    return nameHtml(s[side === 'w' ? 'white' : 'black'] || '?');
   }
   function kindOf(g){
     if(g.variant === 'auction') return 'Piece Auction';
@@ -10320,5 +10321,5 @@ html body #screen-auth .card .so-btns button{padding:14px;}
   };
 })();
 </script>
-<!-- ===== END STEP 36 v2 ===== -->
+<!-- ===== END STEP 36 v3 ===== -->
 </html>
