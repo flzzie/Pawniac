@@ -10322,4 +10322,38 @@ html body #screen-auth .card .so-btns button{padding:14px;}
 })();
 </script>
 <!-- ===== END STEP 36 v3 ===== -->
+  <!-- ===== PAWNIAC STEP 37: BOT GAMES COUNT IN "GAMES PLAYED TODAY / TOTAL" (paste at the very bottom, below step 36) ===== -->
+<script>
+(function(){
+  // A bot game is counted once, when it ends (win, loss, draw, resign or time out) and at least 2 moves were played.
+  // It uses the same counters as step 34 (hb/counters/played), so the Live now bar picks it up.
+  var counted = false;
+  function hourOf(ms){ return Math.floor(ms / 3600000); }
+  function plies(scr){
+    var n = 0;
+    scr.querySelectorAll('.move-white, .move-black').forEach(function(e){ if((e.textContent || '').trim()) n++; });
+    return n;
+  }
+  function count(){
+    var gid = 'bot' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+    var hr = hourOf(serverNow());
+    db.ref('hb/counters/played/h/' + hr + '/' + gid).transaction(function(c){ return c ? undefined : true; })
+      .then(function(r){
+        if(r.committed) return db.ref('hb/counters/played/total').transaction(function(c){ return (c || 0) + 1; });
+      }).catch(function(e){ console.error('bot game counter failed', e); });
+  }
+  setInterval(function(){
+    try{
+      var scr = document.getElementById('screen-bot');
+      if(!scr || !ME) return;
+      var done = !!scr.querySelector('.result-banner');
+      if(!done){ counted = false; return; }               // game running or setup screen: ready for the next one
+      if(counted) return;
+      counted = true;                                      // never count the same finished game twice
+      if(plies(scr) >= 2) count();
+    }catch(e){ console.error(e); }
+  }, 700);
+})();
+</script>
+<!-- ===== END STEP 37 ===== -->
 </html>
