@@ -9515,7 +9515,14 @@ html body #screen-auth .card .so-btns button{padding:14px;}
 
   // ---------- playing ----------
   function canMove(){
-    return !!G && G.phase === 'play' && !G.over && !G.busy && G.chess.turn() === G.me && (G.variant !== 'hb' || !!G.ann);
+    return !!G && G.phase === 'play' && !G.over && !G.busy && !G.promo && G.chess.turn() === G.me && (G.variant !== 'hb' || !!G.ann);
+  }
+  function autoQ(){
+    try{ return !!JSON.parse(localStorage.getItem('pawniac-settings') || '{}').autoQueen; }catch(e){ return false; }
+  }
+  function humanMove(m){
+    if(m.promotion && !autoQ()){ G.promo = {from:m.from, to:m.to}; G.sel = null; draw(); return; }
+    play(m.from, m.to, m.promotion ? 'q' : undefined); nextTurn();
   }
   function allowed(){
     var l = G.chess.moves({verbose:true});
@@ -9590,7 +9597,7 @@ html body #screen-auth .card .so-btns button{padding:14px;}
     var al = allowed();
     if(G.sel){
       var mv = al.filter(function(m){ return m.from === G.sel && m.to === sq; })[0];
-      if(mv){ play(mv.from, mv.to, mv.promotion ? 'q' : undefined); nextTurn(); return; }   // promotion is always a queen
+          if(mv){ humanMove(mv); return; }
     }
     G.sel = al.some(function(m){ return m.from === sq; }) ? sq : null;
     draw();
@@ -9754,6 +9761,7 @@ html body #screen-auth .card .so-btns button{padding:14px;}
   }
 
   function draw(){
+    window.__botActive = !!G && !G.over;
     if(!G) return drawSetup();
     if(G.phase === 'auction') return drawAuc();
     if(G.phase === 'place') return drawPlace();
@@ -9815,7 +9823,11 @@ html body #screen-auth .card .so-btns button{padding:14px;}
       if(g.variant === 'hb') p += '<div class="announce' + (g.ann ? '' : ' empty') + '">' + (g.ann ? 'Announced: ' + NM[g.ann] : 'No piece announced yet') + '</div>';
       if(g.said) p += '<div class="status-msg">' + g.said + '</div>';
       if(c.in_check()) p += '<div class="draw-offer">Check!</div>';
-      if(g.busy) p += '<div class="status-msg">' + (g.msg || 'Bot is thinking...') + '</div>';
+            if(g.promo){
+        p += '<div class="hint" style="margin-bottom:10px;">Promote to:</div><div class="types">' +
+          [['q','Queen'],['r','Rook'],['b','Bishop'],['n','Knight']].map(function(x){ return '<button data-promo="' + x[0] + '">' + x[1] + '</button>'; }).join('') +
+          '</div><button class="secondary" id="bPromoCancel" style="margin-top:10px;">Cancel</button>';
+      } else if(g.busy) p += '<div class="status-msg">' + (g.msg || 'Bot is thinking...') + '</div>';
       else if(c.turn() === g.me){
         if(g.variant === 'hb' && !g.ann) p += '<button id="bRand">Randomize piece</button>';
         else p += '<div class="status-msg">Your move: click a piece, then a square.</div>';
@@ -9831,7 +9843,11 @@ html body #screen-auth .card .so-btns button{padding:14px;}
     if(q('bRand')) q('bRand').onclick = randomize;
     if(q('bResign')) q('bResign').onclick = function(){ if(confirm('Resign this game?')) finish('You resigned', 'l'); };
     if(q('bNew')) q('bNew').onclick = function(){ if(g.over || confirm('Leave this game?')){ G = null; draw(); } };
-    if(q('bAgain')) q('bAgain').onclick = startNew;
+        if(q('bAgain')) q('bAgain').onclick = startNew;
+    scr.querySelectorAll('[data-promo]').forEach(function(b){
+      b.onclick = function(){ var pr = g.promo; if(!pr) return; g.promo = null; play(pr.from, pr.to, b.dataset.promo); nextTurn(); };
+    });
+    if(q('bPromoCancel')) q('bPromoCancel').onclick = function(){ g.promo = null; draw(); };
     wireSkill('bSk2', false);
   }
 
@@ -9964,7 +9980,10 @@ html body #screen-auth .card .so-btns button{padding:14px;}
       if(G.pm && G.variant !== 'hb'){
         var pm = G.pm; G.pm = null;
         var m = allowed().filter(function(x){ return x.from === pm.from && x.to === pm.to; })[0];
-        if(m){ play(m.from, m.to, m.promotion ? 'q' : undefined); return _nt(); }   // illegal now? it is simply dropped
+                if(m){
+          if(m.promotion && !autoQ()){ G.promo = {from:m.from, to:m.to}; draw(); return; }
+          play(m.from, m.to, m.promotion ? 'q' : undefined); return _nt();
+        }
       }
     }
     return _nt();
@@ -10071,7 +10090,7 @@ html body #screen-auth .card .so-btns button{padding:14px;}
     if(mode === 'move'){
       if(canMove() && to && to !== d.from){
         var m = allowed().filter(function(x){ return x.from === d.from && x.to === to; })[0];
-        if(m){ play(m.from, m.to, m.promotion ? 'q' : undefined); nextTurn(); return; }
+                if(m){ humanMove(m); return; }
       }
       G.sel = (to === d.from) ? d.from : null; draw(); return;
     }
@@ -11019,4 +11038,40 @@ button.qz-bad,button.qz-bad:hover:not(:disabled){background:#d64545 !important;c
 })();
 </script>
 <!-- ===== END STEP 39 ===== -->
+  <!-- ===== PAWNIAC STEP 40: "IN A GAME" STATUS DURING BOT GAMES ===== -->
+<script>
+(function(){
+  var TS = firebase.database.ServerValue.TIMESTAMP;
+  var ref = null, name = null, cb = null, was = false;
+
+  function detach(){ try{ if(ref) ref.off('value', cb); }catch(e){} ref = null; cb = null; name = null; }
+  function attach(){
+    if(!ME || name === ME.username) return;
+    detach();
+    name = ME.username;
+    ref = db.ref('hb/status/' + name);
+    // whenever the status changes (the normal "online" refresh included) put "playing" back while a bot game is on
+    cb = ref.on('value', function(s){
+      if(!window.__botActive) return;
+      var v = s.val();
+      if(!v || v.s !== 'playing') ref.set({s:'playing', t:TS}).catch(function(){});
+    });
+  }
+
+  setInterval(function(){
+    try{
+      if(!ME){ detach(); was = false; return; }
+      attach();
+      var on = !!window.__botActive;
+      if(on && !was && ref) ref.once('value').then(function(s){
+        var v = s.val();
+        if(window.__botActive && (!v || v.s !== 'playing')) ref.set({s:'playing', t:TS}).catch(function(){});
+      });
+      if(!on && was && ref) ref.set({s:'online', t:TS}).catch(function(){});   // game over: back to online
+      was = on;
+    }catch(e){ console.error('bot status failed', e); }
+  }, 1000);
+})();
+</script>
+<!-- ===== END STEP 40 ===== -->
 </html>
