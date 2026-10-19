@@ -10322,11 +10322,11 @@ html body #screen-auth .card .so-btns button{padding:14px;}
 })();
 </script>
 <!-- ===== END STEP 36 v3 ===== -->
-  <!-- ===== PAWNIAC STEP 37: BOT GAMES COUNT IN "GAMES PLAYED TODAY / TOTAL" (paste at the very bottom, below step 36) ===== -->
+  <!-- ===== PAWNIAC STEP 37 v2: BOT GAMES COUNT IN "GAMES PLAYED TODAY / TOTAL" (replaces step 37; paste at the very bottom) ===== -->
 <script>
 (function(){
   // A bot game is counted once, when it ends (win, loss, draw, resign or time out) and at least 2 moves were played.
-  // It uses the same counters as step 34 (hb/counters/played), so the Live now bar picks it up.
+  // Today's count uses the same hourly entries as step 34; the all-time total is kept in hb/counters/played/bot.
   var counted = false;
   function hourOf(ms){ return Math.floor(ms / 3600000); }
   function plies(scr){
@@ -10339,7 +10339,8 @@ html body #screen-auth .card .so-btns button{padding:14px;}
     var hr = hourOf(serverNow());
     db.ref('hb/counters/played/h/' + hr + '/' + gid).transaction(function(c){ return c ? undefined : true; })
       .then(function(r){
-        if(r.committed) return db.ref('hb/counters/played/total').transaction(function(c){ return (c || 0) + 1; });
+        // bot games have their own total (the lobby adds it on top of the online total, see the step 34 edit)
+        if(r.committed) return db.ref('hb/counters/played/bot').transaction(function(c){ return (c || 0) + 1; });
       }).catch(function(e){ console.error('bot game counter failed', e); });
   }
   setInterval(function(){
@@ -10355,5 +10356,5 @@ html body #screen-auth .card .so-btns button{padding:14px;}
   }, 700);
 })();
 </script>
-<!-- ===== END STEP 37 ===== -->
+<!-- ===== END STEP 37 v2 ===== -->
 </html>
