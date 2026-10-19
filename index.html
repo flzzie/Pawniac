@@ -9296,7 +9296,7 @@ html body #screen-auth .card .so-btns button{padding:14px;}
 })();
 </script>
 <!-- ===== END STEP 34 ===== -->
- <!-- ===== PAWNIAC STEP 35 v2: PLAY A BOT (timed, adjustable skill, reliable Stockfish) (replaces old step 35; paste at the very bottom) ===== -->
+<!-- ===== PAWNIAC STEP 35 v3: PLAY A BOT (timed, preset levels, drag and drop, premoves) (replaces step 35 v2; paste at the very bottom) ===== -->
 <style>
 #screen-bot{--sq:clamp(30px, 9vw, 72px);}
 #screen-bot .au-slot.sel{outline:3px solid #1f6f5c;outline-offset:-3px;}
@@ -9775,23 +9775,22 @@ html body #screen-auth .card .so-btns button{padding:14px;}
   function drawSetup(){
     var vs = [['std','Standard Chess','Normal chess against the bot'], ['hb','Hand &amp; Brain','Bot names the piece, or you randomize'], ['auction','Piece Auction','Bid coins, build an army, then play']];
     function tb(attr, key, label, on){ return '<div class="tcbtn' + (on ? ' active' : '') + '" data-' + attr + '="' + key + '">' + label + '</div>'; }
-    var h = '<div class="card"><h2>Play a bot</h2><p class="desc">You play against Stockfish right here on your device. Games are timed, not rated, and nothing is saved.</p>' +
+    var near = PRESETS[0];
+    PRESETS.forEach(function(p){ if(Math.abs(p.s - S.skill) < Math.abs(near.s - S.skill)) near = p; });
+    S.skill = near.s;
+    var hb = S.variant === 'hb' ? '<div class="bt-h">Who names your piece</div><div class="tc-row">' + tb('hm', 'brain', 'Bot is my Brain', S.hbMode === 'brain') + tb('hm', 'random', 'Random button', S.hbMode === 'random') + '</div>' : '';
+    var h = '<div class="card"><h2>Play a bot</h2><p class="desc">You play against Stockfish on your device. Games are timed, not rated, and nothing is saved.</p>' +
       '<div class="modes">' + vs.map(function(v){
         return '<div class="modebtn' + (S.variant === v[0] ? ' active' : '') + '" data-v="' + v[0] + '">' + v[1] + '<div class="hint">' + v[2] + '</div></div>';
-      }).join('') + '</div>';
-    if(S.variant === 'hb'){
-      h += '<div class="bt-h">Who names your piece</div><div class="tc-row">' +
-        tb('hm', 'brain', 'Bot is my Brain', S.hbMode === 'brain') + tb('hm', 'random', 'Random button', S.hbMode === 'random') + '</div>' +
-        '<div class="hint">The bot opponent is a full Brain + Hand: it plays its best move.</div>';
-    }
-    h += '<div class="bt-h">Time control</div><div class="tc-row">' +
-      TIME_CONTROLS.filter(function(t){ return t.key !== 'none'; }).map(function(t){ return tb('tc', t.key, t.label, !S.custom && S.tc === t.key); }).join('') +
-      tb('tc', 'custom', 'Custom', S.custom) + '</div>' +
-      (S.custom ? '<div class="row" style="margin-bottom:6px;"><input type="number" id="bMin" min="1" max="180" value="' + S.cmin + '"><span class="hint">min +</span><input type="number" id="bInc" min="0" max="60" value="' + S.cinc + '"><span class="hint">sec per move</span></div>' : '') +
-      skillHtml('bSkill') +
-      '<div class="bt-h">Presets</div><div class="tc-row">' + PRESETS.map(function(p){ return tb('ps', p.s, p.n, S.skill === p.s); }).join('') + '</div>' +
-      '<div class="bt-h">You play</div><div class="tc-row">' + tb('co', 'random', 'Random', S.color === 'random') + tb('co', 'w', 'White', S.color === 'w') + tb('co', 'b', 'Black', S.color === 'b') + '</div>' +
-      '<button id="bStart" style="margin-top:8px;" disabled>Start game</button><div class="bt-eng hint" id="bEng"></div></div>';
+      }).join('') + '</div>' +
+      '<div class="bt-grid">' +
+        '<div><div class="bt-h">Time control</div><div class="tc-row">' +
+          TIME_CONTROLS.filter(function(t){ return t.key !== 'none'; }).map(function(t){ return tb('tc', t.key, t.label, !S.custom && S.tc === t.key); }).join('') + tb('tc', 'custom', 'Custom', S.custom) + '</div>' +
+          (S.custom ? '<div class="row"><input type="number" id="bMin" min="1" max="180" value="' + S.cmin + '"><span class="hint">min +</span><input type="number" id="bInc" min="0" max="60" value="' + S.cinc + '"><span class="hint">sec</span></div>' : '') + '</div>' +
+        '<div><div class="bt-h">Bot level</div><div class="tc-row">' + PRESETS.map(function(p){ return tb('ps', p.s, p.n, S.skill === p.s); }).join('') + '</div></div>' +
+        '<div><div class="bt-h">You play</div><div class="tc-row">' + tb('co', 'random', 'Random', S.color === 'random') + tb('co', 'w', 'White', S.color === 'w') + tb('co', 'b', 'Black', S.color === 'b') + '</div>' + hb + '</div>' +
+      '</div>' +
+      '<button id="bStart" style="margin-top:16px;" disabled>Start game</button><div class="bt-eng hint" id="bEng"></div></div>';
     scr.innerHTML = h;
     scr.querySelectorAll('[data-v]').forEach(function(b){ b.onclick = function(){ S.variant = b.dataset.v; saveS(); drawSetup(); }; });
     scr.querySelectorAll('[data-hm]').forEach(function(b){ b.onclick = function(){ S.hbMode = b.dataset.hm; saveS(); drawSetup(); }; });
@@ -9803,7 +9802,6 @@ html body #screen-auth .card .so-btns button{padding:14px;}
     var mi = document.getElementById('bMin'), ii = document.getElementById('bInc');
     if(mi) mi.oninput = function(){ S.cmin = Math.min(180, Math.max(1, parseInt(mi.value, 10) || 1)); saveS(); };
     if(ii) ii.oninput = function(){ S.cinc = Math.min(60, Math.max(0, parseInt(ii.value, 10) || 0)); saveS(); };
-    wireSkill('bSkill', true);
     document.getElementById('bStart').onclick = startNew;
     boot(); paintEng();
   }
@@ -9896,7 +9894,156 @@ html body #screen-auth .card .so-btns button{padding:14px;}
     document.getElementById('auGo').onclick = startAuctionGame;
     document.getElementById('bNew').onclick = function(){ G = null; draw(); };
   }
+
+  // ===== v3 add-on: drag & drop, premoves, layout, no slider in game =====
+  var st = document.createElement('style');
+  st.textContent =
+    '#screen-bot{--sq:clamp(30px,9vw,80px);}' +
+    '#screen-bot .board{touch-action:none;}' +
+    '#screen-bot .board-wrap{justify-content:center;}' +
+    '#screen-bot .bt-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:0 32px;}' +
+    '#screen-bot .sq.selectable{cursor:grab;}';
+  document.head.appendChild(st);
+
+  function killSlider(id){
+    var r = document.getElementById(id); if(!r) return;
+    var a = r.previousElementSibling, b = r.nextElementSibling;
+    if(b && b.classList.contains('hint')) b.remove();
+    r.remove();
+    if(a && a.classList.contains('bt-h')) a.remove();
+  }
+  // premoves: Standard and Piece Auction, while it is the bot's turn
+  function canPre(){ return !!G && G.phase === 'play' && !G.over && G.variant !== 'hb' && G.chess.turn() === G.bot; }
+  function preDests(from){
+    var p = G.chess.get(from);
+    if(!p || p.color !== G.me) return [];
+    var f = G.chess.fen().split(' '); f[1] = G.me; f[3] = '-';
+    try{ return new Chess(f.join(' ')).moves({verbose:true}).filter(function(m){ return m.from === from; }).map(function(m){ return m.to; }); }
+    catch(e){ return []; }
+  }
+  var _nt = nextTurn;
+  nextTurn = function(){
+    if(G && !G.over && G.chess.turn() === G.me){
+      if(G.psel){ if(allowed().some(function(m){ return m.from === G.psel; })) G.sel = G.psel; G.psel = null; }
+      if(G.pm && G.variant !== 'hb'){
+        var pm = G.pm; G.pm = null;
+        var m = allowed().filter(function(x){ return x.from === pm.from && x.to === pm.to; })[0];
+        if(m){ play(m.from, m.to, m.promotion ? 'q' : undefined); return _nt(); }   // illegal now? it is simply dropped
+      }
+    }
+    return _nt();
+  };
+  var _cc = cellClick;
+  cellClick = function(sq){
+    if(canPre()){
+      var p = G.chess.get(sq);
+      if(G.psel && G.psel !== sq && preDests(G.psel).indexOf(sq) >= 0){ G.pm = {from:G.psel, to:sq}; G.psel = null; draw(); return; }
+      if(p && p.color === G.me){ G.psel = sq; G.pm = null; } else { G.psel = null; G.pm = null; }
+      draw(); return;
+    }
+    return _cc(sq);
+  };
+  function mark(sq, cls){ var el = scr.querySelector('.sq[data-sq="' + sq + '"]'); if(el) el.classList.add(cls); return el; }
+  var _dp = drawPlay;
+  drawPlay = function(){
+    _dp();
+    try{
+      killSlider('bSk2');
+      if(!G || G.over) return;
+      if(canPre()){
+        if(G.pm){ mark(G.pm.from, 'pm-from'); mark(G.pm.to, 'pm-to'); }
+        if(G.psel){
+          mark(G.psel, 'pm-from');
+          preDests(G.psel).forEach(function(s){ var el = mark(s, 'pm-dest'); if(el && G.chess.get(s)) el.classList.add('pm-cap'); });
+        }
+        scr.querySelectorAll('.sq[data-sq]').forEach(function(c){ var p = G.chess.get(c.dataset.sq); if(p && p.color === G.me) c.classList.add('selectable'); });
+      }
+      var acts = scr.querySelector('.game-actions');
+      if(acts && G.variant !== 'hb' && !scr.querySelector('.bt-pmh')){
+        var hh = document.createElement('div');
+        hh.className = 'hint bt-pmh'; hh.style.margin = '10px 0';
+        hh.textContent = 'Drag pieces to move. Premove while the bot thinks (right-click or Esc cancels).';
+        acts.parentNode.insertBefore(hh, acts);
+      }
+    }catch(e){ console.error('bot decorate failed', e); }
+  };
+  scr.addEventListener('contextmenu', function(e){
+    if(G && (G.pm || G.psel) && e.target.closest && e.target.closest('.board')){ e.preventDefault(); G.pm = null; G.psel = null; draw(); }
+  });
+  document.addEventListener('keydown', function(e){
+    if(e.key === 'Escape' && G && (G.pm || G.psel)){ G.pm = null; G.psel = null; if(scr.style.display === 'block') draw(); }
+  });
+
+  // drag and drop
+  var D = null, supUntil = 0;
+  function cellOf(t){ return (t && t.closest) ? t.closest('#screen-bot .sq[data-sq]') : null; }
+  function clearGhost(){
+    document.querySelectorAll('.dnd-ghost').forEach(function(x){ x.remove(); });
+    document.querySelectorAll('#screen-bot .dnd-src').forEach(function(x){ x.classList.remove('dnd-src'); });
+    document.body.classList.remove('dnd-dragging');
+  }
+  document.addEventListener('pointerdown', function(e){
+    if(D || !e.isPrimary || (e.pointerType === 'mouse' && e.button !== 0)) return;
+    var cell = cellOf(e.target);
+    if(!cell || !G || G.over || G.phase !== 'play') return;
+    var sq = cell.dataset.sq, mode;
+    if(canMove()){
+      if(!allowed().some(function(m){ return m.from === sq; })) return;
+      mode = 'move'; G.sel = sq;
+    } else if(canPre()){
+      var pc = G.chess.get(sq);
+      if(!pc || pc.color !== G.me) return;
+      mode = 'pre'; G.psel = sq; G.pm = null;
+    } else return;
+    e.preventDefault();
+    D = {mode:mode, from:sq, id:e.pointerId, x:e.clientX, y:e.clientY, drag:false, ghost:null, w:0};
+    draw();
+  });
+  document.addEventListener('pointermove', function(e){
+    if(!D || e.pointerId !== D.id) return;
+    if(!D.drag){
+      if(Math.hypot(e.clientX - D.x, e.clientY - D.y) < 5) return;
+      var cell = scr.querySelector('.sq[data-sq="' + D.from + '"]'), pe = cell && cell.querySelector('img.piece-img, span:not(.coord)');
+      if(!pe){ D = null; return; }
+      var r = cell.getBoundingClientRect(), gh = pe.cloneNode(true);
+      gh.removeAttribute('onerror'); gh.className = 'dnd-ghost'; gh.draggable = false;
+      D.w = r.width * 0.95; gh.style.width = D.w + 'px'; gh.style.height = D.w + 'px';
+      if(gh.tagName !== 'IMG'){ gh.style.fontSize = getComputedStyle(cell).fontSize; gh.style.display = 'block'; gh.style.textAlign = 'center'; }
+      document.body.appendChild(gh);
+      cell.classList.add('dnd-src'); document.body.classList.add('dnd-dragging');
+      D.ghost = gh; D.drag = true;
+    }
+    D.ghost.style.transform = 'translate(' + (e.clientX - D.w / 2) + 'px,' + (e.clientY - D.w / 2) + 'px)';
+  });
+  document.addEventListener('pointerup', function(e){
+    if(!D || e.pointerId !== D.id) return;
+    var d = D; D = null;
+    if(!d.drag) return;                                   // plain click: already selected on pointerdown
+    supUntil = Date.now() + 150;
+    var cell = cellOf(document.elementFromPoint(e.clientX, e.clientY)), to = cell ? cell.dataset.sq : null;
+    clearGhost();
+    if(!G || G.over) return;
+    var mode = d.mode;
+    if(mode === 'pre' && canMove()) mode = 'move';         // the bot moved while you were dragging
+    if(mode === 'move'){
+      if(canMove() && to && to !== d.from){
+        var m = allowed().filter(function(x){ return x.from === d.from && x.to === to; })[0];
+        if(m){ play(m.from, m.to, m.promotion ? 'q' : undefined); nextTurn(); return; }
+      }
+      G.sel = (to === d.from) ? d.from : null; draw(); return;
+    }
+    if(canPre() && to && to !== d.from && preDests(d.from).indexOf(to) >= 0){ G.pm = {from:d.from, to:to}; G.psel = null; }
+    else if(to !== d.from) G.psel = null;
+    draw();
+  });
+  document.addEventListener('pointercancel', function(e){
+    if(!D || e.pointerId !== D.id) return;
+    D = null; clearGhost();
+  });
+  document.addEventListener('click', function(e){
+    if(Date.now() < supUntil && cellOf(e.target)){ e.stopPropagation(); e.preventDefault(); }
+  }, true);
 })();
 </script>
-<!-- ===== END STEP 35 v2 ===== -->
+<!-- ===== END STEP 35 v3 ===== -->
 </html>
