@@ -9296,7 +9296,7 @@ html body #screen-auth .card .so-btns button{padding:14px;}
 })();
 </script>
 <!-- ===== END STEP 34 ===== -->
-  <!-- ===== PAWNIAC STEP 35 v2: PLAY A BOT (timed, adjustable skill, reliable Stockfish) (replaces old step 35; paste at the very bottom) ===== -->
+ <!-- ===== PAWNIAC STEP 35 v2: PLAY A BOT (timed, adjustable skill, reliable Stockfish) (replaces old step 35; paste at the very bottom) ===== -->
 <style>
 #screen-bot{--sq:clamp(30px, 9vw, 72px);}
 #screen-bot .au-slot.sel{outline:3px solid #1f6f5c;outline-offset:-3px;}
@@ -9464,5 +9464,439 @@ html body #screen-auth .card .so-btns button{padding:14px;}
 
   // ---------- clock ----------
   function tcVals(){
-    if(S.custom) return {init:Math.max(1, S.cmin) * 60, inc:Math.max(0,
+    if(S.custom) return {init:Math.max(1, S.cmin) * 60, inc:Math.max(0, S.cinc)};
+    var t = getTC(S.tc);
+    return {init:t.initial || 300, inc:t.increment || 0};
+  }
+  function mkClock(){
+    var v = tcVals(), ms = v.init * 1000;
+    return {w:ms, b:ms, inc:v.inc * 1000, t0:Date.now()};
+  }
+  function remMs(side){
+    var c = G && G.clock;
+    if(!c) return 0;
+    var r = c[side];
+    if(G.phase === 'play' && !G.over && G.chess && G.chess.turn() === side) r -= (Date.now() - c.t0);
+    return r;
+  }
+  function flagCheck(){
+    if(!G || G.over || G.phase !== 'play' || !G.clock || !G.chess) return;
+    var loser = G.chess.turn();
+    if(remMs(loser) > 0) return;
+    G.clock[loser] = 0;
+    var winner = opp(loser);
+    if(G.chess.insufficient_material()) finish('Draw (time ran out, but nobody can mate)', 'd');
+    else finish(winner === G.me ? 'You win on time!' : 'Bot wins on time', winner === G.me ? 'w' : 'l');
+  }
+  setInterval(function(){
+    if(!G || !G.clock || G.over || G.phase !== 'play') return;
+    flagCheck();
+    if(G.over) return;
+    ['w','b'].forEach(function(s){
+      var e = document.getElementById('bk' + s);
+      if(e) e.textContent = fmtClock(remMs(s));
+    });
+  }, 200);
+  function clkHtml(color){
+    var on = G.phase === 'play' && !G.over && G.chess.turn() === color;
+    return '<div class="clock' + (on ? ' active' : '') + '"><span class="label">' + (color === G.me ? 'You' : 'Bot') + '</span><span id="bk' + color + '">' + fmtClock(remMs(color)) + '</span></div>';
+  }
+
+  // ---------- starting a game ----------
+  function startNew(){
+    if(eng.state !== 'ready'){ boot(); return; }
+    var me = S.color === 'random' ? (Math.random() < .5 ? 'w' : 'b') : S.color;
+    G = {variant:S.variant, hbMode:S.hbMode, me:me, bot:opp(me), phase:'play', chess:null, ann:null, sel:null, last:null,
+         log:[], said:'', msg:'', busy:false, over:null, au:null, layout:null, sel2:null, clock:null};
+    if(eng.w) try{ eng.w.postMessage('ucinewgame'); }catch(e){}
+    if(G.variant === 'auction'){ initAuction(); }
+    else { G.chess = new Chess(); G.clock = mkClock(); nextTurn(); }
+  }
+
+  // ---------- playing ----------
+  function canMove(){
+    return !!G && G.phase === 'play' && !G.over && !G.busy && G.chess.turn() === G.me && (G.variant !== 'hb' || !!G.ann);
+  }
+  function allowed(){
+    var l = G.chess.moves({verbose:true});
+    return (G.variant === 'hb' && G.ann) ? l.filter(function(m){ return m.piece === G.ann; }) : l;
+  }
+  function play(from, to, promo){
+    flagCheck();
+    if(G.over) return null;
+    var mover = G.chess.turn();
+    var mv = G.chess.move({from:from, to:to, promotion:promo || 'q'});
+    if(!mv) return null;
+    if(G.clock){
+      var now = Date.now();
+      G.clock[mover] = G.clock[mover] - (now - G.clock.t0) + G.clock.inc;
+      G.clock.t0 = now;
+    }
+    G.last = {from:mv.from, to:mv.to}; G.log.push(mv.san); G.ann = null; G.sel = null;
+    snd(/[+#]/.test(mv.san) ? 'playCheckSound' : (mv.captured ? 'playCaptureSound' : 'playMoveSound'));
+    return mv;
+  }
+  function finish(text, r){
+    G.over = text; G.busy = false;
+    snd(r === 'w' ? 'playWinSound' : (r === 'l' ? 'playLossSound' : 'playDrawSound'));
+    draw();
+  }
+  function checkEnd(){
+    var c = G.chess;
+    if(!c.game_over()) return false;
+    if(c.in_checkmate()){
+      var botWon = c.turn() === G.me;
+      finish(botWon ? 'Bot wins by checkmate' : 'You win by checkmate!', botWon ? 'l' : 'w');
+    } else {
+      finish('Draw' + (c.in_stalemate() ? ' (stalemate)' : c.insufficient_material() ? ' (insufficient material)' : c.in_threefold_repetition() ? ' (repetition)' : ' (50-move rule)'), 'd');
+    }
+    return true;
+  }
+  function nextTurn(){
+    if(!G || G.over) return;
+    if(checkEnd()) return;
+    if(G.chess.turn() === G.me){
+      if(G.variant === 'hb' && !G.ann && G.hbMode === 'brain') brainName();
+      else draw();
+    } else botMove();
+  }
+  function brainName(){
+    var g = G; g.busy = true; g.msg = 'Your bot Brain is choosing a piece...'; draw();
+    best(g.chess.fen(), thinkMs(g.me)).then(function(u){
+      if(G !== g || g.over) return;
+      var p = u ? g.chess.get(u.slice(0, 2)) : null, types = g.chess.moves({verbose:true}).map(function(m){ return m.piece; });
+      g.ann = p ? p.type : types[0];
+      g.busy = false; g.msg = ''; draw();
+    });
+  }
+  function botMove(){
+    var g = G, t0 = Date.now();
+    g.busy = true; g.msg = 'Bot is thinking...'; draw();
+    best(g.chess.fen(), thinkMs(g.bot)).then(function(u){
+      setTimeout(function(){
+        if(G !== g || g.over) return;
+        var mv = u ? play(u.slice(0, 2), u.slice(2, 4), u.slice(4, 5) || 'q') : null;
+        if(g.over) return;
+        if(!mv){ var r = randomMove(g.chess.fen()); if(r) mv = play(r.slice(0, 2), r.slice(2, 4), r.slice(4, 5) || 'q'); }
+        if(g.over) return;
+        g.busy = false; g.msg = '';
+        if(mv) g.said = g.variant === 'hb' ? 'Bot (Brain) named the ' + NM[mv.piece].toLowerCase() + ' and played ' + mv.san + '.' : 'Bot played ' + mv.san + '.';
+        nextTurn();
+      }, Math.max(0, 300 - (Date.now() - t0)));
+    });
+  }
+  function cellClick(sq){
+    if(!canMove()) return;
+    var al = allowed();
+    if(G.sel){
+      var mv = al.filter(function(m){ return m.from === G.sel && m.to === sq; })[0];
+      if(mv){ play(mv.from, mv.to, mv.promotion ? 'q' : undefined); nextTurn(); return; }   // promotion is always a queen
+    }
+    G.sel = al.some(function(m){ return m.from === sq; }) ? sq : null;
+    draw();
+  }
+  function randomize(){
+    if(!G || G.variant !== 'hb' || G.over || G.busy || G.ann || G.chess.turn() !== G.me) return;
+    var l = G.chess.moves({verbose:true});
+    if(!l.length) return;
+    G.ann = l[Math.floor(Math.random() * l.length)].piece;
+    snd('playRandomizeSound'); draw();
+  }
+
+  // ---------- Piece Auction (same rules as the online version) ----------
+  function roomFor(au, s, t){ var b = au.bought[s]; return t === 'p' ? b.p < 8 : (b.n + b.b + b.r + b.q) < 7; }
+  function canBid(au, s, t, min){ return !au.done[s] && roomFor(au, s, t) && au.coins[s] >= min; }
+  function canNom(au, s){ return !au.done[s] && au.coins[s] >= 1 && T.some(function(t){ return roomFor(au, s, t); }); }
+  function nomOk(au, t){ return canBid(au, 'w', t, 1) || canBid(au, 'b', t, 1); }
+  function startNom(au){
+    au.item = ''; au.bid = 0; au.bidder = ''; au.np = 0; au.phase = 'nominate';
+    if(au.unsold >= 3 || au.round >= 60 || (!canNom(au, 'w') && !canNom(au, 'b'))){ au.phase = 'place'; au.turn = ''; return; }
+    if(!canNom(au, au.nom)) au.nom = opp(au.nom);
+    au.turn = au.nom;
+  }
+  function sell(au, w){
+    au.coins[w] -= au.bid; au.bought[w][au.item]++;
+    au.lastW = w; au.lastT = au.item; au.lastBid = au.bid;
+    au.unsold = 0; au.round++; au.nom = opp(au.nom); startNom(au);
+  }
+  function noSale(au){
+    au.lastW = ''; au.lastT = au.item; au.lastBid = 0;
+    au.unsold++; au.round++; au.nom = opp(au.nom); startNom(au);
+  }
+  function doAct(au, s, a){
+    if(au.phase === 'nominate'){
+      if(au.turn !== s) return false;
+      if(a.k === 'stop'){ au.done[s] = true; startNom(au); return true; }
+      if(a.k === 'nom' && T.indexOf(a.t) >= 0 && nomOk(au, a.t) && canNom(au, s)){
+        au.item = a.t; au.bid = 0; au.bidder = ''; au.np = 0; au.phase = 'bid';
+        if(canBid(au, s, a.t, 1)) au.turn = s; else { au.turn = opp(s); au.np = 1; }
+        return true;
+      }
+      return false;
+    }
+    if(au.phase === 'bid'){
+      if(au.turn !== s) return false;
+      var o = opp(s);
+      if(a.k === 'bid'){
+        var x = Math.floor(a.x);
+        if(!(x > au.bid) || !canBid(au, s, au.item, x)) return false;
+        au.bid = x; au.bidder = s; au.np = 0;
+        if(canBid(au, o, au.item, x + 1)) au.turn = o; else sell(au, s);
+        return true;
+      }
+      if(a.k === 'pass'){
+        if(au.bidder){ sell(au, au.bidder); return true; }
+        au.np++;
+        if(au.np >= 2 || !canBid(au, o, au.item, 1)) noSale(au); else au.turn = o;
+        return true;
+      }
+    }
+    return false;
+  }
+  function initAuction(){
+    var B = 15 + Math.floor(Math.random() * 36), z = function(){ return {p:0, n:0, b:0, r:0, q:0}; };
+    G.phase = 'auction';
+    G.au = {budget:B, coins:{w:B, b:B}, bought:{w:z(), b:z()}, done:{w:false, b:false}, nom:'w', phase:'nominate', item:'', bid:0,
+            bidder:'', turn:'w', np:0, unsold:0, round:0, lastW:'', lastT:'', lastBid:0};
+    afterAct();
+  }
+  function afterAct(){
+    var au = G.au;
+    if(au.phase === 'place'){
+      if(!G.layout) G.layout = randLayout(au.bought[G.me]);
+      G.phase = 'place'; draw(); return;
+    }
+    draw();
+    if(au.turn === G.bot){ var g = G; setTimeout(function(){ if(G === g && g.phase === 'auction') botAuc(); }, 800); }
+  }
+  function aucAct(a){
+    if(!G || G.phase !== 'auction') return;
+    if(doAct(G.au, G.me, a)){ G.msg = ''; afterAct(); } else { G.msg = 'That is not a valid move.'; draw(); }
+  }
+  function botAuc(){
+    var au = G.au, s = G.bot;
+    if(au.turn !== s) return;
+    if(au.phase === 'nominate'){
+      var ok = T.filter(function(t){ return nomOk(au, t); });
+      if(!ok.length) doAct(au, s, {k:'stop'});
+      else {
+        var w = {p:3, n:3, b:3, r:2, q:1}, pool = [];
+        ok.forEach(function(t){ for(var i = 0; i < w[t]; i++) pool.push(t); });
+        doAct(au, s, {k:'nom', t:pool[Math.floor(Math.random() * pool.length)]});
+      }
+    } else if(au.phase === 'bid'){
+      var t = au.item, maxB = Math.max(1, Math.round(VALS[t] * au.budget / 18 * (0.7 + Math.random() * 0.7)));
+      maxB = Math.min(maxB, au.coins[s]);
+      var nx = au.bid + 1;
+      if(nx <= maxB && canBid(au, s, t, nx)) doAct(au, s, {k:'bid', x: au.bidder ? nx : Math.max(1, Math.min(maxB, Math.round(maxB * 0.35)))});
+      else doAct(au, s, {k:'pass'});
+    }
+    afterAct();
+  }
+  function randLayout(b){
+    var list = ['k'];
+    ['q','r','b','n'].forEach(function(t){ for(var i = 0; i < b[t]; i++) list.push(t); });
+    var sl = shuffle([0,1,2,3,4,5,6,7]), back = ['','','','','','','',''];
+    list.forEach(function(t, i){ back[sl[i]] = t; });
+    var fl = shuffle([0,1,2,3,4,5,6,7]), pw = ['','','','','','','',''];
+    for(var i = 0; i < b.p; i++) pw[fl[i]] = 'p';
+    return {back:back, pawns:pw};
+  }
+  function rowF(a, up){
+    var o = '', e = 0;
+    a.forEach(function(x){ if(!x){ e++; } else { if(e){ o += e; e = 0; } o += up ? x.toUpperCase() : x; } });
+    return o + (e ? e : '');
+  }
+  function startAuctionGame(){
+    var L = {}; L[G.me] = G.layout; L[G.bot] = randLayout(G.au.bought[G.bot]);
+    var fen = rowF(L.b.back, 0) + '/' + rowF(L.b.pawns, 0) + '/8/8/8/8/' + rowF(L.w.pawns, 1) + '/' + rowF(L.w.back, 1) + ' w - - 0 1';
+    try{
+      var bIn = new Chess(fen.replace(' w ', ' b ')).in_check(), wIn = new Chess(fen).in_check();
+      if(bIn && !wIn) fen = fen.replace(' w ', ' b ');
+    }catch(e){}
+    var c = new Chess();
+    if(!c.load(fen)) c = new Chess();
+    G.chess = c; G.phase = 'play'; G.layout = null; G.sel2 = null;
+    G.clock = mkClock();                      // the clock starts when the game starts
+    nextTurn();
+  }
+
+  // ---------- drawing ----------
+  function boardHtml(){
+    var c = G.chess, b = c.board(), flip = G.me === 'b', idx = [0,1,2,3,4,5,6,7];
+    var rows = flip ? idx.slice().reverse() : idx, cols = flip ? idx.slice().reverse() : idx;
+    var dests = {}, froms = {}, mv = canMove();
+    if(mv){
+      var al = allowed();
+      al.forEach(function(m){ froms[m.from] = 1; });
+      if(G.sel) al.filter(function(m){ return m.from === G.sel; }).forEach(function(m){ dests[m.to] = m.captured ? 2 : 1; });
+    }
+    var chk = null;
+    if(c.in_check()) for(var r0 = 0; r0 < 8; r0++) for(var f0 = 0; f0 < 8; f0++){
+      var p0 = b[r0][f0]; if(p0 && p0.type === 'k' && p0.color === c.turn()) chk = FILES[f0] + (8 - r0);
+    }
+    var h = '<div class="board">';
+    rows.forEach(function(r){
+      cols.forEach(function(f){
+        var sq = FILES[f] + (8 - r), p = b[r][f], cls = 'sq ' + (((r + f) % 2 === 0) ? 'light' : 'dark');
+        if(G.last && (sq === G.last.from || sq === G.last.to)) cls += ' last';
+        if(sq === G.sel) cls += ' from';
+        if(sq === chk) cls += ' in-check';
+        if(dests[sq]) cls += ' dest' + (dests[sq] === 2 ? ' capture' : '');
+        if(mv && (froms[sq] || dests[sq])) cls += ' selectable';
+        var co = '';
+        if(f === cols[0]) co += '<span class="coord rank">' + (8 - r) + '</span>';
+        if(r === rows[7]) co += '<span class="coord file">' + FILES[f] + '</span>';
+        h += '<div class="' + cls + '" data-sq="' + sq + '">' + co + (p ? pimg(p.color, p.type) : '') + '</div>';
+      });
+    });
+    return h + '</div>';
+  }
+
+  function draw(){
+    if(!G) return drawSetup();
+    if(G.phase === 'auction') return drawAuc();
+    if(G.phase === 'place') return drawPlace();
+    drawPlay();
+  }
+
+  function skillHtml(id){
+    return '<div class="bt-h">Bot skill: <span id="' + id + 'L">' + S.skill + ' / 20 (' + levelName() + ')</span></div>' +
+      '<input type="range" id="' + id + '" min="0" max="20" step="1" value="' + S.skill + '">' +
+      '<div class="hint">0 = makes lots of mistakes, 20 = full strength.</div>';
+  }
+  function wireSkill(id, redraw){
+    var r = document.getElementById(id), l = document.getElementById(id + 'L');
+    if(!r) return;
+    r.oninput = function(){ S.skill = +r.value; if(l) l.textContent = S.skill + ' / 20 (' + levelName() + ')'; };
+    r.onchange = function(){ S.skill = +r.value; saveS(); if(redraw) draw(); };
+  }
+
+  function drawSetup(){
+    var vs = [['std','Standard Chess','Normal chess against the bot'], ['hb','Hand &amp; Brain','Bot names the piece, or you randomize'], ['auction','Piece Auction','Bid coins, build an army, then play']];
+    function tb(attr, key, label, on){ return '<div class="tcbtn' + (on ? ' active' : '') + '" data-' + attr + '="' + key + '">' + label + '</div>'; }
+    var h = '<div class="card"><h2>Play a bot</h2><p class="desc">You play against Stockfish right here on your device. Games are timed, not rated, and nothing is saved.</p>' +
+      '<div class="modes">' + vs.map(function(v){
+        return '<div class="modebtn' + (S.variant === v[0] ? ' active' : '') + '" data-v="' + v[0] + '">' + v[1] + '<div class="hint">' + v[2] + '</div></div>';
+      }).join('') + '</div>';
+    if(S.variant === 'hb'){
+      h += '<div class="bt-h">Who names your piece</div><div class="tc-row">' +
+        tb('hm', 'brain', 'Bot is my Brain', S.hbMode === 'brain') + tb('hm', 'random', 'Random button', S.hbMode === 'random') + '</div>' +
+        '<div class="hint">The bot opponent is a full Brain + Hand: it plays its best move.</div>';
+    }
+    h += '<div class="bt-h">Time control</div><div class="tc-row">' +
+      TIME_CONTROLS.filter(function(t){ return t.key !== 'none'; }).map(function(t){ return tb('tc', t.key, t.label, !S.custom && S.tc === t.key); }).join('') +
+      tb('tc', 'custom', 'Custom', S.custom) + '</div>' +
+      (S.custom ? '<div class="row" style="margin-bottom:6px;"><input type="number" id="bMin" min="1" max="180" value="' + S.cmin + '"><span class="hint">min +</span><input type="number" id="bInc" min="0" max="60" value="' + S.cinc + '"><span class="hint">sec per move</span></div>' : '') +
+      skillHtml('bSkill') +
+      '<div class="bt-h">Presets</div><div class="tc-row">' + PRESETS.map(function(p){ return tb('ps', p.s, p.n, S.skill === p.s); }).join('') + '</div>' +
+      '<div class="bt-h">You play</div><div class="tc-row">' + tb('co', 'random', 'Random', S.color === 'random') + tb('co', 'w', 'White', S.color === 'w') + tb('co', 'b', 'Black', S.color === 'b') + '</div>' +
+      '<button id="bStart" style="margin-top:8px;" disabled>Start game</button><div class="bt-eng hint" id="bEng"></div></div>';
+    scr.innerHTML = h;
+    scr.querySelectorAll('[data-v]').forEach(function(b){ b.onclick = function(){ S.variant = b.dataset.v; saveS(); drawSetup(); }; });
+    scr.querySelectorAll('[data-hm]').forEach(function(b){ b.onclick = function(){ S.hbMode = b.dataset.hm; saveS(); drawSetup(); }; });
+    scr.querySelectorAll('[data-tc]').forEach(function(b){
+      b.onclick = function(){ if(b.dataset.tc === 'custom') S.custom = true; else { S.custom = false; S.tc = b.dataset.tc; } saveS(); drawSetup(); };
+    });
+    scr.querySelectorAll('[data-ps]').forEach(function(b){ b.onclick = function(){ S.skill = +b.dataset.ps; saveS(); drawSetup(); }; });
+    scr.querySelectorAll('[data-co]').forEach(function(b){ b.onclick = function(){ S.color = b.dataset.co; saveS(); drawSetup(); }; });
+    var mi = document.getElementById('bMin'), ii = document.getElementById('bInc');
+    if(mi) mi.oninput = function(){ S.cmin = Math.min(180, Math.max(1, parseInt(mi.value, 10) || 1)); saveS(); };
+    if(ii) ii.oninput = function(){ S.cinc = Math.min(60, Math.max(0, parseInt(ii.value, 10) || 0)); saveS(); };
+    wireSkill('bSkill', true);
+    document.getElementById('bStart').onclick = startNew;
+    boot(); paintEng();
+  }
+
+  function drawPlay(){
+    var g = G, c = g.chess, p = '';
+    if(g.over){
+      p += '<div class="result-banner">' + g.over + '</div><button class="full-btn" id="bAgain">Play again</button><button class="secondary full-btn" id="bNew">Change settings</button>';
+    } else {
+      p += '<div class="status-msg"><b>You</b> (' + (g.me === 'w' ? 'White' : 'Black') + ') vs <b>Bot</b> (skill ' + S.skill + ')</div>';
+      if(g.variant === 'hb') p += '<div class="announce' + (g.ann ? '' : ' empty') + '">' + (g.ann ? 'Announced: ' + NM[g.ann] : 'No piece announced yet') + '</div>';
+      if(g.said) p += '<div class="status-msg">' + g.said + '</div>';
+      if(c.in_check()) p += '<div class="draw-offer">Check!</div>';
+      if(g.busy) p += '<div class="status-msg">' + (g.msg || 'Bot is thinking...') + '</div>';
+      else if(c.turn() === g.me){
+        if(g.variant === 'hb' && !g.ann) p += '<button id="bRand">Randomize piece</button>';
+        else p += '<div class="status-msg">Your move: click a piece, then a square.</div>';
+      }
+      p += skillHtml('bSk2');
+      p += '<div class="game-actions"><button class="secondary danger" id="bResign">Resign</button><button class="secondary" id="bNew">New game</button></div>';
+    }
+    p += renderMoveLog(g.log);
+    var top = g.me === 'w' ? 'b' : 'w';
+    scr.innerHTML = '<div class="card"><div class="board-wrap"><div class="bt-bw">' + clkHtml(top) + boardHtml() + clkHtml(g.me) + '</div><div class="panel">' + p + '</div></div></div>';
+    scr.querySelectorAll('[data-sq]').forEach(function(cell){ cell.onclick = function(){ cellClick(cell.dataset.sq); }; });
+    var q = function(id){ return document.getElementById(id); };
+    if(q('bRand')) q('bRand').onclick = randomize;
+    if(q('bResign')) q('bResign').onclick = function(){ if(confirm('Resign this game?')) finish('You resigned', 'l'); };
+    if(q('bNew')) q('bNew').onclick = function(){ if(g.over || confirm('Leave this game?')){ G = null; draw(); } };
+    if(q('bAgain')) q('bAgain').onclick = startNew;
+    wireSkill('bSk2', false);
+  }
+
+  function panelA(s, isMe){
+    var au = G.au, b = au.bought[s];
+    var army = ['q','r','b','n','p'].map(function(t){ return b[t] ? '<span class="au-pc">' + GL[t] + '<b>\u00d7' + b[t] + '</b></span>' : ''; }).join('') || '<span class="hint">no pieces yet</span>';
+    return '<div class="au-p' + (isMe ? ' me' : '') + '"><div class="au-nm">' + (isMe ? 'You' : 'Bot') + '</div><div class="au-coins">' + au.coins[s] + ' <small>coins</small></div>' +
+      '<div class="au-army">' + army + '</div><div class="hint">' + (b.n + b.b + b.r + b.q) + '/7 pieces \u00b7 ' + b.p + '/8 pawns' + (au.done[s] ? ' \u00b7 stopped buying' : '') + '</div></div>';
+  }
+  function drawAuc(){
+    var au = G.au, me = G.me, mine = au.turn === me, body = '';
+    var last = au.lastT ? (au.lastW ? (au.lastW === me ? 'You' : 'Bot') + ' bought a ' + NM[au.lastT].toLowerCase() + ' for ' + au.lastBid + ' coins.' : 'The ' + NM[au.lastT].toLowerCase() + ' went unsold.') : '';
+    if(au.phase === 'nominate'){
+      body = mine
+        ? '<div class="au-lot">Your turn: put a piece up for auction.<div class="au-acts">' +
+          T.slice().reverse().map(function(t){ return '<button data-nom="' + t + '"' + (nomOk(au, t) ? '' : ' disabled') + '>' + GL[t] + ' ' + NM[t] + ' <small>(' + VALS[t] + ')</small></button>'; }).join('') +
+          '<button class="secondary" data-stop="1">Stop buying</button></div></div>'
+        : '<div class="au-lot">Bot is choosing a piece...</div>';
+    } else {
+      body = '<div class="au-lot"><div class="au-big">' + GL[au.item] + '</div><div><b>' + NM[au.item] + '</b> (standard value ' + VALS[au.item] + ')</div><div style="margin:6px 0;">' +
+        (au.bidder ? 'Current bid: <b>' + au.bid + '</b> by ' + (au.bidder === me ? 'you' : 'the bot') : 'No bids yet') + '</div>' +
+        (mine ? '<div class="au-acts"><input type="number" id="auBid" min="' + (au.bid + 1) + '" max="' + au.coins[me] + '" value="' + (au.bid + 1) + '"><button id="auBidBtn">Bid</button><button class="secondary" id="auPass">' + (au.bidder ? 'Drop out' : 'Pass') + '</button></div>'
+                : '<div class="hint">Bot is deciding...</div>') + '</div>';
+    }
+    scr.innerHTML = '<div class="card"><h2>Piece Auction vs bot</h2><p class="desc">Everyone always has a king. Bid coins for pieces one at a time (' + au.budget + ' coins each this game). You can hold at most 8 pawns and 7 other pieces. The clock starts when the game starts.</p>' +
+      '<div class="au-top">' + panelA(me, true) + panelA(G.bot, false) + '</div>' + (last ? '<p class="au-last">' + last + '</p>' : '') +
+      (G.msg ? '<div class="draw-offer">' + G.msg + '</div>' : '') + body +
+      '<div style="margin-top:12px;"><span class="backlink" id="bNew">Leave this game</span></div></div>';
+    scr.querySelectorAll('[data-nom]').forEach(function(b){ b.onclick = function(){ aucAct({k:'nom', t:b.dataset.nom}); }; });
+    scr.querySelectorAll('[data-stop]').forEach(function(b){ b.onclick = function(){ aucAct({k:'stop'}); }; });
+    var bb = document.getElementById('auBidBtn'), inp = document.getElementById('auBid');
+    if(bb){ bb.onclick = function(){ aucAct({k:'bid', x:parseInt(inp.value, 10)}); }; inp.onkeydown = function(e){ if(e.key === 'Enter') bb.click(); }; }
+    var ps = document.getElementById('auPass'); if(ps) ps.onclick = function(){ aucAct({k:'pass'}); };
+    document.getElementById('bNew').onclick = function(){ G = null; draw(); };
+  }
+
+  function slotRow(arr, isP, kind){
+    var h = '<div class="au-row">';
+    for(var i = 0; i < 8; i++){
+      var v = arr[i], sel = G.sel2 && G.sel2.k === kind && G.sel2.i === i;
+      h += '<div class="au-slot ' + (((i + (isP ? 1 : 0)) % 2) ? 'dk' : 'lt') + (sel ? ' sel' : '') + '" data-slot="' + kind + ':' + i + '">' +
+        (v ? '<span class="au-g ' + (G.me === 'w' ? 'wh' : 'bk') + '">' + GL[isP ? 'p' : v] + '</span>' : '') + '</div>';
+    }
+    return h + '</div>';
+  }
+  function drawPlace(){
+    scr.innerHTML = '<div class="card"><h2>Place your army</h2><p class="desc">The auction is over. Click one slot, then another slot in the same row, to swap them. Pawns stay on your 2nd rank and everything else on your back rank. The bot places its army at random. Your clock starts when you press Start game.</p>' +
+      '<div class="au-lot"><div class="hint">Pawn rank</div>' + slotRow(G.layout.pawns, true, 'pawns') + '<div class="hint">Back rank</div>' + slotRow(G.layout.back, false, 'back') +
+      '<div class="au-acts"><button class="secondary" id="auShuf">Shuffle</button><button id="auGo">Start game</button></div></div>' +
+      '<div style="margin-top:12px;"><span class="backlink" id="bNew">Leave this game</span></div></div>';
+    scr.querySelectorAll('[data-slot]').forEach(function(el){
+      el.onclick = function(){
+        var parts = el.dataset.slot.split(':'), k = parts[0], i = +parts[1], s = G.sel2;
+        if(s && s.k === k){ var a = G.layout[k], t = a[s.i]; a[s.i] = a[i]; a[i] = t; G.sel2 = null; }
+        else G.sel2 = {k:k, i:i};
+        drawPlace();
+      };
+    });
+    document.getElementById('auShuf').onclick = function(){ G.layout = randLayout(G.au.bought[G.me]); G.sel2 = null; drawPlace(); };
+    document.getElementById('auGo').onclick = startAuctionGame;
+    document.getElementById('bNew').onclick = function(){ G = null; draw(); };
+  }
+})();
+</script>
+<!-- ===== END STEP 35 v2 ===== -->
 </html>
