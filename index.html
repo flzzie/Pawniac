@@ -9296,4 +9296,173 @@ html body #screen-auth .card .so-btns button{padding:14px;}
 })();
 </script>
 <!-- ===== END STEP 34 ===== -->
+  <!-- ===== PAWNIAC STEP 35 v2: PLAY A BOT (timed, adjustable skill, reliable Stockfish) (replaces old step 35; paste at the very bottom) ===== -->
+<style>
+#screen-bot{--sq:clamp(30px, 9vw, 72px);}
+#screen-bot .au-slot.sel{outline:3px solid #1f6f5c;outline-offset:-3px;}
+#screen-bot .bt-h{font-size:12px;font-weight:700;margin:14px 0 6px;opacity:.7;text-transform:uppercase;letter-spacing:.5px;}
+#screen-bot input[type=range]{width:100%;max-width:340px;accent-color:#1f6f5c;}
+#screen-bot .bt-eng{font-size:12.5px;margin:10px 0 0;}
+#screen-bot .bt-bw{display:inline-block;}
+</style>
+<script>
+(function(){
+  var FILES = 'abcdefgh';
+  var NM = {p:'Pawn', n:'Knight', b:'Bishop', r:'Rook', q:'Queen', k:'King'};
+  var GL = {p:'\u265F\uFE0E', n:'\u265E\uFE0E', b:'\u265D\uFE0E', r:'\u265C\uFE0E', q:'\u265B\uFE0E', k:'\u265A\uFE0E'};
+  var VALS = {p:1, n:3, b:3, r:5, q:9};
+  var T = ['p','n','b','r','q'];
+  var PRESETS = [{n:'Beginner', s:0}, {n:'Easy', s:5}, {n:'Medium', s:10}, {n:'Hard', s:15}, {n:'Expert', s:20}];
+  var SF_URLS = [
+    'https://cdnjs.cloudflare.com/ajax/libs/stockfish.js/10.0.2/stockfish.js',
+    'https://cdn.jsdelivr.net/npm/stockfish.js@10.0.2/stockfish.js',
+    'https://unpkg.com/stockfish.js@10.0.2/stockfish.js'
+  ];
+  var PKEY = 'pawniac-bot';
+  var S = {variant:'std', hbMode:'brain', skill:10, color:'random', tc:'5+3', custom:false, cmin:10, cinc:0};
+  try{ var raw = localStorage.getItem(PKEY); if(raw) Object.assign(S, JSON.parse(raw)); }catch(e){}
+  function saveS(){ try{ localStorage.setItem(PKEY, JSON.stringify(S)); }catch(e){} }
+  S.skill = Math.min(20, Math.max(0, parseInt(S.skill, 10) || 0));
+  var G = null;
+
+  // ---------- screen + nav link ----------
+  var scr = document.createElement('div');
+  scr.id = 'screen-bot'; scr.style.display = 'none';
+  document.querySelector('.wrap').appendChild(scr);
+  var nav = document.getElementById('navbar');
+  var link = document.createElement('a');
+  link.dataset.nav = 'bot'; link.textContent = 'Play bot';
+  nav.querySelector('[data-nav="play"]').after(link);
+  link.onclick = function(){
+    var gs = document.getElementById('screen-game');
+    if(gs && gs.style.display === 'block' && gameState && gameState.status === 'active' &&
+       !confirm('Your clock keeps running while you are away. Leave the game view?')) return;
+    stopPoll(); renderBot();
+  };
+  var prevShow = window.showScreen;
+  window.showScreen = function(n){
+    prevShow(n);
+    scr.style.display = (n === 'bot') ? 'block' : 'none';
+    if(n === 'bot') nav.querySelectorAll('[data-nav]').forEach(function(a){ a.classList.toggle('active', a.dataset.nav === 'bot'); });
+  };
+  function renderBot(){ showScreen('bot'); draw(); }
+
+  // ---------- helpers ----------
+  function snd(n){ try{ if(typeof window[n] === 'function') window[n](); }catch(e){} }
+  function opp(s){ return s === 'w' ? 'b' : 'w'; }
+  function sleep(ms){ return new Promise(function(r){ setTimeout(r, ms); }); }
+  function shuffle(a){ for(var i = a.length - 1; i > 0; i--){ var j = Math.floor(Math.random() * (i + 1)), t = a[i]; a[i] = a[j]; a[j] = t; } return a; }
+  function pimg(c, t){
+    return '<img class="piece-img" src="' + pieceImgUrl(c, t) + '" alt="" draggable="false" onerror="this.outerHTML=\'<span style=&quot;font-size:1em;line-height:1;&quot;>' + PIECE_UNICODE[c][t] + '</span>\'">';
+  }
+  function randomMove(fen){
+    var l = new Chess(fen).moves({verbose:true});
+    if(!l.length) return null;
+    var m = l[Math.floor(Math.random() * l.length)];
+    return m.from + m.to + (m.promotion || '');
+  }
+  function levelName(){
+    var n = PRESETS[0].n;
+    PRESETS.forEach(function(p){ if(S.skill >= p.s) n = p.n; });
+    return n;
+  }
+
+  // ---------- Stockfish: several sources, two loading methods, retries, cached ----------
+  var eng = {w:null, state:'idle', p:null};
+  var chain = Promise.resolve();
+  function paintEng(){
+    var e = document.getElementById('bEng'), b = document.getElementById('bStart');
+    if(b) b.disabled = (eng.state !== 'ready');
+    if(!e) return;
+    if(eng.state === 'ready') e.innerHTML = 'Engine ready.';
+    else if(eng.state === 'fail') e.innerHTML = 'Could not load the engine (check your connection or ad blocker). <span class="backlink" id="bRetry">Retry</span>';
+    else e.innerHTML = 'Loading the engine... (first time only, then it is saved on your device)';
+    var r = document.getElementById('bRetry');
+    if(r) r.onclick = function(){ eng.p = null; eng.state = 'idle'; boot(); };
+  }
+  function setEng(s){ eng.state = s; paintEng(); }
+  function mk(blobUrl){
+    return new Promise(function(res, rej){
+      var w;
+      try{ w = new Worker(blobUrl); }catch(e){ rej(e); return; }
+      var to = setTimeout(function(){ try{ w.terminate(); }catch(e){} rej(new Error('timeout')); }, 30000);
+      w.onmessage = function(e){ if(String(e.data).indexOf('uciok') >= 0){ clearTimeout(to); w.onmessage = null; res(w); } };
+      w.onerror = function(){ clearTimeout(to); try{ w.terminate(); }catch(e){} rej(new Error('worker')); };
+      w.postMessage('uci');
+    });
+  }
+  async function tryUrl(url){
+    var txt = null, cache = null;
+    try{
+      cache = window.caches ? await caches.open('pawniac-sf-v1') : null;
+      var hit = cache ? await cache.match(url) : null;
+      if(hit) txt = await hit.text();
+      else {
+        var r = await fetch(url);
+        if(!r.ok) throw new Error('http');
+        txt = await r.text();
+        if(txt.length < 20000) throw new Error('small');
+        if(cache) cache.put(url, new Response(txt)).catch(function(){});
+      }
+    }catch(e){ txt = null; }
+    if(txt){
+      try{ return await mk(URL.createObjectURL(new Blob([txt], {type:'application/javascript'}))); }
+      catch(e){ if(cache) cache.delete(url).catch(function(){}); }
+    }
+    // second method: let the worker import the script itself (no CORS needed)
+    return await mk(URL.createObjectURL(new Blob(["importScripts('" + url + "');"], {type:'application/javascript'})));
+  }
+  function loadSF(){
+    if(eng.p) return eng.p;
+    setEng('loading');
+    eng.p = (async function(){
+      for(var a = 0; a < 3; a++){
+        for(var i = 0; i < SF_URLS.length; i++){
+          try{
+            var w = await tryUrl(SF_URLS[i]);
+            w.onerror = function(){ eng.w = null; eng.p = null; eng.state = 'idle'; };
+            eng.w = w; setEng('ready'); return w;
+          }catch(e){ console.warn('bot engine source failed', SF_URLS[i], e); }
+        }
+        await sleep(1500 * (a + 1));
+      }
+      setEng('fail');
+      return null;
+    })();
+    eng.p.then(function(w){ if(!w) eng.p = null; });
+    return eng.p;
+  }
+  function boot(){ if(eng.state !== 'ready' && eng.state !== 'loading') loadSF(); else paintEng(); }
+
+  function baseMs(){ return 100 + S.skill * 70; }                          // 100 ms ... 1500 ms
+  function thinkMs(side){
+    var ms = baseMs();
+    if(G && G.clock) ms = Math.min(ms, Math.max(50, remMs(side) / 30));    // think faster when short on time
+    return Math.round(ms);
+  }
+  function run(fen, ms){
+    return loadSF().then(function(w){
+      if(!w) return randomMove(fen);
+      return new Promise(function(res){
+        var guard = setTimeout(function(){ w.removeEventListener('message', h); res(randomMove(fen)); }, ms + 10000);
+        function h(e){
+          var s = String(e.data);
+          if(s.indexOf('bestmove') === 0){
+            clearTimeout(guard); w.removeEventListener('message', h);
+            var m = s.split(' ')[1];
+            res(m && m !== '(none)' ? m : randomMove(fen));
+          }
+        }
+        w.addEventListener('message', h);
+        w.postMessage('setoption name Skill Level value ' + S.skill);
+        w.postMessage('position fen ' + fen);
+        w.postMessage('go movetime ' + ms);
+      });
+    });
+  }
+  function best(fen, ms){ var p = chain.then(function(){ return run(fen, ms); }); chain = p.catch(function(){}); return p; }
+
+  // ---------- clock ----------
+  function tcVals(){
+    if(S.custom) return {init:Math.max(1, S.cmin) * 60, inc:Math.max(0,
 </html>
