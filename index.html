@@ -9274,7 +9274,7 @@ html body #screen-auth .card .so-btns button{padding:14px;}
     put('stPlayed24', last24('played'));
     put('stAnalyzed24', last24('analyzed'));
     // all-time played: our own counter, or the numbered-games counter if that is higher (older games)
-    put('stPlayedAll', Promise.all([num('hb/counters/played/total'), num('hb/gameCount').catch(function(){ return 0; })]).then(function(a){ return Math.max(a[0], a[1]); }));
+    put('stPlayedAll', Promise.all([num('hb/counters/played/total'), num('hb/gameCount').catch(function(){ return 0; }), num('hb/counters/played/bot').catch(function(){ return 0; })]).then(function(a){ return Math.max(a[0], a[1]) + a[2]; }));
     put('stAnalyzedAll', num('hb/counters/analyzed/total'));
   }
 
