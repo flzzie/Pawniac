@@ -9296,7 +9296,7 @@ html body #screen-auth .card .so-btns button{padding:14px;}
 })();
 </script>
 <!-- ===== END STEP 34 ===== -->
-<!-- ===== PAWNIAC STEP 35 v3: PLAY A BOT (timed, preset levels, drag and drop, premoves) (replaces step 35 v2; paste at the very bottom) ===== -->
+<!-- ===== PAWNIAC STEP 35 v4: PLAY A BOT (timed, preset levels, drag and drop, premoves) (replaces step 35 v2; paste at the very bottom) ===== -->
 <style>
 #screen-bot{--sq:clamp(30px, 9vw, 72px);}
 #screen-bot .au-slot.sel{outline:3px solid #1f6f5c;outline-offset:-3px;}
@@ -9914,12 +9914,48 @@ html body #screen-auth .card .so-btns button{padding:14px;}
   }
   // premoves: Standard and Piece Auction, while it is the bot's turn
   function canPre(){ return !!G && G.phase === 'play' && !G.over && G.variant !== 'hb' && G.chess.turn() === G.bot; }
+  // same rules as premoves in the main game: where this piece COULD go once the bot has moved.
+  // Ignores enemy pieces in the way and checks. Squares with your OWN piece count too (that is how
+  // you premove a recapture), and a pawn can aim at its diagonals even when they are empty now.
   function preDests(from){
-    var p = G.chess.get(from);
-    if(!p || p.color !== G.me) return [];
-    var f = G.chess.fen().split(' '); f[1] = G.me; f[3] = '-';
-    try{ return new Chess(f.join(' ')).moves({verbose:true}).filter(function(m){ return m.from === from; }).map(function(m){ return m.to; }); }
-    catch(e){ return []; }
+    var chess = G.chess, color = G.me, p = chess.get(from);
+    if(!p || p.color !== color) return [];
+    var f = FILES.indexOf(from[0]), r = parseInt(from[1], 10) - 1, out = [];
+    function sqAt(nf, nr){ return (nf < 0 || nf > 7 || nr < 0 || nr > 7) ? null : FILES[nf] + (nr + 1); }
+    function own(s){ var q = chess.get(s); return !!q && q.color === color; }
+    function ray(dirs, max){
+      dirs.forEach(function(d){
+        for(var i = 1; i <= max; i++){
+          var s = sqAt(f + d[0] * i, r + d[1] * i);
+          if(!s) break;
+          out.push(s);
+          if(own(s)) break;          // can aim at your own piece (recapture) but not past it
+        }
+      });
+    }
+    var ORTH = [[1,0],[-1,0],[0,1],[0,-1]], DIAG = [[1,1],[1,-1],[-1,1],[-1,-1]];
+    if(p.type === 'n'){
+      [[1,2],[2,1],[2,-1],[1,-2],[-1,-2],[-2,-1],[-2,1],[-1,2]].forEach(function(d){ ray([d], 1); });
+    } else if(p.type === 'b'){ ray(DIAG, 7); }
+    else if(p.type === 'r'){ ray(ORTH, 7); }
+    else if(p.type === 'q'){ ray(ORTH.concat(DIAG), 7); }
+    else if(p.type === 'k'){
+      ray(ORTH.concat(DIAG), 1);
+      var home = color === 'w' ? 0 : 7;
+      if(f === 4 && r === home){
+        [6, 2].forEach(function(cf){ var s = sqAt(cf, home); if(s && !own(s)) out.push(s); });
+      }
+    } else if(p.type === 'p'){
+      var dir = color === 'w' ? 1 : -1, start = color === 'w' ? 1 : 6;
+      var one = sqAt(f, r + dir);
+      if(one && !own(one)){
+        out.push(one);
+        var two = sqAt(f, r + 2 * dir);
+        if(r === start && two && !own(two)) out.push(two);
+      }
+      [-1, 1].forEach(function(df){ var s = sqAt(f + df, r + dir); if(s) out.push(s); });   // diagonals: captures and recaptures
+    }
+    return out;
   }
   var _nt = nextTurn;
   nextTurn = function(){
@@ -9993,6 +10029,13 @@ html body #screen-auth .card .so-btns button{padding:14px;}
     } else if(canPre()){
       var pc = G.chess.get(sq);
       if(!pc || pc.color !== G.me) return;
+      // a piece is already picked up and this square of yours is one of its targets: that is a
+      // recapture premove, so queue it instead of switching the selection (same as the main game)
+      if(G.psel && G.psel !== sq && preDests(G.psel).indexOf(sq) >= 0){
+        e.preventDefault();
+        G.pm = {from:G.psel, to:sq}; G.psel = null; draw();
+        return;
+      }
       mode = 'pre'; G.psel = sq; G.pm = null;
     } else return;
     e.preventDefault();
@@ -10045,5 +10088,5 @@ html body #screen-auth .card .so-btns button{padding:14px;}
   }, true);
 })();
 </script>
-<!-- ===== END STEP 35 v3 ===== -->
+<!-- ===== END STEP 35 v4 ===== -->
 </html>
