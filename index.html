@@ -13043,36 +13043,7 @@ svg.pn-ann{position:absolute;left:0;top:0;pointer-events:none;z-index:6;overflow
   ['w', 'b'].forEach(function(c){ ['p', 'n', 'b', 'r', 'q', 'k'].forEach(function(t){ var im = new Image(); im.src = CDN1 + file(c, t); }); });
 
   // =====================================================================
-  //  2. ANALYSIS ACCURACY
-  //  Step 48 turned the fixed-depth searches into very short time-limited ones (0.35 to 0.5 s).
-  //  On slower devices that stops the engine at depth ~8 to 11, so the evals are noisy and good moves get
-  //  flagged as mistakes (and the other way round). Here every analysis search goes back to a FIXED depth
-  //  (slightly deeper than before) with a generous time cap, so results no longer depend on device speed.
-  //  The bot (step 35) uses "go movetime" only, so it is not touched.
-  // =====================================================================
-  var DEPTH = {12:13, 13:14, 14:15, 15:16, 16:18, 17:18, 19:19};
-  var W1 = window.Worker;
-  window.Worker = function(url, opts){
-    var w = new W1(url, opts);
-    try{
-      if(w && w.pending && w.ls && w.url && typeof w.postMessage === 'function'){
-        var orig = w.postMessage;
-        w.postMessage = function(cmd){
-          var m = /^go depth (\d+) movetime (\d+)/.exec(String(cmd));
-          if(m){
-            var d = DEPTH[+m[1]] || +m[1], t = Math.round(+m[2] * 1.5);
-            // "go movetime T depth D" is not rewritten by step 48, so the fixed depth is kept
-            return orig.call(w, 'go movetime ' + t + ' depth ' + d);
-          }
-          return orig.call(w, cmd);
-        };
-      }
-    }catch(e){ console.error('analysis depth fix failed', e); }
-    return w;
-  };
-  window.Worker.prototype = W1.prototype;
-})();
-</script>
+  
 <!-- ===== END STEP 49 ===== -->
                     
 </html>
