@@ -4313,6 +4313,8 @@ body.dnd-dragging,body.dnd-dragging *{cursor:grabbing !important;}
         }
       }
       w.addEventListener('message', h);
+      w.postMessage('ucinewgame');
+      w.postMessage('setoption name Contempt value 0');
       w.postMessage('setoption name MultiPV value ' + multi);
       w.postMessage('position fen ' + fen);
       var lim = sfLimits(ms);
@@ -4627,6 +4629,15 @@ body.dnd-dragging,body.dnd-dragging *{cursor:grabbing !important;}
     }
     return list;
   }
+  function newWeak(fenB, fenA, color){
+    var b4 = weakPawns(fenB, color), af = weakPawns(fenA, color);
+    var fresh = af.filter(function(a){ return !b4.some(function(b){ return b.sq === a.sq && b.why === a.why; }); });
+    if(!fresh.length) return null;
+    var w = fresh[0];
+    return w.why === 'isolated'
+      ? 'the pawn on ' + w.sq + ' is now isolated (no friendly pawn on a neighbouring file)'
+      : 'you now have doubled pawns on the ' + w.sq[0] + '-file';
+  }
   function quality(fen, sq, color){
     var c = new Chess(fen), p = c.get(sq);
     if(!p || p.color !== color) return null;
@@ -4894,6 +4905,7 @@ body.dnd-dragging,body.dnd-dragging *{cursor:grabbing !important;}
     var A = {moves:parsed.moves, fens:parsed.fens, hdr:parsed.hdr, clocks:parsed.clocks, ev:ev, stats:[], cache:{}, sel:0,
              me:side, opp:side === 'w' ? 'b' : 'w', tc:tc, rep:{theme:{}, sq:{}, tacts:{}, state:null}};
     A.flip = (side === 'b');
+    if(!parsed.hdr.FEN && parsed.fens[0].split(' ')[0] === 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR' && Math.abs(ev[0].cp) > 60) ev[0].cp = 25;
     // how many moves of this game are known opening theory
     var bookN = 0; A.book = [];
     try{
@@ -5218,7 +5230,14 @@ body.dnd-dragging,body.dnd-dragging *{cursor:grabbing !important;}
       try{
         var cAfter = new Chess(fenA), back = cAfter.moves({verbose:true}).filter(function(x){ return x.to === m.to && x.captured; }).length;
         var cnet = VAL[m.captured] - seeGain(cAfter, m.to);
-        if(m.captured === 'p' && m.piece === 'p' && !back) pros.push('Wins a pawn.');
+        var prv0 = i >= 1 ? A.moves[i - 1] : null;
+        if(prv0 && prv0.color !== m.color && prv0.captured && prv0.to === m.to){
+          var tot = cnet - VAL[prv0.captured];
+          if(tot === 0) notes.push('Recapture: you take back on ' + m.to + ', so the trade is even. Nobody wins material.');
+          else if(tot > 0) pros.push('Recapture that comes out ahead: about ' + plural(tot, 'point') + ' net over the exchange.');
+          else cons.push('You take back, but the exchange still costs you about ' + plural(-tot, 'point') + ' net.');
+        }
+        else if(m.captured === 'p' && m.piece === 'p' && !back) pros.push('Wins a pawn.');
         else if(!back) pros.push('Wins a free ' + NAMES[m.captured] + ' (' + plural(VAL[m.captured], 'point') + ').');
         else if(cnet >= 1) pros.push('Wins material: you take a ' + NAMES[m.captured] + ' and, even if they take back, you stay about ' + plural(cnet, 'point') + ' ahead.');
         else if(cnet === 0) notes.push('An even trade: your ' + NAMES[m.piece] + ' for their ' + NAMES[m.captured] + '. Nobody wins material here, so judge it by what it does to the position.');
@@ -5272,7 +5291,7 @@ body.dnd-dragging,body.dnd-dragging *{cursor:grabbing !important;}
       });
       if(hits.length) notes.push('The pawn push attacks ' + hits.join(' and ') + ', so it has to move.');
       if(fA[me].passed > fB[me].passed) notes.push('It creates a passed pawn: nothing of theirs can stop it with pawns alone.');
-      if(fA[me].weak > fB[me].weak) notes.push('It leaves you a weakness (isolated or doubled pawns).');
+      var nw1 = newWeak(fenB, fenA, me); if(nw1) notes.push('Structure: ' + nw1 + '.');
       if(fA[me].shield < fB[me].shield && fA.total >= 25) notes.push('It thins the pawn shield in front of your king.');
       var relRank = me === 'w' ? r0 : 9 - r0;
       if(relRank >= 4 && f0 >= 2 && f0 <= 5 && !hits.length) notes.push('It gains space in the centre.');
@@ -5333,7 +5352,7 @@ body.dnd-dragging,body.dnd-dragging *{cursor:grabbing !important;}
       // 5. passed pawns
       if(!(m.piece === 'p' && !m.captured) && fA[me].passed > fB[me].passed) extra.push('You now have a passed pawn: no enemy pawn can stop it by pawns alone, so it is a long-term asset.');
       if(fA[opp].passed > fB[opp].passed) cons.push('This leaves your opponent with a passed pawn.');
-      if(m.piece === 'p' && m.captured && fA[me].weak > fB[me].weak) notes.push('The capture leaves you with doubled or isolated pawns, a small long-term weakness.');
+      var nw2 = (m.piece === 'p' && m.captured) ? newWeak(fenB, fenA, me) : null; if(nw2) notes.push('After the capture ' + nw2 + '.');
       // 6. endgame ideas
       if(fA.phase === 'endgame'){
         if(m.piece === 'k' && !isCastle) extra.push('In the endgame the king is a fighting piece, so bringing it toward the centre and the pawns is right.');
@@ -5411,7 +5430,7 @@ body.dnd-dragging,body.dnd-dragging *{cursor:grabbing !important;}
       }
       if(!why.length){
         var bits = [];
-        if(fA[me].weak > fB[me].weak) bits.push('it creates a weaker pawn structure (doubled or isolated pawns)');
+        var nw3 = newWeak(fenB, fenA, me); if(nw3) bits.push(nw3);
         if(fA[me].shield < fB[me].shield && fA.total >= 25) bits.push('it thins the pawn shield in front of your king');
         if(fB[me].bishops >= 2 && fA[me].bishops < 2) bits.push('it gives up the bishop pair');
         if(fA[me].centre < fB[me].centre) bits.push('it gives up a central pawn');
@@ -11761,9 +11780,9 @@ button.qz-bad,button.qz-bad:hover:not(:disabled){background:#d64545 !important;c
     }
     if(!(label === 'inaccuracy' || label === 'mistake' || label === 'blunder')) return null;
     if(Math.abs(cpB) >= 9000 || Math.abs(cpA) >= 9000) return null;      // forced mates are never softened
-    if(ply(fb) < 16){
+    if(ply(fb) < 24){
       // the engine's opening scores are noisy (especially on Fast), so small drops are not errors yet
-      var l2 = loss < 10 ? 'good' : (loss < 20 ? 'inaccuracy' : (loss < 30 ? 'mistake' : 'blunder')), th2 = theory(fb);
+      var l2 = loss < 14 ? 'good' : (loss < 22 ? 'inaccuracy' : (loss < 32 ? 'mistake' : 'blunder')), th2 = theory(fb);
       return {label:l2, loss:loss, note:'This is outside my opening book' + (th2 ? ', where the usual moves are ' + th2 : '') + '. In the first moves small differences are choices, not errors.'};
     }
     return null;
@@ -12007,7 +12026,7 @@ button.qz-bad,button.qz-bad:hover:not(:disabled){background:#d64545 !important;c
       var dip = 0, k0 = -1, k;
       for(k = 1; k < L.d.length; k += 2) if(L.d[k] < dip){ dip = L.d[k]; k0 = k; }
       var last = L.d.length % 2 ? L.d.length - 1 : L.d.length - 2, fin = L.d[last];
-      if(dip <= -2 && fin >= 0 && S.loss < 4 && cpA > -150){
+      var __thr = C.winsFor(fenA, oc).filter(function(w){ return w.net >= 2; }); var __pm = i >= 1 ? A.moves[i - 1] : null; var __rec = !!(__pm && __pm.color !== col && __pm.captured && m.captured && m.to === __pm.to); if(dip <= -2 && fin >= 0 && S.loss < 4 && cpA > -150 && __thr.length && !__rec && (__thr[0].net - (m.captured ? VAL[m.captured] : 0)) >= 2){
         var lost = NAMES[L.cap[k0]] || 'piece';
         if(S.uci === evB.best && cpB < 250 && fin >= 1){ o.chip = {t:'Brilliant', c:'#1baca6'}; o.f.brill = 1; o.pros.push('You gave up a ' + lost + ' here, but the line shows you win it back with interest.'); }
         else { o.f.sac = 1; o.pros.push('Sacrifice that works: you give up a ' + lost + ', and the engine line shows it pays back.'); }
