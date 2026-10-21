@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+  <!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -4280,6 +4280,7 @@ body.dnd-dragging,body.dnd-dragging *{cursor:grabbing !important;}
   // the time cap only stops positions that are very slow to search
   function sfLimits(ms){
     if(ms === 1500) return {depth:16, cap:2500};
+    if(ms === 1500) return {depth:16, cap:2500};
     if(ms <= 300) return {depth:12, cap:4000};
     if(ms <= 500) return {depth:13, cap:4000};
     if(ms <= 800) return {depth:14, cap:7000};
@@ -4914,7 +4915,9 @@ body.dnd-dragging,body.dnd-dragging *{cursor:grabbing !important;}
     try{
       if(!parsed.hdr.FEN && parsed.hdr.SetUp !== '1'){
         var gs = parsed.moves.map(function(mm){ return mm.san.replace(/[+#]/g, ''); });
-        BOOK.forEach(function(L){ var k = 0; while(k < L.m.length && k < gs.length && L.m[k] === gs[k]) k++; if(k > bookN) bookN = k; });
+        if(window.__pawBook){
+          for(var z9 = 0; z9 < parsed.moves.length; z9++){ if(window.__pawBook.inBook(parsed.fens[z9 + 1])) bookN = z9 + 1; else break; }
+        } else BOOK.forEach(function(L){ var k = 0; while(k < L.m.length && k < gs.length && L.m[k] === gs[k]) k++; if(k > bookN) bookN = k; });
         for(var q = 0; q < bookN; q++){
           var nm = null;
           BOOK.forEach(function(L){
@@ -4922,7 +4925,7 @@ body.dnd-dragging,body.dnd-dragging *{cursor:grabbing !important;}
             for(var z = 0; z <= q; z++) if(L.m[z] !== gs[z]) return;
             nm = L.n;
           });
-          A.book[q] = {n:nm};
+          A.book[q] = {n:(window.__pawBook && window.__pawBook.name(parsed.fens[q + 1])) || nm};
         }
       }
     }catch(e){ bookN = 0; }
@@ -5803,7 +5806,7 @@ body.dnd-dragging,body.dnd-dragging *{cursor:grabbing !important;}
 
   function graphHtml(){
     var n = A.fens.length, W = 600, H = 90, pts = [];
-    for(var i = 0; i < n; i++){ var x = n > 1 ? i / (n - 1) * W : 0; pts.push(x.toFixed(1) + ',' + (H - winPct(pov(A, A.ev[i].cp)) / 100 * H).toFixed(1)); }
+    for(var i = 0; i < n; i++){ var x = n > 1 ? i / (n - 1) * W : 0; pts.push(x.toFixed(1) + ',' + (H - winPct(A.ev[i].cp) / 100 * H).toFixed(1)); }
     var cx = n > 1 ? A.sel / (n - 1) * W : 0;
     return '<svg viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="none" id="anGraph"><rect width="' + W + '" height="' + H + '" fill="#2b2924"/>' +
       '<polygon points="0,' + H + ' ' + pts.join(' ') + ' ' + W + ',' + H + '" fill="#f4f1ea"/>' +
@@ -6015,8 +6018,9 @@ body.dnd-dragging,body.dnd-dragging *{cursor:grabbing !important;}
     document.getElementById('anBoard').innerHTML = boardHtml(fen, last, arrows, A.flip);
     var bar = document.querySelector('#anEvalBar div');
     if(bar){
-      bar.style.height = winPct(pov(A, A.ev[A.sel].cp)) + '%';
+      bar.style.height = winPct(A.ev[A.sel].cp) + '%';
       var onTop = (A.flip !== (A.me === 'b'));      // your side is at the top of the board
+      onTop = !!A.flip;
       bar.style.top = onTop ? '0' : 'auto'; bar.style.bottom = onTop ? 'auto' : '0';
     }
     document.getElementById('anPanel').innerHTML = panelHtml();
@@ -6591,6 +6595,7 @@ body.dnd-dragging,body.dnd-dragging *{cursor:grabbing !important;}
 
   function moveHtml(H, A, k){
     var m = A.moves[k - 1], S = A.stats[k - 1], mine = (m.color === A.me), flip = (A.me === 'b'), panel = H.panel(k);
+    try{ if(window.__c45Html) panel += window.__c45Html(A, k, panel.replace(/<[^>]+>/g, ' ')); }catch(e){}
     if(!mine) return '<div class="mv opp"><div class="txt">' + panel + '</div></div>';
     var bds = '<figure class="fig">' + boardSvg(A.fens[k], {from:m.from, to:m.to}, null, flip, 170) + '<figcaption>After your move</figcaption></figure>';
     var bad = (S.label === 'inaccuracy' || S.label === 'mistake' || S.label === 'blunder'), best = A.ev[k - 1].best;
@@ -11813,12 +11818,80 @@ button.qz-bad,button.qz-bad:hover:not(:disabled){background:#d64545 !important;c
     }
     return null;
   }
+  // ---------- Lichess opening list (free, ~3,500 openings): downloaded once, saved on this device ----------
+  var LSRC = ['https://raw.githubusercontent.com/lichess-org/chess-openings/master/', 'https://cdn.jsdelivr.net/gh/lichess-org/chess-openings@master/'];
+  var LKEY = 'pawniac-lichess-openings-v1', LI = null;
+  function fetchText(u){ return fetch(u).then(function(r){ if(!r.ok) throw new Error('http ' + r.status); return r.text(); }); }
+  function download(){
+    var rows = [], got = 0;
+    return Promise.all(['a', 'b', 'c', 'd', 'e'].map(function(f){
+      return fetchText(LSRC[0] + f + '.tsv').catch(function(){ return fetchText(LSRC[1] + f + '.tsv'); }).then(function(txt){
+        var lines = txt.replace(/\r/g, '').split('\n'), h = lines[0].split('\t'), ni = h.indexOf('name'), pi = h.indexOf('pgn');
+        if(ni < 0 || pi < 0){ ni = 1; pi = 2; }
+        for(var i = 1; i < lines.length; i++){ var c = lines[i].split('\t'); if(c[ni] && c[pi]) rows.push(c[ni] + '\t' + c[pi]); }
+        got++;
+      }).catch(function(e){ console.warn('opening file failed', f, e); });
+    })).then(function(){ return {rows:rows, full:got === 5}; });
+  }
+  function addRows(rows){
+    return new Promise(function(resolve){
+      var list = [];
+      rows.forEach(function(s){
+        var p = s.split('\t');
+        var t = (p[1] || '').replace(/\d+\.(\.\.)?/g, ' ').trim().split(/\s+/).filter(Boolean);
+        if(t.length) list.push({n:p[0], t:t, k:t.join(' ')});
+      });
+      list.sort(function(a, b){ return a.k < b.k ? -1 : (a.k > b.k ? 1 : 0); });   // neighbours share their first moves, so far fewer moves are replayed
+      var c = new Chess(), ks = [key(c.fen())], prev = [], i = 0;
+      function step(){
+        try{
+          var end = Math.min(list.length, i + 120);
+          for(; i < end; i++){
+            var L = list[i], t = L.t, cp = 0;
+            while(cp < prev.length && cp < t.length && prev[cp] === t[cp]) cp++;
+            while(prev.length > cp){ c.undo(); prev.pop(); ks.pop(); }
+            var ok = true;
+            for(var j = cp; j < t.length; j++){
+              var mv = c.move(t[j]);
+              if(!mv){ ok = false; break; }
+              var k0 = ks[ks.length - 1];
+              (NEXT[k0] = NEXT[k0] || {})[mv.san.replace(/[+#]/g, '')] = 1;
+              var k1 = key(c.fen());
+              ks.push(k1); prev.push(t[j]);
+              BOOK[k1] = 1;
+            }
+            if(ok){ var kf = ks[ks.length - 1]; if(!NAME[kf]) NAME[kf] = L.n; }
+          }
+        }catch(e){ console.error('opening list failed', e); resolve(); return; }
+        if(i < list.length) setTimeout(step, 0); else resolve();
+      }
+      step();
+    });
+  }
+  function ensureLichess(){
+    if(LI) return LI;
+    LI = (async function(){
+      var rows = null;
+      try{ var c = JSON.parse(localStorage.getItem(LKEY) || 'null'); if(c && c.rows && c.rows.length > 1000 && Date.now() - c.t < 30 * 86400000) rows = c.rows; }catch(e){}
+      if(!rows){
+        var d = await download();
+        rows = d.rows;
+        if(d.full && rows.length > 1000){ try{ localStorage.setItem(LKEY, JSON.stringify({t:Date.now(), rows:rows})); }catch(e){} }
+      }
+      if(!rows || rows.length < 50) return false;
+      await addRows(rows);
+      return true;
+    })().catch(function(e){ console.error('lichess openings failed', e); return false; }).then(function(ok){ if(!ok) LI = null; return ok; });
+    return LI;
+  }
+  var _ps44 = window.showScreen;
+  window.showScreen = function(n){ if(n === 'analyze') ensureLichess(); return _ps44.apply(this, arguments); };
   window.__pawBook = {rate:rate, inBook:function(f){ return !!BOOK[key(f)]; }, name:function(f){ return NAME[key(f)] || null; }};
 
   // ---------- plug into the Analyze report (step 16 calls window.__anPlus) ----------
   function fullNo(fen){ return parseInt(String(fen).split(' ')[5], 10) || 1; }
   window.__anPlus = {
-    ready: Promise.resolve(),
+    get ready(){ ensureLichess(); return Promise.race([LI, new Promise(function(r){ setTimeout(r, 8000); })]); },
     adjust: function(A, i, label, loss){
       if(A.hdr && (A.hdr.FEN || A.hdr.SetUp === '1')) return null;
       var sg = A.moves[i].color === 'w' ? 1 : -1;
@@ -12007,6 +12080,12 @@ button.qz-bad,button.qz-bad:hover:not(:disabled){background:#d64545 !important;c
     });
     return can ? kp : null;
   }
+  function mateThreat(fen, vc){
+    try{
+      var en = vc === 'w' ? 'b' : 'w';
+      return new Chess(C.flipTurn(fen, en)).moves({verbose:true}).some(function(x){ return /#$/.test(x.san) && (x.piece === 'r' || x.piece === 'q'); });
+    }catch(e){ return false; }
+  }
   function lufts(B, col, kp){
     var best = null, dir = col === 'w' ? 1 : -1;
     for(var f = kp.f - 1; f <= kp.f + 1; f++){
@@ -12176,7 +12255,8 @@ button.qz-bad,button.qz-bad:hover:not(:disabled){background:#d64545 !important;c
     T(function(){
       [oc, col].forEach(function(vc){
         if(fullNo(fenA) < 10) return;
-        var kp = boxed(BA, vc); if(!kp || boxed(BB, vc)) return;
+        if(fullNo(fenA) < 10) return;
+        var kp = boxed(BA, vc); if(!kp || boxed(BB, vc) || !mateThreat(fenA, vc)) return;
         var sq = sqn(kp.r, kp.f), eight = vc === 'w' ? '1st' : '8th';
         if(vc === A.me){
           var lf = lufts(BA, vc, kp), txt = 'Your king on ' + sq + ' has no escape squares, so a rook on the back rank would be mate.' + (lf ? ' A pawn move like ' + lf + ' gives it room.' : '');
@@ -12434,6 +12514,22 @@ button.qz-bad,button.qz-bad:hover:not(:disabled){background:#d64545 !important;c
 
   // ---------------- put it into the page ----------------
   function ul(arr){ return '<ul>' + arr.map(function(t){ return '<li>' + esc(t) + '</li>'; }).join('') + '</ul>'; }
+  window.__c45Html = function(A, k, txt){
+    try{
+      var i = k - 1, m = A.moves[i], mine = m.color === A.me, o = gen(A, i);
+      var pros = o.pros.slice(), cons = o.cons.slice();
+      if(/creates a passed pawn/i.test(txt)) pros = pros.filter(function(t){ return !/^Creates a passed pawn/.test(t); });
+      var notes = o.notes.filter(function(t){ return !(/^This (defends|stops|removes)/.test(t) && /Saves your/.test(txt)); });
+      var h = '';
+      if(notes.length) h += notes.map(function(t){ return '<p class="an-note">' + esc(t) + '</p>'; }).join('');
+      if(mine && (pros.length || cons.length)){
+        var both = pros.length && cons.length;
+        h += '<div class="an-pc" style="margin:8px 0;' + (both ? '' : 'grid-template-columns:1fr;') + '">' + (pros.length ? '<div class="an-pros"><h4>Pros</h4>' + ul(pros) + '</div>' : '') + (cons.length ? '<div class="an-cons"><h4>Cons</h4>' + ul(cons) + '</div>' : '') + '</div>';
+      }
+      if(mine && o.tips.length) h += '<div class="an-tip">\uD83D\uDCA1 ' + esc(o.tips[0]) + '</div>';
+      return h ? '<div class="an-sec an-c45"><h4>More from the coach</h4>' + h + '</div>' : '';
+    }catch(e){ return ''; }
+  };
   function patchPanel(){
     var p = document.getElementById('anPanel'), A = H.data();
     if(!p || !A || !A.stats || !A.stats.length || p.querySelector('.an-c45') || A.sel < 1) return;
@@ -12488,7 +12584,7 @@ button.qz-bad,button.qz-bad:hover:not(:disabled){background:#d64545 !important;c
     if(best) rows += '<p class="an-note">\u2B50 Best moment: ' + link(best.j) + ' (' + best.w + ').</p>';
     if(worst) rows += '<p class="an-note">\uD83D\uDCC9 Costliest moment: ' + link(worst.j) + ', it cost about ' + Math.round(worst.loss) + '% of your winning chances.</p>';
     var t = turning(A); if(t >= 0) rows += '<p class="an-note">\uD83D\uDD04 Turning point of the game: ' + link(t) + '.</p>';
-    var pend = (A.c45fill || r.style.display === 'none') ? [] : mineIdx.filter(function(j){ return needAlts(A, j) && !(A.c45a && A.c45a[j]); });
+    var pend = (A.c45fill || r.style.display === 'none') ? [] : mineIdx.filter(function(j){ return needAlts(A, j) && !(A.c45a && A.c45a[j]); }).slice(0, 4);
     var d = document.createElement('div'); d.className = 'an-sec an-c45r';
     d.innerHTML = (rows || pend.length) ? '<h4>Highlights</h4>' + rows + (pend.length ? '<p class="an-note" style="opacity:.7">Checking for only moves... this updates in a few seconds.</p>' : '') : '';
     if(!rows && !pend.length) d.style.display = 'none';
