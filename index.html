@@ -4279,6 +4279,7 @@ body.dnd-dragging,body.dnd-dragging *{cursor:grabbing !important;}
   // search to a fixed depth so results do not depend on how fast the device is;
   // the time cap only stops positions that are very slow to search
   function sfLimits(ms){
+    if(ms === 1500) return {depth:16, cap:2500};
     if(ms <= 300) return {depth:12, cap:4000};
     if(ms <= 500) return {depth:13, cap:4000};
     if(ms <= 800) return {depth:14, cap:7000};
@@ -4571,7 +4572,8 @@ body.dnd-dragging,body.dnd-dragging *{cursor:grabbing !important;}
       var fk = forkOf(fen, mv, col);
       if(fk) return {name:'fork', text:'a fork: it attacks ' + fk + ' at once'};
       // pin / skewer made by the piece that just moved
-      if(made.piece === 'b' || made.piece === 'r' || made.piece === 'q'){
+      var __cap = capsFor(c.fen(), enemy).some(function(x){ return x.to === made.to && VAL[x.piece] <= VAL[made.piece]; });
+      if(!__cap && (made.piece === 'b' || made.piece === 'r' || made.piece === 'q')){
         var dirs = made.piece === 'b' ? DIAG : (made.piece === 'r' ? ORTH : ORTH.concat(DIAG));
         for(var di = 0; di < dirs.length; di++){
           var two = firstTwo(c, made.to, dirs[di]);
@@ -5729,13 +5731,15 @@ body.dnd-dragging,body.dnd-dragging *{cursor:grabbing !important;}
           if(l0 >= 5) sus.push({i:q0, l:l0});
         }
         sus.sort(function(a, b){ return b.l - a.l; });
-        sus = sus.slice(0, 6);
+        sus = (ms > 300) ? sus.slice(0, 3) : []; var dl0 = Date.now() + 8000;
         for(var z0 = 0; z0 < sus.length; z0++){
           if(cancelFlag) throw new Error('Analysis cancelled.');
           setProg('Double-checking suspicious move ' + (z0 + 1) + ' of ' + sus.length + ' at higher depth...', 92 + z0);
           var qi = sus[z0].i;
           try{
-            var e1 = await evalFen(eng, parsed.fens[qi], 5000, 3), e2 = await evalFen(eng, parsed.fens[qi + 1], 5000, 1);
+            if(Date.now() > dl0) break;
+            var e1 = await evalFen(eng, parsed.fens[qi], 1500, 1), e2 = await evalFen(eng, parsed.fens[qi + 1], 1500, 1);
+            e1.alts = ev[qi].alts || [];
             ev[qi] = e1; ev[qi + 1] = e2;
           }catch(err){ console.warn('deep re-check failed', err); }
         }
@@ -11982,7 +11986,9 @@ button.qz-bad,button.qz-bad:hover:not(:disabled){background:#d64545 !important;c
   }
   function boxed(B, col){   // back-rank king with no escape square and an enemy rook/queen able to reach that rank
     var kp = kingPos(B, col), en = col === 'w' ? 'b' : 'w', br = col === 'w' ? 0 : 7;
-    if(!kp || kp.r !== br) return null;
+    if(!kp || kp.r !== br || (kp.f > 2 && kp.f < 5)) return null;
+    var __own = false; each(B, function(p, r, f){ if(p.c === col && (p.t === 'r' || p.t === 'q') && r === br) __own = true; });
+    if(__own) return null;
     for(var a = -1; a <= 1; a++) for(var b = -1; b <= 1; b++){
       if((!a && !b) || !a) continue; var r = kp.r + a, f = kp.f + b, p = at(B, r, f);   // sideways squares are covered by the checking rook, so only forward squares count
       if(p === undefined || (col === 'w' ? a < 0 : a > 0)) continue; if(p && p.c === col) continue;
@@ -12169,6 +12175,7 @@ button.qz-bad,button.qz-bad:hover:not(:disabled){background:#d64545 !important;c
     // ---- back rank
     T(function(){
       [oc, col].forEach(function(vc){
+        if(fullNo(fenA) < 10) return;
         var kp = boxed(BA, vc); if(!kp || boxed(BB, vc)) return;
         var sq = sqn(kp.r, kp.f), eight = vc === 'w' ? '1st' : '8th';
         if(vc === A.me){
@@ -12196,11 +12203,11 @@ button.qz-bad,button.qz-bad:hover:not(:disabled){background:#d64545 !important;c
       if(central > 3) return;
       var mb = count(BA, col, 'b'), ob = count(BA, oc, 'b');
       if(count(BB, col, 'b') === 2 && mb < 2 && ob === 2) bad('You gave up the bishop pair in an open position, where two bishops are strong.', 'They gave up the bishop pair, which helps you in this open position.');
-      if(count(BB, oc, 'b') === 2 && ob < 2 && mb === 2) good('You keep the bishop pair in an open position: a lasting advantage.', 'They took a bishop and keep the bishop pair in this open position.');
+      if(count(BB, oc, 'b') === 2 && ob < 2 && mb === 2 && !C.capsFor(fenA, oc).some(function(x){ return x.to === m.to && x.captured; })) good('You keep the bishop pair in an open position: a lasting advantage.', 'They took a bishop and keep the bishop pair in this open position.');
     });
     // ---- creates a weakness (hole)
     T(function(){
-      if(m.piece !== 'p' || m.promotion || S.loss < 2) return;
+      if(m.piece !== 'p' || m.promotion || S.loss < 5 || S.label === 'book') return;
       var f0 = FL.indexOf(m.from[0]), r0 = +m.from[1] - 1, dir = col === 'w' ? 1 : -1;
       [-1, 1].forEach(function(s){
         var f = f0 + s, r = r0 + dir; if(f < 0 || f > 7 || r < 0 || r > 7) return;
