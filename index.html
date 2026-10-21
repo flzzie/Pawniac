@@ -4279,10 +4279,11 @@ body.dnd-dragging,body.dnd-dragging *{cursor:grabbing !important;}
   // search to a fixed depth so results do not depend on how fast the device is;
   // the time cap only stops positions that are very slow to search
   function sfLimits(ms){
-    if(ms <= 300) return {depth:10, cap:3000};
-    if(ms <= 500) return {depth:11, cap:3000};
-    if(ms <= 800) return {depth:12, cap:6000};
-    return {depth:14, cap:12000};
+    if(ms <= 300) return {depth:12, cap:4000};
+    if(ms <= 500) return {depth:13, cap:4000};
+    if(ms <= 800) return {depth:14, cap:7000};
+    if(ms >= 5000) return {depth:19, cap:18000};
+    return {depth:17, cap:14000};
   }
   function scoreToCp(L){
     if(!L) return 0;
@@ -4588,7 +4589,7 @@ body.dnd-dragging,body.dnd-dragging *{cursor:grabbing !important;}
       var before = {};
       capsFor(fen, col).forEach(function(x){ if(worth(x)) before[key(x)] = 1; });
       var disc = capsFor(c.fen(), col).filter(function(x){ return worth(x) && x.from !== made.to && !before[key(x)]; });
-      if(disc.length) return {name:'discovered attack', text:'a discovered attack: moving the ' + NAMES[made.piece] + ' uncovers your ' + NAMES[disc[0].piece] + ' on ' + disc[0].from + ', which now attacks the ' + NAMES[disc[0].captured] + ' on ' + disc[0].to};
+      if(disc.length) return {name:'discovered attack', text:'a discovered attack: moving the ' + NAMES[made.piece] + ' uncovers the ' + NAMES[disc[0].piece] + ' on ' + disc[0].from + ', which now attacks the ' + NAMES[disc[0].captured] + ' on ' + disc[0].to};
     }catch(e){ console.error('tactic detection failed', e); }
     return null;
   }
@@ -5473,7 +5474,7 @@ body.dnd-dragging,body.dnd-dragging *{cursor:grabbing !important;}
       if(bestInfo && bestInfo.net >= 1) reason = 'It wins about ' + plural(bestInfo.net, 'point') + ' of material by force.';
       else if(bd.tags.indexOf('check') >= 0 || bd.tags.indexOf('mate') >= 0) reason = 'The check gains time and pushes them back.';
       else if(bd.tags.indexOf('castle') >= 0) reason = 'It gets your king safe first.';
-      else if(bd.tags.indexOf('develop') >= 0) reason = 'It develops a new piece instead.';
+      else if(bd.tags.indexOf('develop') >= 0) reason = m.piece === 'q' ? 'Minor pieces come out before the queen, so the queen does not become a target.' : 'It adds a new piece to the game instead of moving one you already have.';
       else if(bd.tags.indexOf('centre') >= 0) reason = 'It takes the centre.';
       else reason = 'It keeps the eval at ' + fw(S.cpBefore, me) + ' where your move dropped it to ' + fw(S.cpAfter, me) + '.';
       var wt = null;
@@ -5676,7 +5677,7 @@ body.dnd-dragging,body.dnd-dragging *{cursor:grabbing !important;}
         '<div class="an-row">' +
           '<button id="anGo">Analyze</button><button class="secondary" id="anFileBtn">Upload .pgn</button>' +
           '<input type="file" id="anFile" accept=".pgn,.txt,text/plain" style="display:none;">' +
-          '<select id="anSpeed" aria-label="Analysis depth"><option value="300"' + (ms === 300 ? ' selected' : '') + '>Fast</option><option value="800"' + (ms === 800 ? ' selected' : '') + '>Balanced</option><option value="2000"' + (ms === 2000 ? ' selected' : '') + '>Deep (slower)</option></select>' +
+          '<select id="anSpeed" aria-label="Analysis depth"><option value="300"' + (ms === 300 ? ' selected' : '') + '>Fast (depth 12)</option><option value="800"' + (ms === 800 ? ' selected' : '') + '>Balanced (depth 14)</option><option value="2000"' + (ms === 2000 ? ' selected' : '') + '>Deep (depth 17, slow)</option></select>' +
         '</div><div id="anProg"></div></div>';
     refreshForm();
     document.getElementById('anSideW').onclick = function(){ formSide = 'w'; sideManual = true; refreshForm(); };
@@ -5719,6 +5720,25 @@ body.dnd-dragging,body.dnd-dragging *{cursor:grabbing !important;}
         var multi = (i < parsed.moves.length && parsed.moves[i].color === side) ? 3 : 1;
         ev.push(await evalFen(eng, parsed.fens[i], ms, multi));
         await new Promise(function(r){ setTimeout(r, 0); });
+      }
+      if(eng.kind === 'stockfish'){
+        var sg0 = side === 'w' ? 1 : -1, sus = [];
+        for(var q0 = 0; q0 < parsed.moves.length; q0++){
+          if(parsed.moves[q0].color !== side || isMate(ev[q0].cp) || isMate(ev[q0 + 1].cp)) continue;
+          var l0 = winPct(sg0 * ev[q0].cp) - winPct(sg0 * ev[q0 + 1].cp);
+          if(l0 >= 5) sus.push({i:q0, l:l0});
+        }
+        sus.sort(function(a, b){ return b.l - a.l; });
+        sus = sus.slice(0, 6);
+        for(var z0 = 0; z0 < sus.length; z0++){
+          if(cancelFlag) throw new Error('Analysis cancelled.');
+          setProg('Double-checking suspicious move ' + (z0 + 1) + ' of ' + sus.length + ' at higher depth...', 92 + z0);
+          var qi = sus[z0].i;
+          try{
+            var e1 = await evalFen(eng, parsed.fens[qi], 5000, 3), e2 = await evalFen(eng, parsed.fens[qi + 1], 5000, 1);
+            ev[qi] = e1; ev[qi + 1] = e2;
+          }catch(err){ console.warn('deep re-check failed', err); }
+        }
       }
       setProg('Writing your report...', 99);
       try{ if(window.__anPlus && window.__anPlus.ready) await window.__anPlus.ready; }catch(e){}
@@ -5836,7 +5856,7 @@ body.dnd-dragging,body.dnd-dragging *{cursor:grabbing !important;}
         (E.lines.length ? ps(E.lines) : '') + sec('Where that leaves you', ps(E.engine));
     }
     var L = LABEL[E.label];
-    var h = '<div class="an-title">' + esc(E.title) + ' <span class="an-chip" style="background:' + L.c + '">' + L.t + '</span></div><div class="an-evline">' + esc(E.evalLine) + '</div>';
+    var h = '<div class="an-title">' + esc(E.title) + ' <span class="an-chip" style="background:' + L.c + '">' + L.t + '</span></div><div class="an-evline">' + esc(E.evalLine) + ' <span style="opacity:.6">(depth ' + (A.ev[A.sel - 1].depth || '?') + ')</span></div>';
     if(E.time) h += '<div class="an-time">\u23F1 ' + fmtSec(E.time.t) + (E.time.far ? ' <span class="an-bad">(far too long; guide: about ' + fmtSec(A.time.far) + ')</span>' : '') + '</div>';
     if(E.mode === 'mate'){
       h += sec(E.whyTitle, E.why.map(function(w){ return '<p class="an-note">' + w + '</p>'; }).join(''));
@@ -5847,8 +5867,8 @@ body.dnd-dragging,body.dnd-dragging *{cursor:grabbing !important;}
       return h;
     }
     if(E.mode === 'short'){
-      h += '<p class="an-note">Small slip, nothing much to worry about.</p>';
-      if(E.better) h += '<p class="an-note">Slightly better was <b>' + esc(E.better.san) + '</b>' + (E.better.text ? ': ' + esc(E.better.text) : '.') + '</p>';
+      h += '<p class="an-note">' + (A.stats[A.sel - 1].loss >= 10 ? 'A real slip: it gives away a noticeable part of your advantage.' : 'Small slip, nothing much to worry about.') + '</p>';
+      if(E.better) h += '<p class="an-note">' + (A.stats[A.sel - 1].loss >= 10 ? 'Better was' : 'Slightly better was') + ' <b>' + esc(E.better.san) + '</b>' + (E.better.text ? ': ' + esc(E.better.text) : '.') + '</p>';
       if(E.missed) h += '<p class="an-note">' + esc(E.missed) + '</p>';
       if(E.trade) h += '<p class="an-note">' + esc(E.trade) + '</p>';
       h += equalHtml(E);
@@ -12252,9 +12272,9 @@ button.qz-bad,button.qz-bad:hover:not(:disabled){background:#d64545 !important;c
     });
     // ---- passed / isolated pawn created
     T(function(){
-      var pb = keys(passedList(BB, col)), pa = passedList(BA, col), ib = keys(isoList(BB, col)), ia = isoList(BA, col);
-      pa.filter(function(p){ return pb.indexOf(p.r * 8 + p.f) < 0; }).slice(0, 1).forEach(function(p){ good('Creates a passed pawn on ' + sqn(p.r, p.f) + '.', 'Their move creates a passed pawn on ' + sqn(p.r, p.f) + '.'); });
-      ia.filter(function(p){ return ib.indexOf(p.r * 8 + p.f) < 0; }).slice(0, 1).forEach(function(p){ bad('Leaves an isolated pawn on ' + sqn(p.r, p.f) + ': no pawn next to it can defend it.', 'Their move leaves them an isolated pawn on ' + sqn(p.r, p.f) + ': a target.'); });
+      var pb = passedList(BB, col).map(function(p){ return p.f; }), pa = passedList(BA, col), ib = isoList(BB, col).map(function(p){ return p.f; }), ia = isoList(BA, col);
+      pa.filter(function(p){ return pb.indexOf(p.f) < 0; }).slice(0, 1).forEach(function(p){ good('Creates a passed pawn on ' + sqn(p.r, p.f) + '.', 'Their move creates a passed pawn on ' + sqn(p.r, p.f) + '.'); });
+      ia.filter(function(p){ return ib.indexOf(p.f) < 0; }).slice(0, 1).forEach(function(p){ bad('Leaves an isolated pawn on ' + sqn(p.r, p.f) + ': no pawn next to it can defend it.', 'Their move leaves them an isolated pawn on ' + sqn(p.r, p.f) + ': a target.'); });
     });
     // ---- pawn break
     T(function(){
