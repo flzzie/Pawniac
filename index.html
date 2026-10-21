@@ -12845,4 +12845,129 @@ svg.pn-ann{position:absolute;left:0;top:0;pointer-events:none;z-index:6;overflow
 })();
 </script>
 <!-- ===== END STEP 47 ===== -->
+  <!-- ===== PAWNIAC STEP 48: ONE SHARED STOCKFISH FOR EVERYTHING + DEEPER, FASTER ANALYSIS (paste at the very bottom, below step 47) ===== -->
+<script>
+(function(){
+  // Steps 16 (Analyze), 35 (Play bot), 43 (Try a line) and 45 (Only move) each used to start their own
+  // Stockfish. Now they all talk to ONE engine. Nothing in those steps needs to change for this to work:
+  // this block hands them a "proxy" worker and queues their searches one at a time.
+  var RealWorker = window.Worker, SFURL = {}, REAL = null, REALP = null, busy = null, queue = [];
+
+  // remember which blob URLs are Stockfish scripts (only Stockfish creates javascript blobs on this site)
+  var _cou = URL.createObjectURL.bind(URL);
+  URL.createObjectURL = function(b){
+    var u = _cou(b);
+    try{ if(b && b.type === 'application/javascript') SFURL[u] = 1; }catch(e){}
+    return u;
+  };
+
+  // search budget per position: "go depth D movetime T" (as written by the old steps) -> depth 19 + a time cap.
+  // The search stops at depth 19 or at the time cap, whichever comes first.
+  //   Fast 0.35s | Balanced 0.5s | Deep 1.2s | re-check of your worst moves 2.5s | Try a line 2s
+  // (positions where your next 2 best moves are also searched get x1.6 time)
+  var MAP = {'12:4000':350, '13:4000':500, '14:7000':500, '17:14000':1200, '19:18000':3000, '16:2500':2500, '15:5000':2000, '14:3500':1500};
+  function remap(cmd){
+    var m = /^go depth (\d+) movetime (\d+)/.exec(cmd);
+    if(!m) return cmd;
+    var d = +m[1], t = +m[2], base = MAP[d + ':' + t], mult = 1;
+    if(base === undefined && MAP[d + ':' + Math.round(t / 2)] !== undefined){ base = MAP[d + ':' + Math.round(t / 2)]; mult = 1.6; }
+    if(base === undefined) return 'go depth 19 movetime ' + t;
+    return 'go depth 19 movetime ' + Math.round(base * mult);
+  }
+
+  function route(e){
+    var line = String(e.data);
+    if(!busy) return;
+    busy.emit(line);
+    if(line.indexOf('bestmove') === 0){ busy = null; pump(); }
+  }
+  function getReal(url){
+    if(REAL) return Promise.resolve(REAL);
+    if(REALP) return REALP;
+    REALP = new Promise(function(res, rej){
+      var w;
+      try{ w = new RealWorker(url); }catch(e){ REALP = null; rej(e); return; }
+      var to = setTimeout(function(){ try{ w.terminate(); }catch(e){} REALP = null; rej(new Error('timeout')); }, 30000);
+      w.onmessage = function(e){
+        if(String(e.data).indexOf('uciok') >= 0){
+          clearTimeout(to);
+          w.onmessage = route;
+          w.postMessage('setoption name Hash value 32');   // kept between positions: neighbouring positions search faster
+          REAL = w; res(w);
+        }
+      };
+      w.onerror = function(){
+        clearTimeout(to);
+        try{ w.terminate(); }catch(e){}
+        REAL = null; REALP = null; busy = null;
+        rej(new Error('worker'));
+      };
+      w.postMessage('uci');
+    });
+    return REALP;
+  }
+  function pump(){
+    if(busy || !queue.length) return;
+    if(!REAL){
+      getReal(queue[0].p.url).then(pump).catch(function(){
+        var j = queue.shift();
+        if(j && j.p.onerror) try{ j.p.onerror({}); }catch(e){}
+        pump();
+      });
+      return;
+    }
+    var j = queue.shift();
+    if(j.p.dead){ pump(); return; }
+    busy = j.p;
+    var hasDepth = false, hasMulti = false, hasSkill = false, out = [];
+    j.cmds.forEach(function(c){
+      if(/^go depth/.test(c)) hasDepth = true;
+      if(/MultiPV/.test(c)) hasMulti = true;
+      if(/Skill Level/.test(c)) hasSkill = true;
+    });
+    if(!hasSkill) out.push('setoption name Skill Level value 20');   // analysis is always full strength, even right after a bot game
+    if(!hasMulti) out.push('setoption name MultiPV value 1');
+    j.cmds.forEach(function(c){
+      if(c === 'ucinewgame' && hasDepth) return;                     // keep the hash between positions of one game
+      out.push(/^go /.test(c) ? remap(c) : c);
+    });
+    out.forEach(function(c){ REAL.postMessage(c); });
+  }
+
+  function Prox(url){ this.url = url; this.pending = []; this.ls = []; this.onmessage = null; this.onerror = null; this.dead = false; }
+  Prox.prototype.addEventListener = function(t, f){ if(t === 'message' && this.ls.indexOf(f) < 0) this.ls.push(f); };
+  Prox.prototype.removeEventListener = function(t, f){ var i = this.ls.indexOf(f); if(i >= 0) this.ls.splice(i, 1); };
+  Prox.prototype.emit = function(line){
+    var ev = {data:line};
+    if(this.onmessage) try{ this.onmessage(ev); }catch(e){ console.error(e); }
+    this.ls.slice().forEach(function(f){ try{ f(ev); }catch(e){ console.error(e); } });
+  };
+  Prox.prototype.terminate = function(){ this.dead = true; };
+  Prox.prototype.postMessage = function(cmd){
+    var self = this;
+    cmd = String(cmd);
+    if(cmd === 'uci'){
+      getReal(this.url).then(function(){ setTimeout(function(){ self.emit('uciok'); }, 0); })
+        .catch(function(){ if(self.onerror) try{ self.onerror({}); }catch(e){} });
+      return;
+    }
+    if(/^go( |$)/.test(cmd)){
+      var cmds = this.pending.concat([cmd]);
+      this.pending = [];
+      queue.push({p:this, cmds:cmds});
+      pump();
+      return;
+    }
+    if(cmd === 'stop' || cmd === 'quit') return;
+    this.pending.push(cmd);
+  };
+
+  window.Worker = function(url, opts){
+    if(typeof url === 'string' && SFURL[url]) return new Prox(url);
+    return new RealWorker(url, opts);
+  };
+  window.Worker.prototype = RealWorker.prototype;
+})();
+</script>
+<!-- ===== END STEP 48 ===== -->
 </html>
