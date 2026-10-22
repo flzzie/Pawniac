@@ -1,4 +1,4 @@
-  <!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -4251,6 +4251,7 @@ body.dnd-dragging,body.dnd-dragging *{cursor:grabbing !important;}
     });
   }
   async function loadStockfish(){
+    if(window.PawniacSF){ try{ return await window.PawniacSF.get(); }catch(e){ console.warn('local engine not available, using the CDN one', e); } }
     var lastErr = null;
     for(var i = 0; i < SF_URLS.length; i++){
       try{
@@ -4278,14 +4279,11 @@ body.dnd-dragging,body.dnd-dragging *{cursor:grabbing !important;}
   }
   // search to a fixed depth so results do not depend on how fast the device is;
   // the time cap only stops positions that are very slow to search
+  // time per position: Fast 0.35 s, Balanced 0.5 s, Deep 0.7 s (the engine searches as deep as it can in that time)
   function sfLimits(ms){
-    if(ms === 1500) return {depth:16, cap:2500};
-    if(ms === 1500) return {depth:16, cap:2500};
-    if(ms <= 300) return {depth:12, cap:4000};
-    if(ms <= 500) return {depth:13, cap:4000};
-    if(ms <= 800) return {depth:14, cap:7000};
-    if(ms >= 5000) return {depth:19, cap:18000};
-    return {depth:17, cap:14000};
+    if(ms <= 300) return {depth:40, cap:350};
+    if(ms <= 800) return {depth:40, cap:500};
+    return {depth:40, cap:700};
   }
   function scoreToCp(L){
     if(!L) return 0;
@@ -4316,12 +4314,12 @@ body.dnd-dragging,body.dnd-dragging *{cursor:grabbing !important;}
         }
       }
       w.addEventListener('message', h);
-      w.postMessage('ucinewgame');
+      w.postMessage('setoption name Skill Level value 20');
       w.postMessage('setoption name Contempt value 0');
       w.postMessage('setoption name MultiPV value ' + multi);
       w.postMessage('position fen ' + fen);
       var lim = sfLimits(ms);
-      w.postMessage('go depth ' + lim.depth + ' movetime ' + lim.cap * (multi > 1 ? 2 : 1));
+      w.postMessage('go depth ' + lim.depth + ' movetime ' + lim.cap);
     });
   }
   var BV = {p:100, n:320, b:330, r:500, q:900, k:0};
@@ -5682,7 +5680,7 @@ body.dnd-dragging,body.dnd-dragging *{cursor:grabbing !important;}
         '<div class="an-row">' +
           '<button id="anGo">Analyze</button><button class="secondary" id="anFileBtn">Upload .pgn</button>' +
           '<input type="file" id="anFile" accept=".pgn,.txt,text/plain" style="display:none;">' +
-          '<select id="anSpeed" aria-label="Analysis depth"><option value="300"' + (ms === 300 ? ' selected' : '') + '>Fast (depth 12)</option><option value="800"' + (ms === 800 ? ' selected' : '') + '>Balanced (depth 14)</option><option value="2000"' + (ms === 2000 ? ' selected' : '') + '>Deep (depth 17, slow)</option></select>' +
+          '<select id="anSpeed" aria-label="Analysis depth"><option value="300"' + (ms === 300 ? ' selected' : '') + '>Fast (0.35 s per move)</option><option value="800"' + (ms === 800 ? ' selected' : '') + '>Balanced (0.5 s per move)</option><option value="2000"' + (ms === 2000 ? ' selected' : '') + '>Deep (0.7 s per move)</option></select>' +
         '</div><div id="anProg"></div></div>';
     refreshForm();
     document.getElementById('anSideW').onclick = function(){ formSide = 'w'; sideManual = true; refreshForm(); };
@@ -9464,6 +9462,13 @@ html body #screen-auth .card .so-btns button{padding:14px;}
     if(eng.p) return eng.p;
     setEng('loading');
     eng.p = (async function(){
+      if(window.PawniacSF){
+        try{
+          var w0 = await window.PawniacSF.get();
+          w0.onerror = function(){ eng.w = null; eng.p = null; eng.state = 'idle'; };
+          eng.w = w0; setEng('ready'); return w0;
+        }catch(e){ console.warn('local engine not available, using the CDN one', e); }
+      }
       for(var a = 0; a < 3; a++){
         for(var i = 0; i < SF_URLS.length; i++){
           try{
@@ -9502,6 +9507,7 @@ html body #screen-auth .card .so-btns button{padding:14px;}
           }
         }
         w.addEventListener('message', h);
+        w.postMessage('setoption name MultiPV value 1');
         w.postMessage('setoption name Skill Level value ' + S.skill);
         w.postMessage('position fen ' + fen);
         w.postMessage('go movetime ' + ms);
@@ -11283,6 +11289,7 @@ button.qz-bad,button.qz-bad:hover:not(:disabled){background:#d64545 !important;c
   function loadEng(){
     if(E.p) return E.p;
     E.p = (async function(){
+      if(window.PawniacSF){ try{ return await window.PawniacSF.get(); }catch(e){} }
       for(var a = 0; a < 2; a++) for(var i = 0; i < SF.length; i++){
         try{
           var r = await fetch(SF[i]); if(!r.ok) throw 0;
@@ -11315,11 +11322,11 @@ button.qz-bad,button.qz-bad:hover:not(:disabled){background:#d64545 !important;c
         }
       }
       w.addEventListener('message', h);
-      w.postMessage('ucinewgame');
+      w.postMessage('setoption name Skill Level value 20');
       w.postMessage('setoption name Contempt value 0');
       w.postMessage('setoption name MultiPV value 1');
       w.postMessage('position fen ' + fen);
-      w.postMessage('go depth 15 movetime 5000');
+      w.postMessage('go depth 15 movetime 3000');
     });
   }
   function ev(fen){
@@ -12456,6 +12463,7 @@ button.qz-bad,button.qz-bad:hover:not(:disabled){background:#d64545 !important;c
   function loadEng(){
     if(EW) return EW;
     EW = (async function(){
+      if(window.PawniacSF){ try{ return await window.PawniacSF.get(); }catch(e){} }
       for(var a = 0; a < 2; a++) for(var i = 0; i < SF.length; i++){
         try{
           var r = await fetch(SF[i]); if(!r.ok) throw 0;
@@ -12487,11 +12495,11 @@ button.qz-bad,button.qz-bad:hover:not(:disabled){background:#d64545 !important;c
         }
       }
       w.addEventListener('message', h);
-      w.postMessage('ucinewgame');
+      w.postMessage('setoption name Skill Level value 20');
       w.postMessage('setoption name Contempt value 0');
       w.postMessage('setoption name MultiPV value 3');
       w.postMessage('position fen ' + fen);
-      w.postMessage('go depth 14 movetime 3500');
+      w.postMessage('go depth 14 movetime 2000');
     });
   }
   function needAlts(A, i){
@@ -12845,5 +12853,55 @@ svg.pn-ann{position:absolute;left:0;top:0;pointer-events:none;z-index:6;overflow
 })();
 </script>
 <!-- ===== END STEP 47 ===== -->
+
+<!-- ===== PAWNIAC STEP 48: ONE SHARED FAST STOCKFISH FOR EVERYTHING ===== -->
+<script>
+(function(){
+  // One Stockfish worker for the whole site (analysis + bot share it), loaded from YOUR OWN site (engine/ folder),
+  // so the browser can run the fast WebAssembly build. If the engine/ folder is missing, nothing breaks:
+  // the old CDN engine is used as before.
+  var P = null;
+  function dir(){ return new URL('engine/', document.baseURI).href; }
+  function handshake(w){
+    return new Promise(function(res, rej){
+      var t = setTimeout(function(){ try{ w.terminate(); }catch(e){} rej(new Error('engine timeout')); }, 60000);
+      w.onmessage = function(e){ if(String(e.data).indexOf('uciok') >= 0){ clearTimeout(t); w.onmessage = null; res(w); } };
+      w.onerror = function(){ clearTimeout(t); try{ w.terminate(); }catch(e){} rej(new Error('worker error')); };
+      w.postMessage('uci');
+    });
+  }
+  function ready(w){
+    return new Promise(function(res){
+      var t = setTimeout(function(){ w.removeEventListener('message', h); res(); }, 15000);
+      function h(e){ if(String(e.data).indexOf('readyok') >= 0){ clearTimeout(t); w.removeEventListener('message', h); res(); } }
+      w.addEventListener('message', h);
+      w.postMessage('isready');
+    });
+  }
+  window.PawniacSF = {
+    kind: null,
+    get: function(){
+      if(P) return P;
+      P = (async function(){
+        var r = await fetch(dir() + 'engine.json', {cache:'no-cache'});
+        if(!r.ok) throw new Error('no local engine');
+        var m = await r.json();
+        var w = new Worker(dir() + m.js);
+        await handshake(w);
+        w.postMessage('setoption name Threads value 1');
+        w.postMessage('setoption name Hash value 64');
+        await ready(w);
+        window.PawniacSF.kind = m.js;
+        return w;
+      })();
+      P.catch(function(){ P = null; });
+      return P;
+    }
+  };
+  // start loading in the background so the first analysis / bot game does not wait
+  setTimeout(function(){ try{ window.PawniacSF.get().catch(function(){}); }catch(e){} }, 1500);
+})();
+</script>
+<!-- ===== END STEP 48 ===== -->
 
 </html>
