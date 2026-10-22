@@ -13800,7 +13800,7 @@ svg.pn-ann{position:absolute;left:0;top:0;pointer-events:none;z-index:6;overflow
 })();
 </script>
 <!-- ===== END STEP 50 ===== -->
-                    <!-- ===== PAWNIAC STEP 51: HELP PAGE + TERMS OF SERVICE + PRIVACY POLICY + FOOTER (paste at the very bottom, below step 50. Nothing else to edit except the 3 settings at the top of the script) ===== -->
+<!-- ===== PAWNIAC STEP 51: HELP PAGE + TERMS OF SERVICE + PRIVACY POLICY + FOOTER (paste at the very bottom, below step 50. Nothing else to edit except the 3 settings at the top of the script) ===== -->
 <style>
 .hp-search{width:100%;margin:0 0 14px;}
 .hp-cat{margin:0 0 22px;}
@@ -13835,7 +13835,7 @@ details.hp-q[open] > summary{border-bottom:1px solid #efe9db;}
 <script>
 (function(){
   // ============ EDIT THESE 3 THINGS ============
-  var CONTACT = 'rishit@rishit.fun';      // the email people use for help, reports, deletion requests and legal notices
+  var CONTACT = 'YOUR_EMAIL@example.com';      // the email people use for help, reports, deletion requests and legal notices
   var LAW     = 'India';                        // country whose law governs the Terms
   var UPDATED = '22 October 2026';              // change this date whenever you edit the Terms or Privacy text
   // =============================================
@@ -13852,7 +13852,7 @@ details.hp-q[open] > summary{border-bottom:1px solid #efe9db;}
     {id:'general', title:'General', sub:'About the website',
      items:[
       ['What is Pawniac?', `<p>Pawniac is a free chess website built around chess variants. You can play classic <b>Standard Chess</b>, <b>Hand &amp; Brain</b> (where one piece type is named before every move) and <b>Piece Auction</b> (where you bid coins to build your own army). There is also a bot to practise against, a game analyzer, minigames, an openings quiz, leaderboards and achievements.</p><p>It is made by Rishit. You can find out more about him at <a href="https://rishit.fun">rishit.fun</a>.</p>`],
-      ['Is it free?', `<p>Yes. Everything on Pawniac is free, with no ads. If you want to support the site you can donate, and donors get a shiny gradient on their username that everyone can see. See the Terms for the details.</p>`],
+      ['Is it free?', `<p>Yes. Everything on Pawniac is free, with no ads. If you want to support the site you can donate, and donors get a shiny gradient on their username that everyone can see. To donate, just email ${mail()} to show your interest and we will let you know about the available payment methods. See the Terms for the details.</p>`],
       ['Do I need an account?', `<p>Yes, to play online games, appear on the leaderboards and save progress. Sign up with an email and password, or continue with Google or Discord. You pick a username (3 to 20 letters, numbers or underscores). <b>You cannot change your username later</b>, so choose one you like.</p>`],
       ['How old do I have to be?', `<p>There is no minimum age and Pawniac is meant to be safe for everyone. There is no public chat. Younger players should ask a parent or guardian before signing up. See the Privacy Policy for what is stored.</p>`],
       ['How do I start a game?', `<p>Open <b>Play</b> in the top bar. Pick a game type (Hand &amp; Brain, Standard Chess or Piece Auction), pick a time control, then either press <b>Find opponent</b> for a quick match or create a room under <b>Play with friends</b>.</p><p>In a room, share the 5-letter code or press <b>Copy invite link</b>. Anyone who opens the link and logs in lands straight in your room.</p>`],
@@ -13919,13 +13919,13 @@ details.hp-q[open] > summary{border-bottom:1px solid #efe9db;}
       ['How does the bot work?', `<p>Open <b>Play bot</b>. Pick the game (Standard, Hand &amp; Brain or Piece Auction), time control, your colour and the bot level: Beginner, Easy, Medium, Hard or Expert. The bot is the Stockfish engine playing on your device. Bot games are timed but never rated and never saved.</p>`],
       ['What are the minigames?', `<p><b>Knight's tour:</b> visit as many squares as you can with a knight, each only once. More squares wins; ties go to the faster time.</p><p><b>Blindfold board:</b> memorise a position for a few seconds, then place the pieces back from memory. Perfect rounds go up a level. 3 lives.</p>`],
       ['How does the quiz work?', `<p>The <b>Quiz</b> page asks you to name an opening from its moves, or to play out an opening from its name. Openings get rarer and the timer shorter as you go. A wrong answer or running out of time costs a life, and you have 3. Your best score goes on the quiz leaderboard.</p>`],
-      ['Why does the engine take a moment to load?', `<p>The first time you analyze or play the bot, the engine downloads once and is then kept on your device.</p>`]
+      ['Why does the engine take a moment to start?', `<p>The first time you analyze a game or play the bot, the engine needs a few seconds to get ready. After that it starts much faster.</p>`]
      ]},
     {id:'fair', title:'Fair play', sub:'Keeping games honest',
      items:[
       ['What counts as cheating?', `<ul><li>Using an engine or any outside help during a game.</li><li>Having someone else play for you, or playing from two accounts against each other.</li><li>Losing on purpose, or teaming up, to raise ratings.</li><li>Leaving games to avoid losing.</li></ul><p>In Hand &amp; Brain, players on the same side may talk to coordinate but must follow the role rules (the Brain does not make moves, the Hand does not choose the type).</p>`],
-      ['How are cheaters found?', `<p>Mostly through reports from players. Staff may also look at hints such as how often someone leaves the game tab, their move timing, and how closely their moves match the engine in analyzed games. These are only hints, and a person looks at the games before deciding anything. Nothing is banned automatically.</p>`],
-      ['What happens if I am caught?', `<p>Depending on how serious it is: a warning, removing your rating or content, a restriction or a permanent ban. Please see the Terms of Service.</p>`]
+      ['How are cheaters found?', `<p>Through reports from players and through our own checks. Please report anything suspicious from the player's profile.</p>`],
+      ['What happens if I am caught?', `<p>Appropriate action is taken. This can include resetting your rating, refunding the rating your opponents lost, or banning your account from the website, either for a period of time or permanently, as we decide. Please see the Terms of Service.</p>`]
      ]}
   ];
 
@@ -13968,17 +13968,38 @@ details.hp-q[open] > summary{border-bottom:1px solid #efe9db;}
     if(!loggedIn()) addBack(scrHelp);
   };
 
+  // FIXED: the click handler is attached straight to the element (no shared id),
+  // so it always works no matter which page was opened first.
   function addBack(host){
+    var old = host.querySelector('.lg-back-wrap');
+    if(old) old.remove();
     var d = document.createElement('div');
+    d.className = 'lg-back-wrap';
     d.style.cssText = 'margin-top:4px;';
-    d.innerHTML = '<span class="backlink" id="lgBack">&larr; ' + (loggedIn() ? 'Back to Pawniac' : 'Back to login') + '</span>';
+    var b = document.createElement('span');
+    b.className = 'backlink';
+    b.style.cursor = 'pointer';
+    b.innerHTML = '&larr; ' + (loggedIn() ? 'Back to Pawniac' : 'Back to login');
+    b.onclick = goBack;
+    d.appendChild(b);
     host.appendChild(d);
-    $('lgBack').onclick = goBack;
   }
   function goBack(){
     try{ history.replaceState(null, '', location.pathname + location.search); }catch(e){}
-    if(loggedIn() && typeof afterAuth === 'function') afterAuth();
-    else renderAuthScreen();
+    try{
+      if(loggedIn() && typeof afterAuth === 'function') afterAuth();
+      else renderAuthScreen();
+    }catch(e){
+      console.error(e);
+      location.href = location.pathname + location.search;
+      return;
+    }
+    // safety net: if we are logged out and a Help/Terms page is still showing, reload to the login screen
+    var t = document.getElementById('screen-terms');
+    var h = document.getElementById('screen-help');
+    if(!loggedIn() && ((t && t.style.display === 'block') || (h && h.style.display === 'block'))){
+      location.href = location.pathname + location.search;
+    }
   }
 
   // =====================================================================
@@ -14019,7 +14040,7 @@ details.hp-q[open] > summary{border-bottom:1px solid #efe9db;}
 <li>repeatedly abandon games, stall, or refuse to finish games you are losing;</li>
 <li>in Hand &amp; Brain team games, break the role rules (for example, the Brain making moves or the Hand choosing the piece type).</li>
 </ul>
-<p>We may use reports and technical hints (such as how often the game tab is left, move timing and engine-match statistics from analyzed games) to review games. These are only hints. A person reviews them and nothing is banned automatically.</p>
+<p>We review reports and games, and appropriate action is taken against rule-breaking (see section 8).</p>
 
 <h3>6. Your content</h3>
 <p>You own what you add to your profile (bio, picture, country and so on). By adding it you give us permission to store it and show it to other users of the Service as part of how the Service works. You promise you have the right to use it. Game results, ratings and records are shown to other signed-in players, and finished games can be opened with a public game link.</p>
@@ -14028,10 +14049,10 @@ details.hp-q[open] > summary{border-bottom:1px solid #efe9db;}
 <p>Ratings, leaderboards, achievements and statistics are for fun. We do not guarantee that they are always accurate. Bugs, outages, aborted or disconnected games, or fair-play decisions can affect them. We can correct, adjust or reset any rating, score or achievement, or remove an entry from a leaderboard, at any time, for example to fix an error or because of cheating.</p>
 
 <h3>8. Moderation</h3>
-<p>Staff may review reports and games, and may, at our discretion, remove content, change or remove a username, adjust ratings, restrict features, suspend or permanently ban accounts and delete data tied to rule-breaking. Where practical we will explain why, but we are not required to. If you think we made a mistake, email ${mail()}.</p>
+<p>Staff may review reports and games, and may, at our discretion, remove content, change or remove a username, reset ratings, refund the rating opponents lost, restrict features, ban accounts from the website, either for a period of time or permanently, as we decide, and delete data tied to rule-breaking. Where practical we will explain why, but we are not required to. If you think we made a mistake, email ${mail()}.</p>
 
 <h3>9. Donations and donor perks</h3>
-<p>Pawniac is free. Donating is entirely voluntary. At the moment donors get a gradient on their username that is visible to other users. This is a thank-you, not a purchase:</p>
+<p>Pawniac is free. Donating is entirely voluntary. To donate, email ${mail()} to show your interest and we will let you know about the available payment methods. At the moment donors get a gradient on their username that is visible to other users. This is a thank-you, not a purchase:</p>
 <ul>
 <li>Donations are non-refundable, except where the law says otherwise.</li>
 <li>A donation does not give you ownership of, or any right in, the Service, and does not protect you from the rules or from moderation.</li>
@@ -14065,7 +14086,7 @@ details.hp-q[open] > summary{border-bottom:1px solid #efe9db;}
 
   var PRIV = `
 <h3>1. The short version</h3>
-<p>We collect only what Pawniac needs to run: your account, your games and scores, and a few technical signals to keep play fair. There are no ads, we do not sell your data and we do not use advertising trackers. Your email is never shown to other players.</p>
+<p>We collect only what Pawniac needs to run: your account, your games and scores, and some information that helps keep play fair. There are no ads, we do not sell your data and we do not use advertising trackers. Your email is never shown to other players.</p>
 
 <h3>2. Who is responsible</h3>
 <p>Rishit (an individual), operating Pawniac at pawniac.fun, is responsible for your data. Contact: ${mail()}.</p>
@@ -14075,14 +14096,14 @@ details.hp-q[open] > summary{border-bottom:1px solid #efe9db;}
 <p><b>Game data.</b> Your games (moves, results, players, time control, move times), ratings, win/loss/draw records, game numbers and history, leaderboard entries, minigame and quiz scores, achievements and counters (such as games played and daily streaks).</p>
 <p><b>Profile.</b> The things you add: bio, profile picture, country, and the date you joined.</p>
 <p><b>Activity and status.</b> Whether you are online, idle or in a game, which game you are in, whether you are searching for a match, challenges you send or receive, and short-lived presence information while you are connected.</p>
-<p><b>Fair-play and safety.</b> Reports you send or that are made about you, and per-game signals: how many times you left the game tab, whether you left it right before your moves, summary statistics about move timing, and, when a game is analyzed, how closely the moves match the engine. These are hints for a human reviewer, not automatic decisions.</p>
+<p><b>Fair-play and safety.</b> Reports you send or that are made about you, and information about how games are played that helps us keep play fair.</p>
 <p><b>On your device.</b> Your settings, theme, bot and challenge preferences, saved piece images, the opening list and the chess engine are stored in your browser (local storage and cache). Your last game is remembered so you can come back to it. This stays on your device.</p>
 
 <h3>3a. What we do not collect</h3>
 <p>We do not collect your location, contacts, phone number, real name, payment details or advertising IDs. There is no in-game chat. The PGNs you paste into the analyzer and the engine analysis run in your browser and are not uploaded. Games against the bot are not stored.</p>
 
 <h3>4. What other people can see</h3>
-<p>Other signed-in players can see: your username, any title, profile picture, bio, country, join date, ratings, records, leaderboard scores, pinned achievements, recent games, online status, and which live game you are in (and can watch it). Finished games can be opened by anyone who has their link. Your email, reports about you and the fair-play signals are never public. Only staff can see reports and signals.</p>
+<p>Other signed-in players can see: your username, any title, profile picture, bio, country, join date, ratings, records, leaderboard scores, pinned achievements, recent games, online status, and which live game you are in (and can watch it). Finished games can be opened by anyone who has their link. Your email, reports about you and fair-play information are never public. Only staff can see them.</p>
 
 <h3>5. Why we use it</h3>
 <ul>
@@ -14104,7 +14125,7 @@ details.hp-q[open] > summary{border-bottom:1px solid #efe9db;}
 <p>We do not use advertising or tracking cookies. Firebase and your browser store login information and the settings listed above so the site can work. You can clear this in your browser settings, but you will be logged out and lose local settings.</p>
 
 <h3>8. How long we keep data</h3>
-<p>We keep your account and game data until you ask us to delete it or we remove the account. Short-lived data (online status, challenges, matchmaking entries) is removed automatically or soon after you leave. Reports and fair-play records are kept as long as they are useful for moderation.</p>
+<p>We keep your account and game data until you ask us to delete it or we remove the account. Short-lived data (online status, challenges, matchmaking entries) is removed automatically or soon after you leave. Reports and related records are kept as long as they are useful for moderation.</p>
 
 <h3>9. Your choices and rights</h3>
 <p>You can edit or remove your bio, picture and country on your profile at any time, and clear your local data in your browser. You can ask us to show you, correct or delete your data, or to delete your account, by emailing ${mail()} from the address you signed up with. If you live where privacy laws (such as GDPR or similar) give you additional rights, such as access, correction, deletion, objection or complaint to an authority, you can use them by contacting us. Deleting an account removes your profile and personal records, but a game you played against someone else may be kept without your username attached, or with your username as it appears in their history, so that their history stays complete.</p>
