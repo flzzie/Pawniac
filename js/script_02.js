@@ -143,10 +143,31 @@ function genCode(){
   return c;
 }
 
+// ================= SIGNUP / LOGIN (with email verification) =================
+
 let signingUp = false;
 
+// Throwaway-email services we refuse. Keep this list in sync with the Firebase rules.
+const BLOCKED_EMAIL_DOMAINS = [
+  'mailinator.com','guerrillamail.com','10minutemail.com','tempmail.com','temp-mail.org',
+  'yopmail.com','trashmail.com','sharklasers.com','getnada.com','dispostable.com',
+  'throwawaymail.com','maildrop.cc'
+];
+function isBlockedEmail(email){
+  const d = (String(email).split('@')[1] || '').toLowerCase();
+  return BLOCKED_EMAIL_DOMAINS.includes(d);
+}
+function escHtml(s){
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+const USERNAME_RE = /^[A-Za-z0-9_]{3,20}$/;
+const pendingKey = uid => 'pawniac-pending-username:' + uid;
+function getPending(uid){ try{ return localStorage.getItem(pendingKey(uid)); }catch(e){ return null; } }
+function setPending(uid, name){ try{ localStorage.setItem(pendingKey(uid), name); }catch(e){} }
+function clearPending(uid){ try{ localStorage.removeItem(pendingKey(uid)); }catch(e){} }
+
 auth.onAuthStateChanged(async (user)=>{
-  if(signingUp) return; // doSignup drives its own flow while the account is being assembled
+  if(signingUp) return; // doSignup drives its own flow while the account is being created
   stopPoll();
   if(user){
     await handleSignedIn(user);
@@ -161,14 +182,18 @@ auth.onAuthStateChanged(async (user)=>{
 
 async function handleSignedIn(user){
   const username = await kget('hb:usernameByUid:'+user.uid, true);
-  if(!username){
-    renderAuthScreen('Something went wrong finishing your signup - please try again.');
+  if(username){
+    // Existing player (or a new one who already finished signup).
+    ME = {username};
+    const profile = await kget('hb:leaderboard:'+username, true) || {rating:1200, games:0};
+    renderUserbox(profile);
+    await afterAuth();
     return;
   }
-  ME = {username};
-  const profile = await kget('hb:leaderboard:'+username, true) || {rating:1200, games:0};
-  renderUserbox(profile);
-  await afterAuth();
+  // No username yet = a new account that still has to finish signup.
+  try{ await user.reload(); }catch(e){ /* offline - fall through with what we have */ }
+  if(!user.emailVerified){ renderVerifyScreen(user); return; }
+  await finishSignup(user);
 }
 
 function renderUserbox(profile){
@@ -200,10 +225,11 @@ function friendlyAuthError(e){
   if(code==='auth/weak-password') return 'Password needs at least 6 characters.';
   if(code==='auth/user-not-found' || code==='auth/wrong-password' || code==='auth/invalid-credential') return 'Wrong email or password.';
   if(code==='auth/too-many-requests') return 'Too many attempts - try again in a bit.';
+  if(code==='auth/network-request-failed') return 'Network problem - check your connection and try again.';
   return 'Something went wrong. Please try again.';
 }
 
-function renderAuthScreen(err){
+function renderAuthScreen(err, info){
   showScreen('auth');
   const el = document.getElementById('screen-auth');
   el.innerHTML = `
@@ -211,6 +237,7 @@ function renderAuthScreen(err){
       <h2>${authMode==='login' ? 'Log in' : 'Create an account'}</h2>
       <p class="desc">${authMode==='login' ? 'Log in with your email.' : 'Pick a username, verify with your email, and you are set.'}</p>
       ${err ? '<div class="draw-offer" style="color:#b8433f;">'+err+'</div>' : ''}
+      ${info ? '<div class="draw-offer">'+escHtml(info)+'</div>' : ''}
       <div class="row" style="flex-direction:column;align-items:stretch;gap:10px;">
         ${authMode==='signup' ? '<input type="text" id="authUsername" placeholder="username" autocomplete="username">' : ''}
         <input type="email" id="authEmail" placeholder="email" autocomplete="email">
@@ -220,10 +247,13 @@ function renderAuthScreen(err){
         <button id="btnAuthSubmit">${authMode==='login' ? 'Log in' : 'Sign up'}</button>
         <button class="secondary" id="btnAuthSwitch">${authMode==='login' ? "Need an account? Sign up" : "Have an account? Log in"}</button>
       </div>
+      ${authMode==='login' ? '<div style="margin-top:14px;"><span class="backlink" id="btnForgot">Forgot password?</span></div>' : ''}
     </div>
   `;
   document.getElementById('btnAuthSwitch').onclick = ()=>{ authMode = authMode==='login'?'signup':'login'; renderAuthScreen(); };
   document.getElementById('btnAuthSubmit').onclick = authMode==='login' ? doLogin : doSignup;
+  const forgotBtn = document.getElementById('btnForgot');
+  if(forgotBtn) forgotBtn.onclick = doForgotPassword;
   el.querySelectorAll('input').forEach(inp=>{
     inp.onkeydown = (e)=>{ if(e.key==='Enter') document.getElementById('btnAuthSubmit').click(); };
   });
@@ -234,8 +264,9 @@ async function doSignup(){
   const email = document.getElementById('authEmail').value.trim();
   const password = document.getElementById('authPassword').value;
   if(!username || !email || !password){ renderAuthScreen('Fill in all fields.'); return; }
-  if(!/^[A-Za-z0-9_]{3,20}$/.test(username)){ renderAuthScreen('Username: 3-20 letters, numbers or underscores.'); return; }
+  if(!USERNAME_RE.test(username)){ renderAuthScreen('Username: 3-20 letters, numbers or underscores.'); return; }
   if(password.length < 6){ renderAuthScreen('Password needs at least 6 characters.'); return; }
+  if(isBlockedEmail(email)){ renderAuthScreen('Please use a real email address - temporary email services are not allowed.'); return; }
 
   const taken = await kget('hb:account:'+username+':uid', true);
   if(taken){ renderAuthScreen('That username is taken.'); return; }
@@ -249,23 +280,35 @@ async function doSignup(){
     renderAuthScreen(friendlyAuthError(e));
     return;
   }
-  const uid = cred.user.uid;
-  const claimed = await kset('hb:account:'+username, {uid}, true);
-  if(!claimed){
-    // Someone else grabbed the username in the split second between our check and this write.
-    try{ await cred.user.delete(); }catch(e){}
-    signingUp = false;
-    await auth.signOut().catch(()=>{});
-    renderAuthScreen('That username is taken.');
-    return;
-  }
-  await kset('hb:usernameByUid:'+uid, username, true);
-  const profile = {rating:1200, games:0};
-  await kset('hb:leaderboard:'+username, profile, true);
-  ME = {username};
-  renderUserbox(profile);
+
+  // The username is only CLAIMED after the email is verified (see finishSignup);
+  // remember the choice meanwhile.
+  setPending(cred.user.uid, username);
+
+  let sendFailed = false;
+  try{ await cred.user.sendEmailVerification(); }
+  catch(e){ console.error('sendEmailVerification failed', e); sendFailed = true; }
+
   signingUp = false;
-  await afterAuth();
+  renderVerifyScreen(cred.user, sendFailed ? "We couldn't send the email just now - press 'Resend email'." : '');
+}
+
+// ---- password reset ----
+// Always shows the same message whether or not the email has an account,
+// so nobody can use this form to find out who is registered.
+async function doForgotPassword(){
+  const email = document.getElementById('authEmail').value.trim();
+  if(!email){ renderAuthScreen('Type your email in the box first, then press "Forgot password?".'); return; }
+  const sentMsg = 'If an account exists for ' + email + ', a password reset link is on its way. Check your inbox and spam folder.';
+  try{
+    await auth.sendPasswordResetEmail(email);
+    renderAuthScreen('', sentMsg);
+  } catch(e){
+    if(e && e.code==='auth/user-not-found'){ renderAuthScreen('', sentMsg); }
+    else { console.error(e); renderAuthScreen(friendlyAuthError(e)); }
+  }
+  const box = document.getElementById('authEmail');
+  if(box) box.value = email;
 }
 
 async function doLogin(){
@@ -277,6 +320,134 @@ async function doLogin(){
     // onAuthStateChanged -> handleSignedIn takes it from here.
   } catch(e){
     renderAuthScreen(friendlyAuthError(e));
+  }
+}
+
+// ================= EMAIL VERIFICATION =================
+let verifyChecking = false;
+
+function renderVerifyScreen(user, msg, ok){
+  stopPoll();
+  showScreen('auth');
+  const el = document.getElementById('screen-auth');
+  el.innerHTML = `
+    <div class="card">
+      <h2>Verify your email</h2>
+      <p class="desc">We sent a verification link to <b>${escHtml(user.email)}</b>. Open it (check your spam folder too), then come back here.</p>
+      ${msg ? '<div class="draw-offer"'+(ok?'':' style="color:#b8433f;"')+'>'+escHtml(msg)+'</div>' : ''}
+      <div style="margin-top:16px;display:flex;gap:10px;flex-wrap:wrap;">
+        <button id="btnVerified">I've verified</button>
+        <button class="secondary" id="btnResend">Resend email</button>
+      </div>
+      <div style="margin-top:14px;"><span class="backlink" id="btnVerifyLogout">Log out</span></div>
+    </div>
+  `;
+  document.getElementById('btnVerified').onclick = ()=> checkVerified(user, true);
+  document.getElementById('btnResend').onclick = async ()=>{
+    document.getElementById('btnResend').disabled = true;
+    try{
+      await user.sendEmailVerification();
+      renderVerifyScreen(user, 'Email sent again - check your inbox and spam.', true);
+    } catch(e){
+      console.error(e);
+      renderVerifyScreen(user, e && e.code==='auth/too-many-requests'
+        ? 'Too many emails sent - wait a few minutes and try again.'
+        : 'Could not send the email. Try again later.');
+    }
+  };
+  document.getElementById('btnVerifyLogout').onclick = logout;
+  // Moves on automatically once the link has been clicked (same device or another).
+  pollTimer = setInterval(()=> checkVerified(user, false), 5000);
+}
+
+async function checkVerified(user, manual){
+  if(verifyChecking) return;
+  verifyChecking = true;
+  try{
+    await user.reload();
+    if(user.emailVerified){
+      stopPoll();
+      await finishSignup(user);
+    } else if(manual){
+      renderVerifyScreen(user, 'Not verified yet - open the link in the email first.');
+    }
+  } catch(e){
+    console.error(e);
+    if(manual) renderVerifyScreen(user, 'Could not check right now - try again.');
+  } finally {
+    verifyChecking = false;
+  }
+}
+
+async function finishSignup(user){
+  const pending = getPending(user.uid);
+  if(!pending){ renderChooseUsername(user); return; }
+  await claimUsername(user, pending);
+}
+
+function renderChooseUsername(user, err){
+  stopPoll();
+  showScreen('auth');
+  const el = document.getElementById('screen-auth');
+  el.innerHTML = `
+    <div class="card">
+      <h2>Choose a username</h2>
+      <p class="desc">Your email is verified. Pick the username other players will see.</p>
+      ${err ? '<div class="draw-offer" style="color:#b8433f;">'+escHtml(err)+'</div>' : ''}
+      <div class="row" style="flex-direction:column;align-items:stretch;gap:10px;">
+        <input type="text" id="chooseUsername" placeholder="username" autocomplete="username">
+      </div>
+      <div style="margin-top:16px;display:flex;gap:10px;">
+        <button id="btnChooseGo">Continue</button>
+      </div>
+      <div style="margin-top:14px;"><span class="backlink" id="btnChooseLogout">Log out</span></div>
+    </div>
+  `;
+  const go = async ()=>{
+    const name = document.getElementById('chooseUsername').value.trim();
+    if(!USERNAME_RE.test(name)){ renderChooseUsername(user, 'Username: 3-20 letters, numbers or underscores.'); return; }
+    setPending(user.uid, name);
+    await claimUsername(user, name);
+  };
+  document.getElementById('btnChooseGo').onclick = go;
+  document.getElementById('chooseUsername').onkeydown = (e)=>{ if(e.key==='Enter') go(); };
+  document.getElementById('btnChooseLogout').onclick = logout;
+}
+
+async function claimUsername(user, username){
+  try{
+    // Refresh the login token so the database rules see email_verified = true.
+    await user.getIdToken(true);
+
+    const owner = await kget('hb:account:'+username+':uid', true);
+    if(owner && owner !== user.uid){
+      clearPending(user.uid);
+      renderChooseUsername(user, 'That username is taken - pick another.');
+      return;
+    }
+    if(!owner){
+      const ok = await kset('hb:account:'+username, {uid:user.uid}, true);
+      if(!ok){
+        clearPending(user.uid);
+        renderChooseUsername(user, 'Could not claim that username (taken or not allowed) - try another.');
+        return;
+      }
+    }
+    if(!(await kset('hb:usernameByUid:'+user.uid, username, true))){
+      renderChooseUsername(user, 'Could not finish signup - please try again.');
+      return;
+    }
+    if(!(await kget('hb:leaderboard:'+username, true))){
+      await kset('hb:leaderboard:'+username, {rating:1200, games:0}, true);
+    }
+    clearPending(user.uid);
+    ME = {username};
+    const profile = await kget('hb:leaderboard:'+username, true) || {rating:1200, games:0};
+    renderUserbox(profile);
+    await afterAuth();
+  } catch(e){
+    console.error(e);
+    renderChooseUsername(user, 'Something went wrong - please try again.');
   }
 }
 
