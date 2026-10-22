@@ -1,0 +1,12 @@
+.lobby-cols{display:grid;grid-template-columns:minmax(0,640px) 300px;gap:24px;align-items:start;}
+.lobby-right{position:sticky;top:16px;}
+.live-row{display:flex;align-items:center;gap:10px;padding:10px 0;font-size:13.5px;}
+.live-row + .live-row{border-top:1px solid #efe9db;}
+.live-row b{font-size:22px;min-width:30px;}
+.live-dot{width:9px;height:9px;border-radius:50%;background:#2ea66f;box-shadow:0 0 0 3px rgba(46,166,111,.22);flex-shrink:0;}
+.live-ico{width:9px;text-align:center;flex-shrink:0;opacity:.6;}
+[data-theme=dark] .live-row + .live-row{border-top-color:#34312a;}
+@media (max-width:900px){
+  .lobby-cols{grid-template-columns:minmax(0,1fr);}
+  .lobby-right{position:static;}
+}

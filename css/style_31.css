@@ -1,0 +1,8 @@
+.tl-main{display:flex;gap:22px;flex-wrap:wrap;align-items:flex-start;}
+.tl-side{flex:1;min-width:280px;}
+#tlCard .an-bw{display:inline-block;}
+#tlBoard .sq{cursor:pointer;}
+.tl-mv{display:flex;flex-wrap:wrap;gap:2px 4px;font-size:13px;}
+.tl-mv .an-m{padding:3px 6px;}
+.tl-n{opacity:.55;font-size:11.5px;padding:3px 0 3px 4px;display:flex;align-items:center;}
+@media (min-width:820px){ .tl-main{flex-wrap:nowrap;} #tlPanel{max-height:calc(var(--sq) * 8);overflow-y:auto;padding-right:6px;} }

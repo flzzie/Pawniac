@@ -1,0 +1,2 @@
+.ttl,.pf-name[data-ttl]::before{display:inline-block;font-size:.72em;font-weight:800;letter-spacing:.4px;line-height:1;padding:3px 6px;margin-right:9px !important;border-radius:4px;color:#fff;background:#d62d2d;vertical-align:.08em;text-decoration:none;text-transform:none;}
+.pf-name[data-ttl]::before{content:attr(data-ttl);}

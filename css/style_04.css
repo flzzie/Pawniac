@@ -1,0 +1,14 @@
+/* nav bar follows light / dark theme */
+.navbar{background:#fffdf9;border:1px solid #e4ddcf;}
+.navbar a{color:#7a766c;}
+.navbar a:hover{color:#22201b;}
+.navbar a.active{color:#22201b;border-bottom-color:#1f6f5c;}
+[data-theme=dark] .navbar{background:#252320;border-color:#3a372f;}
+[data-theme=dark] .navbar a{color:#a29d90;}
+[data-theme=dark] .navbar a:hover,[data-theme=dark] .navbar a.active{color:#fff;}
+[data-theme=dark] .navbar a.active{border-bottom-color:#4fb59a;}
+
+/* knight's tour */
+.sq.visited-n{font-weight:700;font-size:calc(var(--sq) * 0.28);color:rgba(20,20,15,.65);}
+.kt-knight{font-size:calc(var(--sq) * 0.72);line-height:1;color:#141210;text-shadow:0 0 3px #f7f2e4,0 0 3px #f7f2e4;}
+.kt-time{font-family:monospace;font-size:26px;font-weight:700;text-align:center;margin-bottom:12px;}

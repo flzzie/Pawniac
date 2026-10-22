@@ -1,0 +1,2 @@
+.board{position:relative;}
+svg.pn-ann{position:absolute;left:0;top:0;pointer-events:none;z-index:6;overflow:visible;}

@@ -1,0 +1,9 @@
+.sq.bb-ok{box-shadow:inset 0 0 0 999px rgba(46,166,111,.45);}
+.sq.bb-bad{box-shadow:inset 0 0 0 999px rgba(214,69,69,.5);}
+.bb-bar{height:10px;border-radius:5px;background:#e4ddcf;overflow:hidden;margin:10px 0 6px;}
+.bb-bar div{height:100%;background:#1f6f5c;width:100%;}
+[data-theme=dark] .bb-bar{background:#3a372f;}
+.bb-pal{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px;}
+.bb-pal .tcbtn{padding:3px;}
+.bb-pal .piece-img{width:34px;height:34px;display:block;}
+.bb-btns{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;}

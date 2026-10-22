@@ -1,0 +1,4 @@
+   .idea/
+   .venv/
+   Split html.py
+   __pycache__/

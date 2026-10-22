@@ -1,0 +1,31 @@
+/* lobby cards may use the full width */
+#screen-lobby .card{max-width:none;}
+
+/* stack: top bars first, everything else below */
+.lobby-cols{display:flex;flex-direction:column;gap:0;}
+.lobby-right{order:-1;position:static;}
+
+/* thin "Live now" bar */
+.lobby-right .card{padding:10px 20px;margin-bottom:12px;}
+.lobby-right .card:not(.quote-card){display:flex;align-items:center;gap:30px;}
+.lobby-right .card h2{margin:0;font-size:14px;line-height:1;}
+.lobby-right .live-row{display:flex;align-items:center;gap:8px;padding:0;font-size:13px;line-height:1;white-space:nowrap;}
+.lobby-right .live-row + .live-row{border-top:none;}
+.lobby-right .live-row b{font-size:16px;min-width:0;line-height:1;}
+.lobby-right .live-ico{font-size:12px;line-height:1;}
+#liveHint{display:none;}
+
+/* thin quote bar */
+.lobby-right .quote-card{display:flex;align-items:center;gap:10px;font-size:13px;line-height:1.4;margin-bottom:24px;}
+.quote-card .q-text{font-style:italic;}
+.quote-card .q-by{opacity:.6;white-space:nowrap;}
+
+/* left side: mode + time control full width, then two cards side by side */
+.lobby-left{display:grid;grid-template-columns:1fr 1fr;column-gap:24px;}
+.lobby-left > :nth-child(-n+3){grid-column:1 / -1;}
+
+@media (max-width:760px){
+  .lobby-left{grid-template-columns:1fr;}
+  .lobby-right .card:not(.quote-card){flex-wrap:wrap;gap:8px 20px;}
+  .lobby-right .quote-card{flex-wrap:wrap;}
+}

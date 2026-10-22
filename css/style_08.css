@@ -1,0 +1,36 @@
+/* ---- toggle switch ---- */
+.switch{position:relative;width:42px;height:24px;flex-shrink:0;display:inline-block;}
+.switch input{opacity:0;width:0;height:0;position:absolute;}
+.switch span{position:absolute;top:0;left:0;right:0;bottom:0;background:#cfc8b6;border-radius:24px;cursor:pointer;transition:background .15s;}
+.switch span::before{content:'';position:absolute;width:18px;height:18px;left:3px;top:3px;background:#fff;border-radius:50%;transition:transform .15s;}
+.switch input:checked + span{background:#1f6f5c;}
+.switch input:checked + span::before{transform:translateX(18px);}
+[data-theme=dark] .switch span{background:#4a463b;}
+[data-theme=dark] .switch input:checked + span{background:#1f6f5c;}
+
+/* ---- settings rows ---- */
+.set-row{display:flex;justify-content:space-between;align-items:center;gap:14px;padding:11px 0;border-bottom:1px solid #efe9db;}
+.set-row:last-child{border-bottom:none;}
+.set-label{font-size:13.5px;font-weight:600;}
+.set-ctl{display:flex;align-items:center;gap:10px;}
+.set-play{padding:5px 10px;font-size:11px;}
+.set-dim{opacity:.45;}
+[data-theme=dark] .set-row{border-bottom-color:#34312a;}
+
+/* ---- display options (toggled via classes on <body>) ---- */
+body.no-coords .coord{display:none;}
+body.no-dots #screen-game .sq.dest::after{display:none;}
+body.no-last #screen-game .sq.light.last:not(.from){background:#f0d9b5;}
+body.no-last #screen-game .sq.dark.last:not(.from){background:#b58863;}
+
+/* ---- username dropdown ---- */
+#userbox{position:relative;}
+.menu-trigger{cursor:pointer;user-select:none;}
+.menu-trigger:hover{color:#1f6f5c;}
+.menu-trigger .caret{font-size:10px;opacity:.7;}
+.user-menu{display:none;position:absolute;right:0;top:100%;margin-top:6px;min-width:150px;background:#fffdf9;border:1px solid #e4ddcf;border-radius:8px;box-shadow:0 6px 18px rgba(0,0,0,.14);z-index:50;text-align:left;overflow:hidden;}
+.um-item{padding:10px 14px;font-size:13.5px;font-weight:600;cursor:pointer;}
+.um-item:hover{background:#efe9db;}
+[data-theme=dark] .user-menu{background:#252320;border-color:#3a372f;}
+[data-theme=dark] .um-item:hover{background:#38352d;}
+[data-theme=dark] .menu-trigger:hover{color:#4fb59a;}

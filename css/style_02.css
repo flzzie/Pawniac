@@ -1,0 +1,5 @@
+.navbar{display:none;gap:2px;background:#2e2a24;border-radius:8px;padding:0 8px;margin:-12px 0 28px;overflow-x:auto;}
+.navbar a{color:#a9a498;font-size:13px;font-weight:600;letter-spacing:.6px;text-transform:uppercase;padding:14px;cursor:pointer;white-space:nowrap;border-bottom:3px solid transparent;}
+.navbar a:hover{color:#fff;}
+.navbar a.active{color:#fff;border-bottom-color:#4fb59a;}
+[data-theme=dark] .navbar{background:#11100e;border:1px solid #3a372f;}

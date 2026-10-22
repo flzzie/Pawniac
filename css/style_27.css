@@ -1,0 +1,6 @@
+#screen-bot{--sq:clamp(30px, 9vw, 72px);}
+#screen-bot .au-slot.sel{outline:3px solid #1f6f5c;outline-offset:-3px;}
+#screen-bot .bt-h{font-size:12px;font-weight:700;margin:14px 0 6px;opacity:.7;text-transform:uppercase;letter-spacing:.5px;}
+#screen-bot input[type=range]{width:100%;max-width:340px;accent-color:#1f6f5c;}
+#screen-bot .bt-eng{font-size:12.5px;margin:10px 0 0;}
+#screen-bot .bt-bw{display:inline-block;}

@@ -1,0 +1,13 @@
+.user-link{cursor:pointer;text-decoration:underline dotted;text-underline-offset:3px;}
+.user-link:hover{color:#1f6f5c;}
+.pf-head{display:flex;gap:16px;align-items:center;margin-bottom:14px;}
+.pf-avatar{width:56px;height:56px;border-radius:50%;background:#1f6f5c;color:#fff;font-size:26px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.pf-name{font-size:20px;font-weight:700;}
+.pf-bio{white-space:pre-wrap;font-size:13.5px;line-height:1.6;}
+.pf-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+.pf-box{border:1px solid #e4ddcf;border-radius:8px;padding:14px;text-align:center;}
+.pf-big{font-size:26px;font-weight:700;}
+textarea.pf-edit{width:100%;min-height:70px;border:1px solid #d8d1bf;border-radius:7px;padding:10px 12px;font-size:13.5px;font-family:inherit;resize:vertical;}
+[data-theme=dark] .pf-box{border-color:#3a372f;}
+[data-theme=dark] textarea.pf-edit{background:#1b1a17;border-color:#4a463b;color:#e8e4d8;}
+[data-theme=dark] .user-link:hover{color:#4fb59a;}

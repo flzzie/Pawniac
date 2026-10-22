@@ -1,0 +1,34 @@
+/* ---------- chessboard background on every page (faint, so it never fights the content) ---------- */
+body::before{
+  content:'';position:fixed;inset:0;z-index:-1;pointer-events:none;
+  background:repeating-conic-gradient(rgba(60,50,20,.04) 0 25%, transparent 0 50%) 0 0 / 88px 88px;
+  -webkit-mask-image:radial-gradient(ellipse 100% 85% at 50% 25%, #000 0%, transparent 100%);
+          mask-image:radial-gradient(ellipse 100% 85% at 50% 25%, #000 0%, transparent 100%);
+}
+[data-theme=dark] body::before{
+  background:repeating-conic-gradient(rgba(255,255,255,.035) 0 25%, transparent 0 50%) 0 0 / 88px 88px;
+}
+
+/* ---------- lobby: the Live now and quote bars use the whole width ---------- */
+html body .lobby-cols > .lobby-right{width:100%;align-self:stretch;max-width:none;}
+html body .lobby-right .card{width:100%;max-width:none;}
+html body .lobby-right .card:not(.quote-card){justify-content:space-between;padding-left:26px;padding-right:26px;}
+html body .lobby-right .quote-card{justify-content:center;text-align:center;padding-top:14px;padding-bottom:14px;font-size:14px;}
+
+/* ---------- login and sign up: bigger and centred ---------- */
+html body #screen-auth{padding-top:7vh;padding-bottom:4vh;}
+html body #screen-auth .card{
+  max-width:520px;width:100%;margin-left:auto;margin-right:auto;padding:44px 48px;
+}
+html body #screen-auth .card h2{font-size:28px;margin-bottom:12px;text-align:center;}
+html body #screen-auth .card p.desc{font-size:15px;text-align:center;margin-bottom:24px;}
+html body #screen-auth .card input[type=text],
+html body #screen-auth .card input[type=email],
+html body #screen-auth .card input[type=password]{padding:14px 16px;font-size:15px;border-radius:9px;margin-bottom:12px;}
+html body #screen-auth .card button{padding:14px 22px;font-size:15px;border-radius:9px;}
+html body #screen-auth .card .so-or{margin:26px 0 16px;font-size:13px;}
+html body #screen-auth .card .so-btns{gap:12px;}
+html body #screen-auth .card .so-btns button{padding:14px;}
+@media (max-width:560px){
+  html body #screen-auth .card{padding:28px 20px;}
+}

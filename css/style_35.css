@@ -1,0 +1,2 @@
+/* the old nav-bar tab is hidden (kept in the page so the achievements code and the Reports tab keep working) */
+#navbar [data-nav="achievements"]{display:none !important;}

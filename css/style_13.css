@@ -1,0 +1,8 @@
+/* Time control: one thin row */
+.lobby-left > .card:nth-child(3){display:flex;align-items:center;flex-wrap:wrap;gap:10px 20px;padding:12px 20px;margin-bottom:16px;}
+.lobby-left > .card:nth-child(3) h2{margin:0;font-size:14px;}
+.lobby-left > .card:nth-child(3) .tc-row{margin:0;}
+.lobby-left > .card:nth-child(3) .row{margin:0 !important;}
+
+/* Quick match: only as tall as its content */
+.lobby-left > .card:nth-child(4){align-self:start;}

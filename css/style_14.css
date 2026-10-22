@@ -1,0 +1,19 @@
+/* both cards same height */
+.lobby-left > .card:nth-child(4),
+.lobby-left > .card:nth-child(5){align-self:stretch;margin-bottom:0;}
+
+/* Quick match: button sits at the bottom */
+.lobby-left > .card:nth-child(4){display:flex;flex-direction:column;}
+.lobby-left > .card:nth-child(4) #btnQuick{margin-top:auto;align-self:flex-start;}
+
+/* Play with friends: Create room + join code on one line */
+.lobby-left > .card:nth-child(5){display:grid;grid-template-columns:auto 1fr;column-gap:12px;align-content:start;}
+.lobby-left > .card:nth-child(5) > *{grid-column:1 / -1;}
+.lobby-left > .card:nth-child(5) > #btnCreate{grid-column:1;justify-self:start;}
+.lobby-left > .card:nth-child(5) > .row{grid-column:2;margin-top:0 !important;}
+
+@media (max-width:760px){
+  .lobby-left > .card:nth-child(4),
+  .lobby-left > .card:nth-child(5){display:block;margin-bottom:24px;}
+  .lobby-left > .card:nth-child(5) > .row{margin-top:14px !important;}
+}

@@ -1,0 +1,11 @@
+body.dnd-on #screen-game .board{touch-action:none;}
+.sq.dnd-from{cursor:grab;}
+body.dnd-dragging,body.dnd-dragging *{cursor:grabbing !important;}
+.sq.dnd-src .piece-img,.sq.dnd-src > span:not(.coord){opacity:.3;}
+.sq.dnd-gone .piece-img,.sq.dnd-gone > span:not(.coord){visibility:hidden;}
+.sq.dnd-over{box-shadow:inset 0 0 0 4px rgba(255,255,255,.65);}
+.dnd-ghost{position:fixed;left:0;top:0;margin:0;padding:0;pointer-events:none;z-index:9999;user-select:none;line-height:1;will-change:transform;}
+/* premoves (blue) */
+.sq.pm-from,.sq.pm-to{box-shadow:inset 0 0 0 999px rgba(30,90,220,.42);}
+.sq.pm-dest::after{content:'';position:absolute;width:26%;height:26%;border-radius:50%;background:rgba(30,90,220,.5);z-index:1;}
+.sq.pm-dest.pm-cap::after{width:86%;height:86%;background:transparent;box-shadow:inset 0 0 0 5px rgba(30,90,220,.5);}

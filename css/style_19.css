@@ -1,0 +1,39 @@
+/* ---- status dots + labels ---- */
+.st-dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px;vertical-align:1px;flex-shrink:0;background:#b8b3a4;}
+.st-dot.st-online{background:#2ea66f;box-shadow:0 0 0 3px rgba(46,166,111,.2);}
+.st-dot.st-idle{background:#e0a82e;}
+.st-dot.st-playing{background:#3b82f6;}
+.st-dot.st-offline{background:#b8b3a4;}
+.st-txt{font-size:12px;opacity:.75;}
+.ch-btn{padding:4px 10px;font-size:11.5px;margin-left:8px;vertical-align:1px;}
+.ch-btn:disabled{cursor:not-allowed;}
+.pf-status{display:flex;align-items:center;gap:4px;flex-wrap:wrap;margin:4px 0 2px;font-size:13px;}
+.pf-status .ch-btn{margin-left:10px;}
+
+/* ---- "Players" card on the Leaderboard page ---- */
+.pl-row{display:flex;align-items:center;gap:6px;padding:8px 0;font-size:13.5px;border-bottom:1px solid #efe9db;}
+.pl-row:last-child{border-bottom:none;}
+.pl-row .user-link{font-weight:600;}
+.pl-row .grow{flex:1;}
+[data-theme=dark] .pl-row{border-bottom-color:#34312a;}
+
+/* ---- challenge dialog ---- */
+.ch-ov{position:fixed;left:0;top:0;right:0;bottom:0;background:rgba(0,0,0,.45);z-index:1100;display:flex;align-items:center;justify-content:center;padding:16px;}
+.ch-box{background:#fffdf9;border:1px solid #e4ddcf;border-radius:12px;padding:22px;max-width:480px;width:100%;max-height:92vh;overflow:auto;box-shadow:0 12px 40px rgba(0,0,0,.3);}
+[data-theme=dark] .ch-box{background:#252320;border-color:#3a372f;}
+.ch-box h2{font-size:17px;margin:0 0 4px;}
+.ch-box .lbl{font-size:12px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;color:#7a766c;margin:14px 0 6px;}
+[data-theme=dark] .ch-box .lbl{color:#a29d90;}
+.ch-box .modes{margin-bottom:8px;}
+.ch-box .tc-row{margin-bottom:6px;}
+.ch-acts{display:flex;gap:10px;margin-top:18px;}
+
+/* ---- challenge notifications ---- */
+#chToasts{position:fixed;right:16px;bottom:16px;z-index:1050;display:flex;flex-direction:column;gap:10px;width:330px;max-width:calc(100vw - 24px);}
+.ch-toast{background:#fffdf9;border:1px solid #e4ddcf;border-radius:10px;padding:12px 14px;box-shadow:0 6px 18px rgba(0,0,0,.18);font-size:13px;line-height:1.5;}
+[data-theme=dark] .ch-toast{background:#252320;border-color:#3a372f;}
+.ch-toast .ct{font-weight:700;margin-bottom:2px;}
+.ch-toast .cs{opacity:.8;margin-bottom:8px;}
+.ch-toast .cb{display:flex;gap:8px;}
+.ch-toast .cb button{padding:7px 12px;font-size:12.5px;}
+.ch-toast.msg{font-weight:600;}
