@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>No legal moves | Pawniac</title>
+<script>
+  // use the same light/dark choice as the main site
+  try{ var t = localStorage.getItem('pawniac-theme'); if(t==='dark'||t==='light') document.documentElement.setAttribute('data-theme', t); }catch(e){}
+</script>
+<style>
+:root{
+  --bg:#f6f1e6; --ink:#2b2823; --muted:#6d675b; --line:#e4ddcf;
+  --sq-light:#f0d9b5; --sq-dark:#b58863; --accent:#1f6f5c; --accent-ink:#ffffff;
+  --cross:#b8433f; --board-edge:#5e4331;
+}
+:root[data-theme="dark"]{
+  --bg:#1d1b18; --ink:#efe9dc; --muted:#a39c8c; --line:#3a372f;
+  --sq-light:#f0d9b5; --sq-dark:#b58863; --accent:#4fb59a; --accent-ink:#10231d;
+  --cross:#e0716c; --board-edge:#5e4331;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme]){
+    --bg:#1d1b18; --ink:#efe9dc; --muted:#a39c8c; --line:#3a372f;
+    --sq-light:#f0d9b5; --sq-dark:#b58863; --accent:#4fb59a; --accent-ink:#10231d;
+    --cross:#e0716c; --board-edge:#5e4331;
+  }
+}
+*{box-sizing:border-box;}
+html,body{height:100%;}
+body{
+  margin:0; background:var(--bg); color:var(--ink);
+  font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  display:flex; align-items:center; justify-content:center; padding:24px;
+}
+.wrap{
+  width:100%; max-width:880px;
+  display:grid; grid-template-columns:minmax(0,380px) minmax(0,1fr);
+  gap:48px; align-items:center;
+}
+.board-box{position:relative; width:100%;}
+.board{
+  display:grid; grid-template-columns:repeat(8,1fr); aspect-ratio:1/1; width:100%;
+  border-radius:8px; overflow:hidden;
+  box-shadow:0 0 0 7px var(--board-edge), 0 0 0 8px var(--line), 0 22px 40px -22px rgba(0,0,0,.45);
+}
+.sq{position:relative; display:flex; align-items:center; justify-content:center;}
+.sq.l{background:var(--sq-light);} .sq.d{background:var(--sq-dark);}
+.sq svg{position:relative; z-index:2; width:90%; height:90%; display:block; pointer-events:none; user-select:none;
+  filter:drop-shadow(0 2px 1.5px rgba(0,0,0,.28));}
+.sq.pb svg{filter:drop-shadow(0 0 1.2px rgba(255,255,255,.75)) drop-shadow(0 2px 1.5px rgba(0,0,0,.3));}
+.sq .co{position:absolute; z-index:1; font-size:clamp(9px,1.9vw,12px); font-weight:700; line-height:1; letter-spacing:.2px;}
+.sq.l .co{color:var(--sq-dark);} .sq.d .co{color:var(--sq-light);}
+.sq .co.r{top:4px; left:4px;} .sq .co.f{bottom:3px; right:4px;}
+/* squares the black king can't use: a small red badge */
+.sq .x{
+  position:absolute; z-index:1; inset:0; margin:auto; width:42%; height:42%; border-radius:50%;
+  display:flex; align-items:center; justify-content:center;
+  background:color-mix(in srgb, var(--cross) 88%, transparent); color:#fff;
+  font-size:clamp(10px,2.4vw,16px); font-weight:700; line-height:1;
+  box-shadow:0 0 0 3px color-mix(in srgb, var(--cross) 28%, transparent);
+}
+/* the stuck king's square */
+.sq.stuck::before{content:""; position:absolute; inset:0; z-index:0; background:color-mix(in srgb, #f2b84b 55%, transparent);}
+.sq.shake > svg{animation:nope .45s ease;}
+@keyframes nope{
+  0%,100%{transform:translateX(0);} 20%{transform:translateX(-7px);} 40%{transform:translateX(6px);}
+  60%{transform:translateX(-4px);} 80%{transform:translateX(3px);}
+}
+.result{
+  position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center;
+  background:color-mix(in srgb, var(--bg) 86%, transparent); border-radius:6px;
+  opacity:0; pointer-events:none; transition:opacity .35s ease;
+  font-family:Georgia,"Iowan Old Style",serif;
+}
+.result b{font-size:clamp(44px,12vw,76px); font-weight:700; letter-spacing:-1px;}
+.result span{font-size:16px; color:var(--muted); margin-top:4px;}
+.agreed .result{opacity:1;}
+.text h1{
+  font-family:Georgia,"Iowan Old Style","Times New Roman",serif;
+  font-size:clamp(38px,6.4vw,60px); line-height:1.02; letter-spacing:-1px; margin:0 0 16px; font-weight:700;
+}
+.text p{font-size:17px; line-height:1.6; margin:0 0 22px; color:var(--ink); max-width:46ch;}
+.text code{
+  font-family:ui-monospace,Menlo,Consolas,monospace; font-size:.88em; padding:1px 6px;
+  border:1px solid var(--line); border-radius:5px; word-break:break-all;
+}
+.btns{display:flex; gap:12px; flex-wrap:wrap;}
+button{
+  font:inherit; font-size:16px; font-weight:600; padding:12px 22px; border-radius:10px; cursor:pointer;
+  border:1px solid var(--accent); background:var(--accent); color:var(--accent-ink);
+}
+button.sec{background:transparent; color:var(--ink); border-color:var(--line);}
+button:hover:not(:disabled){filter:brightness(1.06);}
+button:disabled{opacity:.55; cursor:default;}
+button:focus-visible, a:focus-visible{outline:3px solid var(--accent); outline-offset:3px;}
+.hint{font-size:14px; color:var(--muted); margin:14px 0 0;}
+#status{min-height:1.5em; font-size:15px; margin:14px 0 0; color:var(--ink);}
+@media (max-width:760px){
+  body{align-items:flex-start; padding:20px 16px;}
+  .wrap{grid-template-columns:1fr; gap:28px; max-width:420px;}
+}
+@media (prefers-reduced-motion: reduce){
+  .result{transition:none;}
+  .sq.shake > svg{animation:none;}
+}
+</style>
+</head>
+<body>
+<main class="wrap" id="wrap">
+  <div class="board-box">
+    <div class="board" id="board" role="img" aria-label="A chess board in stalemate: the black king on h8 is not in check but every square it could move to is covered by the white king on f7 and the white queen on g6."></div>
+    <div class="result" aria-hidden="true"><b>½–½</b><span>Draw agreed</span></div>
+  </div>
+  <div class="text">
+    <h1>No legal moves.</h1>
+    <p><code id="path">This page</code> isn’t a square on Pawniac’s board, so there is nowhere left to go. The game is a stalemate. Draw?</p>
+    <div class="btns">
+      <button id="accept" type="button">Accept draw</button>
+      <button id="decline" class="sec" type="button">Decline</button>
+    </div>
+    <p class="hint">Accepting the draw takes you back to the home page.</p>
+    <div id="status" aria-live="polite"></div>
+  </div>
+</main>
+<script>
+(function(){
+  // the position: White Kf7 + Qg6, Black Kh8, Black to move = stalemate
+  var pieces = {h8:['b','k'], f7:['w','k'], g6:['w','q']};
+  var escapes = {g8:1, g7:1, h7:1};   // squares the black king can't use
+
+  // Pieces are drawn inline, so nothing loads from another site.
+  function piece(color, type){
+    var fill = color === 'w' ? '#fbf7ee' : '#26221e';
+    var line = color === 'w' ? '#26221e' : '#0d0c0a';
+    var mark = color === 'w' ? '#26221e' : '#fbf7ee';
+    var g = '<g fill="'+fill+'" stroke="'+line+'" stroke-width="1.7" stroke-linejoin="round" stroke-linecap="round">';
+    if(type === 'k'){
+      g += '<path d="M22.5 3.5v8.5M18.3 7.6h8.4" fill="none" stroke-width="2.5"/>'
+         + '<path d="M11.5 25c0-8.2 5.2-13 11-13s11 4.8 11 13c0 3.2-4.2 4.2-11 4.2S11.5 28.2 11.5 25z"/>'
+         + '<path d="M13.2 29.2h18.6l2.2 8.6H11z"/>'
+         + '<rect x="9" y="37.8" width="27" height="4.4" rx="2.2"/>'
+         + '<path d="M16 34h13" fill="none" stroke="'+mark+'" stroke-width="1.2" opacity=".55"/>';
+    } else {
+      g += '<path d="M9.5 14l4 17 2.5-18 3.5 17 3-19 3 19 3.5-17 2.5 18 4-17-2 22.5h-24z"/>'
+         + '<circle cx="9.5" cy="12.4" r="2.3"/><circle cx="16" cy="11" r="2.3"/><circle cx="22.5" cy="9.2" r="2.3"/>'
+         + '<circle cx="29" cy="11" r="2.3"/><circle cx="35.5" cy="12.4" r="2.3"/>'
+         + '<rect x="9" y="37" width="27" height="4.8" rx="2.4"/>'
+         + '<path d="M13.5 33.5h18" fill="none" stroke="'+mark+'" stroke-width="1.2" opacity=".55"/>';
+    }
+    return '<svg viewBox="0 0 45 45" aria-hidden="true">' + g + '</g></svg>';
+  }
+
+  var board = document.getElementById('board');
+  var files = 'abcdefgh';
+  var html = '';
+  for(var r=8; r>=1; r--){
+    for(var f=0; f<8; f++){
+      var name = files[f] + r;
+      var dark = (f + r) % 2 === 1;
+      var p = pieces[name];
+      var cls = 'sq ' + (dark ? 'd' : 'l') + (name === 'h8' ? ' stuck' : '') + (p && p[0] === 'b' ? ' pb' : '');
+      var inner = '';
+      if(f === 0) inner += '<span class="co r">' + r + '</span>';
+      if(r === 1) inner += '<span class="co f">' + files[f] + '</span>';
+      if(escapes[name]) inner += '<span class="x" aria-hidden="true">\u2715</span>';
+      if(p) inner += piece(p[0], p[1]);
+      html += '<div class="' + cls + '"' + (name === 'h8' ? ' id="bking"' : '') + '>' + inner + '</div>';
+    }
+  }
+  board.innerHTML = html;
+
+  // Show what was asked for, as plain text (never as HTML).
+  // index.html sends unknown hash routes here as /404.html?from=%23%2Fsomepage
+  var shown = '';
+  try{ shown = new URLSearchParams(location.search).get('from') || ''; }catch(e){}
+  if(!shown) shown = location.pathname + location.search + location.hash;
+  shown = shown.slice(0, 60);
+  if(shown && shown !== '/' && shown !== '/404.html') document.getElementById('path').textContent = shown;
+
+  var status = document.getElementById('status');
+  var accept = document.getElementById('accept');
+  var decline = document.getElementById('decline');
+  var bking = document.getElementById('bking');
+
+  accept.onclick = function(){
+    accept.disabled = true; decline.disabled = true;
+    document.getElementById('wrap').classList.add('agreed');
+    status.textContent = 'Draw agreed. Heading back to the home page.';
+    setTimeout(function(){ location.href = '/'; }, 1500);
+  };
+  var lines = [
+    'Declined. Black still has no legal moves.',
+    'Declined again. Still no legal moves.',
+    'The king has looked at every square. Nothing. Maybe take the draw?'
+  ], n = 0;
+  decline.onclick = function(){
+    status.textContent = lines[Math.min(n, lines.length - 1)];
+    n++;
+    // restart the shake animation on every click
+    bking.classList.remove('shake'); void bking.offsetWidth; bking.classList.add('shake');
+  };
+})();
+</script>
+</body>
+</html>
