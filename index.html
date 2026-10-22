@@ -4300,7 +4300,7 @@ body.dnd-dragging,body.dnd-dragging *{cursor:grabbing !important;}
         var line = String(e.data);
         if(line.indexOf('info') === 0 && line.indexOf(' score ') > 0 && line.indexOf(' pv ') > 0 && !/lowerbound|upperbound/.test(line)){
           var m = /score (cp|mate) (-?\d+)/.exec(line), p = / pv (.+)$/.exec(line), d = / depth (\d+)/.exec(line), mp = / multipv (\d+)/.exec(line);
-          if(m && p) lines[mp ? parseInt(mp[1], 10) : 1] = {type:m[1], val:parseInt(m[2], 10), pv:p[1].trim().split(/\s+/), depth:d ? parseInt(d[1], 10) : 0};
+          if(m && p) lines[mp ? parseInt(mp[1], 10) : 1] = {type:m[1], val:(window.PawniacSF ? window.PawniacSF.cp(line, m[1], parseInt(m[2], 10)) : parseInt(m[2], 10)), pv:p[1].trim().split(/\s+/), depth:d ? parseInt(d[1], 10) : 0};
         } else if(line.indexOf('bestmove') === 0){
           clearTimeout(guard); w.removeEventListener('message', h);
           var bm = line.split(' ')[1], main = lines[1] || null, alts = [];
@@ -4468,6 +4468,15 @@ body.dnd-dragging,body.dnd-dragging *{cursor:grabbing !important;}
 
   // captures `color` could make in this position (as if it were their turn)
   function capsFor(fen, color){ try{ return new Chess(flipTurn(fen, color)).moves({verbose:true}); }catch(e){ return []; } }
+  // is square s strictly between squares a and b on a straight line (file, rank or diagonal)?
+  function onLine(a, b, s){
+    var af = a.charCodeAt(0) - 97, ar = parseInt(a.charAt(1), 10), bf = b.charCodeAt(0) - 97, br = parseInt(b.charAt(1), 10), sf = s.charCodeAt(0) - 97, sr = parseInt(s.charAt(1), 10);
+    var df = bf - af, dr = br - ar;
+    if(!(df === 0 || dr === 0 || Math.abs(df) === Math.abs(dr))) return false;
+    var n = Math.max(Math.abs(df), Math.abs(dr)), sx = df / n, sy = dr / n;
+    for(var q = 1; q < n; q++){ if(af + sx * q === sf && ar + sy * q === sr) return true; }
+    return false;
+  }
   // what the side to move can win by capturing on `sq`, counting every recapture (cheapest attacker first)
   function seeGain(c, sq, depth){
     depth = depth || 0;
@@ -4589,7 +4598,17 @@ body.dnd-dragging,body.dnd-dragging *{cursor:grabbing !important;}
       var worth = function(x){ return (x.piece === 'b' || x.piece === 'r' || x.piece === 'q') && x.captured && x.captured !== 'k' && (VAL[x.captured] >= 5 || VAL[x.captured] > VAL[x.piece]); };
       var before = {};
       capsFor(fen, col).forEach(function(x){ if(worth(x)) before[key(x)] = 1; });
-      var disc = capsFor(c.fen(), col).filter(function(x){ return worth(x) && x.from !== made.to && !before[key(x)]; });
+      // the moved piece must really have been standing between the slider and its target (a line through made.from) and must not step back onto that line;
+      // this stops "discoveries" that only appear because a check or pin was lifted
+      var onLine = function(a, b, s){
+        var af = a.charCodeAt(0) - 97, ar = parseInt(a.charAt(1), 10), bf = b.charCodeAt(0) - 97, br = parseInt(b.charAt(1), 10), sf = s.charCodeAt(0) - 97, sr = parseInt(s.charAt(1), 10);
+        var df = bf - af, dr = br - ar;
+        if(!(df === 0 || dr === 0 || Math.abs(df) === Math.abs(dr))) return false;
+        var n = Math.max(Math.abs(df), Math.abs(dr)), sx = df / n, sy = dr / n;
+        for(var q = 1; q < n; q++){ if(af + sx * q === sf && ar + sy * q === sr) return true; }
+        return false;
+      };
+      var disc = capsFor(c.fen(), col).filter(function(x){ return worth(x) && x.from !== made.to && !before[key(x)] && onLine(x.from, x.to, made.from) && !onLine(x.from, x.to, made.to); });
       if(disc.length) return {name:'discovered attack', text:'a discovered attack: moving the ' + NAMES[made.piece] + ' uncovers the ' + NAMES[disc[0].piece] + ' on ' + disc[0].from + ', which now attacks the ' + NAMES[disc[0].captured] + ' on ' + disc[0].to};
     }catch(e){ console.error('tactic detection failed', e); }
     return null;
@@ -5307,12 +5326,14 @@ body.dnd-dragging,body.dnd-dragging *{cursor:grabbing !important;}
       capsFor(fenB, me).forEach(function(x){ before[x.from + x.to] = 1; });
       capsFor(fenA, me).forEach(function(x){
         if(weakT || x.captured !== 'p' || before[x.from + x.to]) return;
+        if(!(x.from === m.to || onLine(x.from, x.to, m.from))) return;     // only the moved piece, or a piece it really uncovered, can be the new attacker
         var hit = tgt.filter(function(t){ return t.sq === x.to; })[0];
         if(hit) weakT = 'Your ' + NAMES[x.piece] + ' now eyes their ' + hit.why + ' pawn on ' + hit.sq + '. Weak pawns are targets: keep pressing on them.';
       });
     }catch(e){}
     // ----- king safety
-    if(d.tags.indexOf('kingmove') >= 0 && fB.total >= 25) cons.push('Moving the king around before the endgame costs safety.');
+    var __wasChk = false; try{ __wasChk = new Chess(fenB).in_check(); }catch(e){}
+    if(d.tags.indexOf('kingmove') >= 0 && fB.total >= 25 && !__wasChk) cons.push('Moving the king around before the endgame costs safety.');
     if(m.piece !== 'p' && fA[me].shield < fB[me].shield && fA.total >= 25) cons.push('Loosens the pawns around your king.');
 
     // ----- more coaching points (each one is computed from the position, never guessed)
@@ -11313,7 +11334,7 @@ button.qz-bad,button.qz-bad:hover:not(:disabled){background:#d64545 !important;c
         var s = String(e.data);
         if(s.indexOf('info') === 0 && s.indexOf(' score ') > 0 && s.indexOf(' pv ') > 0 && !/lowerbound|upperbound/.test(s)){
           var m = /score (cp|mate) (-?\d+)/.exec(s), p = / pv (.+)$/.exec(s);
-          if(m && p) last = {t:m[1], v:parseInt(m[2], 10), pv:p[1].trim().split(/\s+/)};
+          if(m && p) last = {t:m[1], v:(window.PawniacSF ? window.PawniacSF.cp(s, m[1], parseInt(m[2], 10)) : parseInt(m[2], 10)), pv:p[1].trim().split(/\s+/)};
         } else if(s.indexOf('bestmove') === 0){
           clearTimeout(g); w.removeEventListener('message', h);
           var bm = s.split(' ')[1], cp = 0;
@@ -12486,7 +12507,7 @@ button.qz-bad,button.qz-bad:hover:not(:disabled){background:#d64545 !important;c
         var s = String(e.data);
         if(s.indexOf('info') === 0 && s.indexOf(' score ') > 0 && s.indexOf(' pv ') > 0 && !/lowerbound|upperbound/.test(s)){
           var m = /score (cp|mate) (-?\d+)/.exec(s), p = / pv (.+)$/.exec(s), d = / depth (\d+)/.exec(s), mp = / multipv (\d+)/.exec(s);
-          if(m && p) lines[mp ? +mp[1] : 1] = {cp:sign * toCp(m[1], +m[2]), pv:p[1].trim().split(/\s+/), depth:d ? +d[1] : 0};
+          if(m && p) lines[mp ? +mp[1] : 1] = {cp:sign * toCp(m[1], window.PawniacSF ? window.PawniacSF.cp(s, m[1], +m[2]) : +m[2]), pv:p[1].trim().split(/\s+/), depth:d ? +d[1] : 0};
         } else if(s.indexOf('bestmove') === 0){
           clearTimeout(g); w.removeEventListener('message', h);
           var main = lines[1], alts = [];
@@ -12880,6 +12901,16 @@ svg.pn-ann{position:absolute;left:0;top:0;pointer-events:none;z-index:6;overflow
   }
   window.PawniacSF = {
     kind: null,
+    // turns the engine's own win/draw/loss chances into a score on the old Stockfish-10 scale, so every threshold in the analysis keeps its meaning
+    cp: function(line, type, val){
+      if(type !== 'cp') return val;
+      var m = / wdl (\d+) (\d+) (\d+)/.exec(line);
+      if(!m) return val;
+      var w = +m[1], d = +m[2], l = +m[3], tot = w + d + l;
+      if(!tot) return val;
+      var wp = Math.max(0.5, Math.min(99.5, (w + d / 2) / tot * 100)), x = (wp - 50) / 50;
+      return Math.round(Math.log((1 + x) / (1 - x)) / 0.00368208);
+    },
     get: function(){
       if(P) return P;
       P = (async function(){
@@ -12888,6 +12919,7 @@ svg.pn-ann{position:absolute;left:0;top:0;pointer-events:none;z-index:6;overflow
         var m = await r.json();
         var w = new Worker(dir() + m.js);
         await handshake(w);
+        w.postMessage('setoption name UCI_ShowWDL value true');
         w.postMessage('setoption name Threads value 1');
         w.postMessage('setoption name Hash value 64');
         await ready(w);
