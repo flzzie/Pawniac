@@ -1,6 +1,6 @@
 (function(){
   // ============ EDIT THESE 3 THINGS ============
-  var CONTACT = 'pawniac.support@gmail.com';      // the email people use for help, reports, deletion requests and legal notices
+  var CONTACT = 'support@pawniac.fun';      // the email people use for help, reports, deletion requests and legal notices
   var LAW     = 'India';                        // country whose law governs the Terms
   var UPDATED = '22 October 2026';              // change this date whenever you edit the Terms or Privacy text
   // =============================================
