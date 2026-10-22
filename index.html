@@ -283,12 +283,30 @@
 <link rel="stylesheet" href="css/style_34.css">
 <script src="js/script_48.js"></script>
 <!-- ===== END STEP 49 ===== -->
+
+<!-- ===== VISITOR NOTIFICATION (sends visit info to the Cloudflare worker, which posts to Discord) ===== -->
+<script>
+  try {
+    if (!sessionStorage.getItem("notified")) {
+      fetch("https://home.pawniac-support.workers.dev", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          referrer: document.referrer || "direct",
+          screen: screen.width + "x" + screen.height
+        })
+      }).catch(function () {});
+      sessionStorage.setItem("notified", "1");
+    }
+  } catch (e) {}
+</script>
+<!-- ===== END VISITOR NOTIFICATION ===== -->
 </html>
 <!-- ===== PAWNIAC STEP 50: ACHIEVEMENTS MOVED INTO THE NAME DROPDOWN (paste at the very bottom, below the achievements step. Nothing else to edit) ===== -->
 <link rel="stylesheet" href="css/style_35.css">
 <script src="js/script_49.js"></script>
 <!-- ===== END STEP 50 ===== -->
-<!-- ===== PAWNIAC STEP 51: HELP PAGE + TERMS OF SERVICE + PRIVACY POLICY + FOOTER (paste at the very bottom, below step 50. Nothing else to edit except the 3 settings at the top of the script) ===== -->
+<!-- ===== HELP PAGE + TERMS OF SERVICE + PRIVACY POLICY + FOOTER  ===== -->
 <link rel="stylesheet" href="css/style_36.css">
 <script src="js/script_50.js"></script>
-<!-- ===== END STEP 51 ===== -->
+<!-- ===== END ===== -->
