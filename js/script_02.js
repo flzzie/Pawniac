@@ -269,7 +269,8 @@ async function doSignup(){
   if(isBlockedEmail(email)){ renderAuthScreen('Please use a real email address - temporary email services are not allowed.'); return; }
 
   const taken = await kget('hb:account:'+username+':uid', true);
-  if(taken){ renderAuthScreen('That username is taken.'); return; }
+  const takenLower = await kget('hb:accountLower:'+username.toLowerCase(), true);
+  if(taken || takenLower){ renderAuthScreen('That username is taken (usernames are not case-sensitive).'); return; }
 
   signingUp = true;
   let cred;
@@ -420,21 +421,24 @@ async function claimUsername(user, username){
     await user.getIdToken(true);
 
     const owner = await kget('hb:account:'+username+':uid', true);
-    if(owner && owner !== user.uid){
+    const ownerLower = await kget('hb:accountLower:'+username.toLowerCase(), true);
+    if((owner && owner !== user.uid) || (ownerLower && ownerLower !== user.uid)){
       clearPending(user.uid);
       renderChooseUsername(user, 'That username is taken - pick another.');
       return;
     }
-    if(!owner){
-      const ok = await kset('hb:account:'+username, {uid:user.uid}, true);
-      if(!ok){
-        clearPending(user.uid);
-        renderChooseUsername(user, 'Could not claim that username (taken or not allowed) - try another.');
-        return;
-      }
-    }
-    if(!(await kset('hb:usernameByUid:'+user.uid, username, true))){
-      renderChooseUsername(user, 'Could not finish signup - please try again.');
+    // ONE atomic write: the username and the uid->username link are saved together
+    // (the database rules require both at once, so nobody can hoard usernames).
+    const updates = {};
+    if(!owner) updates['account/'+username] = {uid:user.uid};
+    if(!ownerLower) updates['accountLower/'+username.toLowerCase()] = user.uid;
+    updates['usernameByUid/'+user.uid] = username;
+    try{
+      await db.ref('hb').update(updates);
+    } catch(e){
+      console.error(e);
+      clearPending(user.uid);
+      renderChooseUsername(user, 'Could not claim that username (taken or not allowed) - try another.');
       return;
     }
     if(!(await kget('hb:leaderboard:'+username, true))){
