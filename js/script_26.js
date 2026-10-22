@@ -1,7 +1,7 @@
 (function(){
   // ====== DISCORD SETTINGS (Google needs none of this) ======
   var DISCORD_CLIENT_ID    = '1560985686746603570';
-  var DISCORD_FUNCTION_URL = 'https://pawniaclogin.rishiitsrivastava.workers.dev/';   // the URL printed when you deploy discord-login-function.js
+  var DISCORD_FUNCTION_URL = 'https://pawniaclogin.rishiitsrivastava.workers.dev/';
   // ==========================================================
 
   var NAME_RE = /^[A-Za-z0-9_]{3,20}$/;
@@ -38,7 +38,7 @@
     var prov = new firebase.auth.GoogleAuthProvider();
     prov.setCustomParameters({prompt:'select_account'});
     try{
-      await auth.signInWithPopup(prov);          // onAuthStateChanged takes it from here
+      await auth.signInWithPopup(prov);
     }catch(e){
       var c = e && e.code;
       if(c === 'auth/popup-blocked' || c === 'auth/operation-not-supported-in-this-environment'){
@@ -57,7 +57,7 @@
     try{
       sessionStorage.setItem(SS_STATE, st);
       var room = (new URLSearchParams(location.search).get('room') || '').toUpperCase();
-      if(/^[A-Z0-9]{5}$/.test(room)) sessionStorage.setItem(SS_ROOM, room);   // keep the invite for when we come back
+      if(/^[A-Z0-9]{5}$/.test(room)) sessionStorage.setItem(SS_ROOM, room);
     }
     catch(e){ renderAuthScreen("Your browser blocked storage, so Discord login can't start."); return; }
     location.href = 'https://discord.com/oauth2/authorize?client_id=' + encodeURIComponent(DISCORD_CLIENT_ID) +
@@ -74,7 +74,7 @@
     if(!st || !(code || err)) return;
     var saved = null;
     try{ saved = sessionStorage.getItem(SS_STATE); }catch(e){}
-    if(!saved || saved !== st) return;                       // not our redirect
+    if(!saved || saved !== st) return;
     try{ sessionStorage.removeItem(SS_STATE); }catch(e){}
     ['code', 'state', 'error', 'error_description'].forEach(function(k){ q.delete(k); });
     history.replaceState(null, '', location.pathname + (q.toString() ? '?' + q.toString() : '') + location.hash);
@@ -94,13 +94,13 @@
 
   // ---------- the buttons on the login / sign-up card ----------
   var prevAuth = window.renderAuthScreen;
-  window.renderAuthScreen = function(err){
-    if(busyDiscord && !err){
+  window.renderAuthScreen = function(err, info){
+    if(busyDiscord && !err && !info){
       showScreen('auth');
       document.getElementById('screen-auth').innerHTML = '<div class="card"><h2>Signing in with Discord...</h2><p class="desc">One moment.</p></div>';
       return;
     }
-    prevAuth(err);
+    prevAuth(err, info);
     try{
       var card = document.querySelector('#screen-auth .card');
       if(!card || card.querySelector('.so-btns')) return;
@@ -119,6 +119,8 @@
     var u = null;
     try{ u = await kget('hb:usernameByUid:' + user.uid, true); }catch(e){}
     if(u) return prevSI(user);
+    var usesPassword = (user.providerData || []).some(function(p){ return p.providerId === 'password'; });
+    if(usesPassword) return prevSI(user);
     askUsername(user);
   };
 
@@ -171,4 +173,5 @@
       console.error(e);
       askUsername(user, 'Something went wrong. Please try again.', name);
     }finally{ claiming = false; }
-  }  
+  }
+})();
