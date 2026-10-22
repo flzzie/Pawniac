@@ -147,11 +147,21 @@
     if(!NAME_RE.test(name)){ askUsername(user, 'Username: 3-20 letters, numbers or underscores.', name); return; }
     claiming = true;
     try{
-      var taken = await kget('hb:account:' + name + ':uid', true);
-      if(taken){ askUsername(user, 'That username is taken.', name); return; }
-      var ok = await kset('hb:account:' + name, {uid:user.uid}, true);
-      if(!ok){ askUsername(user, 'That username is taken.', name); return; }
-      await kset('hb:usernameByUid:' + user.uid, name, true);
+      try{ await user.getIdToken(true); }catch(e){}
+      var owner = await kget('hb:account:' + name + ':uid', true);
+      var ownerLower = await kget('hb:accountLower:' + name.toLowerCase(), true);
+      if(owner || ownerLower){ askUsername(user, 'That username is taken.', name); return; }
+      var updates = {};
+      updates['account/' + name] = {uid:user.uid};
+      updates['accountLower/' + name.toLowerCase()] = user.uid;
+      updates['usernameByUid/' + user.uid] = name;
+      try{
+        await db.ref('hb').update(updates);
+      }catch(e){
+        console.error(e);
+        askUsername(user, 'That name is not allowed - try another.', name);
+        return;
+      }
       var profile = {rating:1200, games:0};
       await kset('hb:leaderboard:' + name, profile, true);
       ME = {username:name};
@@ -161,5 +171,4 @@
       console.error(e);
       askUsername(user, 'Something went wrong. Please try again.', name);
     }finally{ claiming = false; }
-  }
-})();
+  }  
