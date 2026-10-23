@@ -162,6 +162,7 @@
   }
   function abortAuction(){
     actTx(currentGameId,function(g){
+      if(g.auction.phase==='place') return false;   // no aborting once bidding is over
       g.status='finished';g.winner='abort';g.statusNote='auction aborted';
       g.statsApplied={};g.statsApplied[g.seats.white]=true;g.statsApplied[g.seats.black]=true;return true;
     });
@@ -253,7 +254,7 @@
     }
     el.innerHTML='<div class="card"><h2>Piece Auction</h2><p class="desc">Everyone always has a king. Bid coins for pieces one at a time ('+au.budget+' coins each this game). Pawns go on the 2nd rank and everything else shares the back rank with the king, so you can hold at most 8 pawns and 7 other pieces.</p>'+
       '<div class="au-top">'+panel(g,au,my,my,!!me)+panel(g,au,o,my,false)+'</div>'+(last?'<p class="au-last">'+last+'</p>':'')+body+
-      (me?'<div style="margin-top:12px;"><span class="backlink" id="auAbort">Abort game</span></div>':'')+'</div>';
+      (me&&au.phase!=='place'?'<div style="margin-top:12px;"><span class="backlink" id="auAbort">Abort game</span></div>':'')+'</div>';
 
     el.querySelectorAll('[data-nom]').forEach(function(b){b.onclick=function(){send({k:'nom',t:b.dataset.nom});};});
     el.querySelectorAll('[data-stop]').forEach(function(b){b.onclick=function(){send({k:'stop'});};});
