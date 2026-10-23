@@ -4,56 +4,27 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Pawniac</title>
-  <meta name="description" content="Standard chess with a detailed analysis that explains your moves like a coach would. Plus creative variants like Hand and Brain , Piece Auction &amp; minigames.">
-
-<meta property="og:type" content="website">
-<meta property="og:site_name" content="Pawniac">
-<meta property="og:title" content="Pawniac | Standard Chess, Creative Variants &amp; Analysis">
-<meta property="og:description" content="Standard chess with a detailed analysis that explains your moves like a coach would. Plus creative variants like Hand and Brain , Piece Auction &amp; minigames.">
-<meta property="og:url" content="https://pawniac.fun/">
-<meta property="og:image" content="https://pawniac.fun/logo.jpg">
-
-<meta name="twitter:card" content="summary">
-<meta name="twitter:title" content="Pawniac | Standard Chess, Creative Variants &amp; Analysis">
-<meta name="twitter:description" content="tandard chess with a detailed analysis that explains your moves like a coach would. Plus creative variants like Hand and Brain , Piece Auction &amp; minigames."">
-<meta name="twitter:image" content="https://pawniac.fun/logo.jpg">
-
-<meta name="theme-color" content="#f0a8c4">
-  <script>
-(function () {
-  var valid = [
-    /^analyze$/,
-    /^auction$/,
-    /^bot$/,
-    /^game\/[^\/]+$/,
-    /^handandbrain$/,
-    /^help$/,
-    /^leaderboard(\/(standard|auction))?$/,
-    /^minigames$/,
-    /^privacy$/,
-    /^profile\/[^\/]+$/,
-    /^quiz$/,
-    /^settings$/,
-    /^standard$/,
-    /^terms$/,
-    /^watch\/[^\/]+$/
+<!-- ===== PAWNIAC 404 FOR HASH LINKS (keep this as the first script in <head>) ===== -->
+<script>
+(function(){
+  // First segment after "#/" that the site really uses. Anything else goes to the 404 page.
+  var KNOWN = [
+    'play','minigames','quiz','leaderboard','help',
+    'game','watch','profile','user','u','challenge','c',
+    'bot','auction','analyze','tour','blindfold','settings','achievements','terms','privacy','supporters'
   ];
-
-  function check() {
-    var h = location.hash;
-    // only judge hashes that look like routes (#/something).
-    // Empty hash, "#/" and things like #access_token=... are left alone.
-    if (h.indexOf('#/') !== 0) return;
-    var path = h.slice(2).split('?')[0].replace(/\/+$/, '');
-    if (path === '') return;
-    for (var i = 0; i < valid.length; i++) if (valid[i].test(path)) return;
+  function check(){
+    var h = location.hash;                        // e.g. "#/somepagethatdoesntexist"
+    if(h.indexOf('#/') !== 0) return;             // "", "#", "#section" etc. are left alone
+    var first = h.slice(2).split(/[\/?]/)[0].toLowerCase();
+    if(first === '' || KNOWN.indexOf(first) !== -1) return;
     location.replace('/404.html?from=' + encodeURIComponent(h));
   }
-
   check();
   window.addEventListener('hashchange', check);
 })();
 </script>
+<!-- ===== END 404 FOR HASH LINKS ===== -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='290 130 100 185'%3E%3Cpath d='M330,211 Q326,218 327,223 Q316,226 316,233 Q316,239 329,241 Q324,247 321,257 Q311,263 309,273 Q306,281 311,287 Q301,292 301,298 Q301,305 315,306 L365,306 Q379,305 379,298 Q379,292 369,287 Q374,281 371,273 Q369,263 359,257 Q356,247 351,241 Q364,239 364,233 Q364,226 353,223 Q354,218 350,211 Z' fill='%23141210' stroke='%23f7f2e4' stroke-width='3' stroke-linejoin='round'/%3E%3Cpath d='M376,184 Q381,175 376,166 Q371,157 366,148 Q361,138 350,138 Q340,138 330,138 Q320,138 314,148 Q309,157 304,166 Q299,175 304,184 Q309,194 314,203 Q319,211 330,211 Q340,211 350,211 Q361,211 366,203 Q373,194 376,184 Z' fill='%23f0a8c4' stroke='%23141210' stroke-width='3' stroke-linejoin='round'/%3E%3Cpath d='M340,138 Q337,175 340,211' fill='none' stroke='%23141210' stroke-width='2.2' stroke-linecap='round'/%3E%3C/svg%3E">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
@@ -283,30 +254,15 @@
 <link rel="stylesheet" href="css/style_34.css">
 <script src="js/script_48.js"></script>
 <!-- ===== END STEP 49 ===== -->
-
-<!-- ===== VISITOR NOTIFICATION (sends visit info to the Cloudflare worker, which posts to Discord) ===== -->
-<script>
-  try {
-    if (!sessionStorage.getItem("notified")) {
-      fetch("https://home.pawniac-support.workers.dev", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          referrer: document.referrer || "direct",
-          screen: screen.width + "x" + screen.height
-        })
-      }).catch(function () {});
-      sessionStorage.setItem("notified", "1");
-    }
-  } catch (e) {}
-</script>
-<!-- ===== END VISITOR NOTIFICATION ===== -->
 </html>
 <!-- ===== PAWNIAC STEP 50: ACHIEVEMENTS MOVED INTO THE NAME DROPDOWN (paste at the very bottom, below the achievements step. Nothing else to edit) ===== -->
 <link rel="stylesheet" href="css/style_35.css">
 <script src="js/script_49.js"></script>
 <!-- ===== END STEP 50 ===== -->
-<!-- ===== HELP PAGE + TERMS OF SERVICE + PRIVACY POLICY + FOOTER  ===== -->
+<!-- ===== PAWNIAC STEP 51: HELP PAGE + TERMS OF SERVICE + PRIVACY POLICY + FOOTER (paste at the very bottom, below step 50. Nothing else to edit except the 3 settings at the top of the script) ===== -->
 <link rel="stylesheet" href="css/style_36.css">
 <script src="js/script_50.js"></script>
-<!-- ===== END ===== -->
+<!-- ===== END STEP 51 ===== -->
+<!-- ===== PAWNIAC STEP 52: SUPPORTERS PAGE (#/supporters, linked from the footer; paste at the very bottom, below step 51) ===== -->
+<script src="js/script_51.js"></script>
+<!-- ===== END STEP 52 ===== -->
