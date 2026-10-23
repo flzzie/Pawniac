@@ -627,9 +627,77 @@
     var s = $('screen-profile'), n = s && s.querySelector('.pf-name');
     return !!(s && s.style.display === 'block' && n && n.textContent.indexOf(name) >= 0);
   }
+
+  // ---------- profile badges (Founding Supporter, Bug Hunter) ----------
+  // stored in Firebase at hb/badges/<username>/<badge_id> = true
+  var BADGE_ORDER = ['founding_supporter', 'bug_hunter'];
+  var BADGES = {
+    founding_supporter: {
+      name: 'Founding Supporter', cls: 'pn-gold',
+      tip: 'An early believer. Backed Pawniac from its early stage and promoted it in their community.',
+      icon: '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 8l4.5 4L12 5l4.5 7L21 8l-2 10H5L3 8z"/><rect x="5" y="19" width="14" height="2" rx="1"/></svg>'
+    },
+    bug_hunter: {
+      name: 'Bug Hunter', cls: 'pn-green',
+      tip: 'Found and reported a bug that helped make Pawniac better.',
+      icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="8" y="8" width="8" height="12" rx="4"/><path d="M9 8a3 3 0 0 1 6 0M12 12v8M8 12H4M16 12h4M8.5 16.5L5 19M15.5 16.5L19 19M8.5 10L5 7M15.5 10L19 7"/></svg>'
+    }
+  };
+
+  function badgeCss(){
+    if($('pnBadgeCss')) return;
+    var s = document.createElement('style'); s.id = 'pnBadgeCss';
+    s.textContent = `
+.pn-badges{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}
+.pn-badge{position:relative;width:44px;height:44px;border-radius:12px;border:1px solid;display:grid;place-items:center;cursor:default;outline-offset:3px}
+.pn-badge svg{width:24px;height:24px;position:relative;z-index:1}
+.pn-gold{color:#ffd777;background:linear-gradient(145deg,#6a4f1a,#2b2111 55%,#57421a);border-color:#d6a547;box-shadow:inset 0 1px 0 rgba(255,236,176,.4),inset 0 -6px 10px rgba(0,0,0,.25),0 0 16px rgba(240,185,74,.28)}
+.pn-gold svg{filter:drop-shadow(0 0 5px rgba(255,200,80,.65))}
+.pn-green{color:#8cf0a8;background:linear-gradient(145deg,#2c6a46,#12281c 55%,#265a3b);border-color:#4fbf7b;box-shadow:inset 0 1px 0 rgba(190,255,210,.35),inset 0 -6px 10px rgba(0,0,0,.25),0 0 16px rgba(111,207,138,.25)}
+.pn-green svg{filter:drop-shadow(0 0 5px rgba(120,240,160,.6))}
+.pn-badge::before{content:"";position:absolute;inset:1px;border-radius:inherit;background:linear-gradient(180deg,rgba(255,255,255,.22),rgba(255,255,255,0) 50%);pointer-events:none}
+.pn-badge::after{content:"";position:absolute;inset:0;border-radius:inherit;background:linear-gradient(115deg,transparent 35%,rgba(255,255,255,.6) 50%,transparent 65%);background-size:250% 100%;background-position:160% 0;transition:background-position .7s ease;pointer-events:none}
+.pn-badge:hover::after,.pn-badge:focus-visible::after{background-position:-60% 0}
+.pn-tip{position:absolute;left:50%;bottom:calc(100% + 10px);transform:translate(-50%,4px);width:230px;background:#0f0e0d;border:1px solid #35332f;border-radius:10px;padding:10px 12px;font:12.5px/1.45 system-ui,sans-serif;color:#f2efe9;opacity:0;pointer-events:none;transition:opacity .15s,transform .15s;z-index:50}
+.pn-tip b{display:block;font-size:13px;margin-bottom:3px}
+.pn-tip::after{content:"";position:absolute;top:100%;left:50%;margin-left:-6px;border:6px solid transparent;border-top-color:#0f0e0d}
+.pn-badge:hover .pn-tip,.pn-badge:focus-visible .pn-tip{opacity:1;transform:translate(-50%,0)}
+@media (prefers-reduced-motion:reduce){.pn-badge::after,.pn-tip{transition:none}}
+@media (max-width:480px){.pn-tip{width:190px}}`;
+    document.head.appendChild(s);
+  }
+
+  async function decorateBadges(name, scr){
+    if(!scr || scr.querySelector('#pfBadges')) return;
+    var b = null;
+    try{ b = await val('hb/badges/' + name); }catch(e){ return; }          // no badges / rules not published: show nothing
+    if(!b || !stillOn(name) || scr.querySelector('#pfBadges')) return;
+    var ids = BADGE_ORDER.filter(function(id){ return b[id] === true; });
+    if(!ids.length) return;
+    badgeCss();
+    var box = document.createElement('div');
+    box.id = 'pfBadges'; box.className = 'pn-badges';
+    ids.forEach(function(id){
+      var d = BADGES[id], el = document.createElement('div');
+      el.className = 'pn-badge ' + d.cls; el.tabIndex = 0;
+      el.setAttribute('aria-label', d.name + '. ' + d.tip);
+      el.innerHTML = d.icon + '<span class="pn-tip"><b>' + d.name + '</b>' + d.tip + '</span>';
+      box.appendChild(el);
+    });
+    // right under the bio (built in script_07.js):
+    //  - other people's profiles: <div class="pf-bio">
+    //  - your own profile: <textarea id="pfBio"> followed by the "Save bio" row
+    var bio = scr.querySelector('.pf-bio');
+    var edit = scr.querySelector('#pfBio');
+    if(bio) bio.after(box);
+    else if(edit) (edit.nextElementSibling || edit).after(box);
+    else { var first = scr.querySelector('.card'); if(first) first.appendChild(box); }
+  }
+
   async function decorateProfile(name){
     if(!ME || !stillOn(name)) return;
     var scr = $('screen-profile');
+    decorateBadges(name, scr);
     if(scr.querySelector('#pfAch')) return;
     // Report button (profiles of other players only)
     if(name !== ME.username && !scr.querySelector('#pfReport')){
