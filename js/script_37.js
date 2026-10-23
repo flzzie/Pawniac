@@ -222,6 +222,7 @@
   var TIERS = ['Common','Familiar','Uncommon','Rare','Obscure'];
   var TCOL = ['#1f9d55','#5f9ea0','#d4a800','#e67e22','#d64545'];
   var LIVES = 3, FILES = 'abcdefgh', MODE_KEY = 'pawniac-quiz-mode';
+  var PLAY_MULT = 2;   // playing an opening out is worth this many times a "name it" answer
 
   function strip(s){ return s.replace(/[+#]/g, ''); }
   function esc(s){ return String(s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
@@ -331,7 +332,7 @@
     stopTimer();
     var q = S.q, left = Math.max(0, q.T * 1000 - (Date.now() - S.t0)), pts = 0;
     if(ok){
-      pts = Math.round(10 + 15 * left / (q.T * 1000)) + (q.tier - 1) * 3;      // faster and rarer = more points
+      pts = (Math.round(10 + 15 * left / (q.T * 1000)) + (q.tier - 1) * 3) * (q.type === 'play' ? PLAY_MULT : 1);      // faster and rarer = more points
       S.score += pts; S.correct++; S.streak++;
       playWinSound();
     } else {
@@ -453,7 +454,7 @@
     var over = S.phase === 'over';
     return '<div class="card"><h2>Opening quiz</h2>' +
       (over ? '<div class="result-banner">Run over<div class="rc">Score ' + S.score + ' &middot; ' + S.correct + ' correct' + (S.newBest ? ' &middot; new personal best!' : '') + '</div></div>' : '') +
-      '<p class="desc">Name chess openings from the moves on the board, or play out an opening from its name. You start with the openings everybody knows, then they get rarer while the clock gets shorter. ' + OPN.length + ' openings in total. A wrong answer or running out of time costs a life, and 3 lives ends the run. Faster answers and rarer openings score more.</p>' +
+      '<p class="desc">Name chess openings from the moves on the board, or play out an opening from its name. You start with the openings everybody knows, then they get rarer while the clock gets shorter. ' + OPN.length + ' openings in total. A wrong answer or running out of time costs a life, and 3 lives ends the run. Faster answers and rarer openings score more, and playing an opening out is worth double.</p>' +
       '<div class="hint" style="margin-bottom:4px;">Question type</div>' + modeBtns() +
       '<div class="status-msg">Your best: ' + esc(bestTxt()) + '</div><button id="qzStart">' + (over ? 'Play again' : 'Start') + '</button></div>';
   }
@@ -487,7 +488,7 @@
     } else {
       if(asking) board = boardHtml(S.chess.fen(), S.lastMv, S.sel, S.dests, true);
       else board = boardHtml(o.fen, o.last, null, null, false);
-      panel += '<div class="hint" style="margin:12px 0 0;">Play this opening on the board. Move for both sides, starting with White:</div><div class="qz-name">' + esc(o.name) + '</div>';
+      panel += '<div class="hint" style="margin:12px 0 0;">Play this opening on the board (worth double points). Move for both sides, starting with White:</div><div class="qz-name">' + esc(o.name) + '</div>';
       if(asking) panel += '<div class="hint">Move ' + (q.ply + 1) + ' of ' + o.sans.length + '</div>';
     }
     if(!asking){
