@@ -2,7 +2,7 @@
 (function(){
   // ========  ========
   var SHEET_CSV = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQ8mNyFPJO7yTmQg4-EpRFV1vmlzRNBR1fQF2_QANGG7h1_bc5Ea8OKZJ8P0RiKyAlOkkyKCQ-80OE3/pub?gid=171644938&single=true&output=csv';
-  var CONTACT   = 'support@pawniac.fun';              
+  var CONTACT   = 'mailto:support@pawniac.fun';              
   var DEADLINE  = new Date(2026, 11, 31, 23, 59, 59); // Founding cutoff: Dec 31, 2026
   var BACKUP    = [];                                 // shown only if the sheet can't load
   // ============================
