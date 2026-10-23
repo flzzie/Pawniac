@@ -1,8 +1,8 @@
 /* PAWNIAC STEP 52: SUPPORTERS PAGE at pawniac.fun/#/supporters, linked from the footer (not the nav bar) */
 (function(){
-  // ========  ========
+  // ======== EDIT THESE ========
   var SHEET_CSV = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQ8mNyFPJO7yTmQg4-EpRFV1vmlzRNBR1fQF2_QANGG7h1_bc5Ea8OKZJ8P0RiKyAlOkkyKCQ-80OE3/pub?gid=171644938&single=true&output=csv';
-  var CONTACT   = 'mailto:support@pawniac.fun';              
+  var CONTACT   = 'support@pawniac.fun';              
   var DEADLINE  = new Date(2026, 11, 31, 23, 59, 59); // Founding cutoff: Dec 31, 2026
   var BACKUP    = [];                                 // shown only if the sheet can't load
   // ============================
@@ -78,6 +78,15 @@
     return out;
   }
 
+  // Accepts an email (you@mail.com), a mailto: link, or a website/Discord link, with or without https://
+  function contactHref(c){
+    c = (c || '').trim();
+    if(/^(https?:|mailto:)/i.test(c)) return c;
+    if(/^[^\s@\/]+@[^\s@\/]+\.[^\s@\/]+$/.test(c)) return 'mailto:' + c;
+    if(/^[\w-]+(\.[\w-]+)+(\/\S*)?$/.test(c)) return 'https://' + c;
+    return '#';
+  }
+
   // ---- the page ----
   var root = null, fEl, rEl, rSec, loaded = false, prevTitle = '';
   function el(tag, cls, text){ var e = document.createElement(tag); if(cls) e.className = cls; if(text != null) e.textContent = text; return e; }
@@ -133,7 +142,7 @@
     rSec = el('section'); rSec.hidden = true; rSec.appendChild(el('h2', 'sp-h2', 'Supporters')); rEl = el('div', 'sp-grid'); rSec.appendChild(rEl); main.appendChild(rSec);
     var cta = el('div', 'sp-cta');
     cta.appendChild(el('p', null, 'Run a chess.com club, Discord server, Lichess team or subreddit? Get it on this page.'));
-    var join = el('a', null, 'Message me'); join.href = CONTACT; if(/^https?:/i.test(CONTACT)){ join.target = '_blank'; join.rel = 'noopener noreferrer'; }
+    var join = el('a', null, 'Message me'), href = contactHref(CONTACT); join.href = href; if(/^https?:/i.test(href)){ join.target = '_blank'; join.rel = 'noopener noreferrer'; }
     cta.appendChild(join); main.appendChild(cta);
     main.appendChild(el('p', 'sp-note', 'Communities are listed in the order they joined. Founding supporters joined by Dec 31, 2026 and keep the tag permanently.'));
     root.appendChild(main); document.body.appendChild(root);
