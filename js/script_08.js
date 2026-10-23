@@ -57,6 +57,7 @@
   function abortGame(){
     if(!confirm('Abort this game? No rating change for either player.')) return;
     endGame(currentGameId, function(c){
+      if(c.variant === 'auction') return false;   // Piece Auction games cannot be aborted once the pieces are picked
       if((c.moveLog || []).length >= 2) return false;
       markAborted(c, 'game aborted');
     });
@@ -155,7 +156,7 @@
     var n = (g.moveLog || []).length, text, showBtns = false;
     if(n < 2){
       var left = Math.max(0, Math.ceil((firstMoveMs(g) - (serverNow() - (g.moveAt || serverNow()))) / 1000));
-      text = "Your opponent isn't connected. If the game doesn't get going, it is aborted in " + left + "s (no rating change). You can also abort it yourself.";
+      text = "Your opponent isn't connected. If the game doesn't get going, it is aborted in " + left + "s (no rating change)." + (g.variant === 'auction' ? '' : ' You can also abort it yourself.');
     } else {
       var wait = claimDelayMs(g.clock) - (Date.now() - PRES.absentSince);
       if(wait > 0){
@@ -242,7 +243,7 @@
       }
     }
     // before both sides have moved: "Abort" replaces Offer draw / Resign (same as Lichess)
-    if(g.status === 'active' && me && (g.moveLog || []).length < 2){
+    if(g.status === 'active' && me && g.variant !== 'auction' && (g.moveLog || []).length < 2){
       var acts = document.querySelector('#screen-game .game-actions');
       if(acts && !document.getElementById('btnAbort')){
         var o = document.getElementById('btnOfferDraw'), r = document.getElementById('btnResign');
