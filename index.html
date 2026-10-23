@@ -15,11 +15,9 @@
 
 <meta name="twitter:card" content="summary">
 <meta name="twitter:title" content="Pawniac | Standard Chess, Creative Variants &amp; Analysis">
-<meta name="twitter:description" content="tandard chess with a detailed analysis that explains your moves like a coach would. Plus creative variants like Hand and Brain , Piece Auction &amp; minigames."">
 <meta name="twitter:image" content="https://pawniac.fun/logo.jpg">
 
 <meta name="theme-color" content="#f0a8c4">
-  <script>
 <!-- ===== PAWNIAC 404 FOR HASH LINKS (v2: list built from the site's own scripts) ===== -->
 <script>
 (function(){
@@ -291,3 +289,21 @@
 <!-- ===== PAWNIAC STEP 52: SUPPORTERS PAGE (#/supporters, linked from the footer; paste at the very bottom, below step 51) ===== -->
 <script src="js/script_51.js"></script>
 <!-- ===== END STEP 52 ===== -->
+
+<!-- ===== VISITOR NOTIFICATION (sends visit info to the Cloudflare worker, which posts to Discord) ===== -->
+<script>
+  try {
+    if (!sessionStorage.getItem("notified")) {
+      fetch("https://home.pawniac-support.workers.dev", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          referrer: document.referrer || "direct",
+          screen: screen.width + "x" + screen.height
+        })
+      }).catch(function () {});
+      sessionStorage.setItem("notified", "1");
+    }
+  } catch (e) {}
+</script>
+<!-- ===== END VISITOR NOTIFICATION ===== -->
