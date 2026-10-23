@@ -4,21 +4,30 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Pawniac</title>
-<!-- ===== PAWNIAC 404 FOR HASH LINKS (keep this as the first script in <head>) ===== -->
+<!-- ===== PAWNIAC 404 FOR HASH LINKS (v2: list built from the site's own scripts) ===== -->
 <script>
 (function(){
-  // First segment after "#/" that the site really uses. Anything else goes to the 404 page.
+  // Every first segment after "#/" that really exists. Add new routes here when you add new pages.
   var KNOWN = [
-    'play','minigames','quiz','leaderboard','help',
-    'game','watch','profile','user','u','challenge','c',
-    'bot','auction','analyze','tour','blindfold','settings','achievements','terms','privacy','supporters'
+    // found in the site's scripts
+    'analyze','auction','bot','game','handandbrain','help','leaderboard','minigames',
+    'privacy','profile','quiz','settings','standard','supporters','terms','watch',
+    // tab names, because the site builds some routes from them in code
+    'play','reports','achievements'
   ];
-  function check(){
-    var h = location.hash;                        // e.g. "#/somepagethatdoesntexist"
-    if(h.indexOf('#/') !== 0) return;             // "", "#", "#section" etc. are left alone
+  function isUnknown(){
+    var h = location.hash;
+    if(h.indexOf('#/') !== 0) return false;                       // "", "#", "#section" are left alone
     var first = h.slice(2).split(/[\/?]/)[0].toLowerCase();
-    if(first === '' || KNOWN.indexOf(first) !== -1) return;
-    location.replace('/404.html?from=' + encodeURIComponent(h));
+    return first !== '' && KNOWN.indexOf(first) === -1;
+  }
+  function check(){
+    if(!isUnknown()) return;
+    var h = location.hash;
+    // wait a moment: if the site itself changes the hash to a real page, don't 404
+    setTimeout(function(){
+      if(location.hash === h && isUnknown()) location.replace('/404.html?from=' + encodeURIComponent(h));
+    }, 800);
   }
   check();
   window.addEventListener('hashchange', check);
