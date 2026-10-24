@@ -46,6 +46,9 @@ var css = ''
 + '#sup .sp-tag{align-self:flex-start;font-size:13px;font-weight:700;color:var(--gold);background:var(--gold-bg);padding:3px 10px;border-radius:999px;}'
 + '#sup .sp-desc{margin:0;font-size:15px;color:var(--muted);display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;line-clamp:2;overflow:hidden;}'
 + '#sup .sp-since{font-size:14px;color:var(--muted);}'
++ '#sup .sp-owner{font-size:14px;color:var(--muted);}'
++ '#sup .sp-owner a{color:var(--ink);font-weight:600;text-decoration:none;border-bottom:1px solid var(--line);cursor:pointer;}'
++ '#sup .sp-owner a:hover{border-color:var(--accent);}'
 + '#sup .sp-card.sp-empty{border-style:dashed;background:transparent;justify-content:center;text-align:center;color:var(--muted);}'
 + '#sup .sp-empty b{color:var(--ink);display:block;font-size:17px;margin-bottom:4px;}'
 + '#sup .sp-cta{border-top:1px solid var(--line);padding-top:28px;display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;}'
@@ -136,6 +139,19 @@ function card(c, founding){
   else name = el('span', 'sp-name', c.name);
   box.appendChild(name);
   if(c.desc) box.appendChild(el('p', 'sp-desc', c.desc));
+  if(c.owner){
+    var own = el('div', 'sp-owner', 'Owner: ');
+    if(/^[A-Za-z0-9_]{3,20}$/.test(c.owner)){
+      var ol = el('a', null, c.owner); ol.href = '#';
+      ol.onclick = function(e){
+        e.preventDefault();
+        close(true);
+        if(typeof window.openProfile === 'function') window.openProfile(c.owner);
+      };
+      own.appendChild(ol);
+    } else own.appendChild(document.createTextNode(c.owner));
+    box.appendChild(own);
+  }
   if(founding) box.appendChild(el('span', 'sp-tag', '\u2605 Founding supporter'));
   box.appendChild(el('div', 'sp-since', (c.type ? c.type + ' \u00B7 ' : '') + 'Joined ' + months[d.getMonth()] + ' ' + d.getDate() + ', ' + d.getFullYear()));
   return box;
