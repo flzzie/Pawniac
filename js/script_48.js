@@ -629,7 +629,11 @@
   }
 
   // ---------- profile badges (Founding Supporter, Bug Hunter) ----------
-  // stored in Firebase at hb/badges/<username>/<badge_id> = true
+  // stored in Firebase at hb/badges/<username>/<badge_id>
+  //   bug_hunter          = true
+  //   founding_supporter  = true                                (badge only)
+  //                       = "community-slug"                    (badge links to that card on the supporters page,
+  //                                                              e.g. "magma-knights-chess-society")
   var BADGE_ORDER = ['founding_supporter', 'bug_hunter'];
   var BADGES = {
     founding_supporter: {
@@ -644,12 +648,22 @@
     }
   };
 
+  // is this badge switched on for the user? (true, or for Founding Supporter a community slug)
+  function badgeOn(id, v){
+    return v === true || (id === 'founding_supporter' && typeof v === 'string' && v.length > 0);
+  }
+  // where the badge should take people: the owner's card on the supporters page (only for a valid slug)
+  function badgeSlug(id, v){
+    return (id === 'founding_supporter' && typeof v === 'string' && /^[a-z0-9-]{1,60}$/.test(v)) ? v : '';
+  }
+
   function badgeCss(){
     if($('pnBadgeCss')) return;
     var s = document.createElement('style'); s.id = 'pnBadgeCss';
     s.textContent = `
 .pn-badges{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}
 .pn-badge{position:relative;width:44px;height:44px;border-radius:12px;border:1px solid;display:grid;place-items:center;cursor:default;outline-offset:3px}
+a.pn-badge{cursor:pointer;text-decoration:none}
 .pn-badge svg{width:24px;height:24px;position:relative;z-index:1}
 .pn-gold{color:#ffd777;background:linear-gradient(145deg,#6a4f1a,#2b2111 55%,#57421a);border-color:#d6a547;box-shadow:inset 0 1px 0 rgba(255,236,176,.4),inset 0 -6px 10px rgba(0,0,0,.25),0 0 16px rgba(240,185,74,.28)}
 .pn-gold svg{filter:drop-shadow(0 0 5px rgba(255,200,80,.65))}
@@ -658,8 +672,9 @@
 .pn-badge::before{content:"";position:absolute;inset:1px;border-radius:inherit;background:linear-gradient(180deg,rgba(255,255,255,.22),rgba(255,255,255,0) 50%);pointer-events:none}
 .pn-badge::after{content:"";position:absolute;inset:0;border-radius:inherit;background:linear-gradient(115deg,transparent 35%,rgba(255,255,255,.6) 50%,transparent 65%);background-size:250% 100%;background-position:160% 0;transition:background-position .7s ease;pointer-events:none}
 .pn-badge:hover::after,.pn-badge:focus-visible::after{background-position:-60% 0}
-.pn-tip{position:absolute;left:50%;bottom:calc(100% + 10px);transform:translate(-50%,4px);width:230px;background:#0f0e0d;border:1px solid #35332f;border-radius:10px;padding:10px 12px;font:12.5px/1.45 system-ui,sans-serif;color:#f2efe9;opacity:0;pointer-events:none;transition:opacity .15s,transform .15s;z-index:50}
+.pn-tip{position:absolute;left:50%;bottom:calc(100% + 10px);transform:translate(-50%,4px);width:230px;background:#0f0e0d;border:1px solid #35332f;border-radius:10px;padding:10px 12px;font:12.5px/1.45 system-ui,sans-serif;color:#f2efe9;opacity:0;pointer-events:none;transition:opacity .15s,transform .15s;z-index:50;text-align:left}
 .pn-tip b{display:block;font-size:13px;margin-bottom:3px}
+.pn-tip i{display:block;margin-top:6px;font-style:normal;font-weight:600;color:#e8be6a}
 .pn-tip::after{content:"";position:absolute;top:100%;left:50%;margin-left:-6px;border:6px solid transparent;border-top-color:#0f0e0d}
 .pn-badge:hover .pn-tip,.pn-badge:focus-visible .pn-tip{opacity:1;transform:translate(-50%,0)}
 @media (prefers-reduced-motion:reduce){.pn-badge::after,.pn-tip{transition:none}}
@@ -672,16 +687,18 @@
     var b = null;
     try{ b = await val('hb/badges/' + name); }catch(e){ return; }          // no badges / rules not published: show nothing
     if(!b || !stillOn(name) || scr.querySelector('#pfBadges')) return;
-    var ids = BADGE_ORDER.filter(function(id){ return b[id] === true; });
+    var ids = BADGE_ORDER.filter(function(id){ return badgeOn(id, b[id]); });
     if(!ids.length) return;
     badgeCss();
     var box = document.createElement('div');
     box.id = 'pfBadges'; box.className = 'pn-badges';
     ids.forEach(function(id){
-      var d = BADGES[id], el = document.createElement('div');
-      el.className = 'pn-badge ' + d.cls; el.tabIndex = 0;
-      el.setAttribute('aria-label', d.name + '. ' + d.tip);
-      el.innerHTML = d.icon + '<span class="pn-tip"><b>' + d.name + '</b>' + d.tip + '</span>';
+      var d = BADGES[id], slug = badgeSlug(id, b[id]), el = document.createElement(slug ? 'a' : 'div');
+      el.className = 'pn-badge ' + d.cls;
+      if(slug){ el.href = '#/supporters/' + slug; }
+      else { el.tabIndex = 0; }
+      el.setAttribute('aria-label', d.name + '. ' + d.tip + (slug ? ' Opens their community on the supporters page.' : ''));
+      el.innerHTML = d.icon + '<span class="pn-tip"><b>' + d.name + '</b>' + d.tip + (slug ? '<i>Click to see their community</i>' : '') + '</span>';
       box.appendChild(el);
     });
     // right under the bio (built in script_07.js):
