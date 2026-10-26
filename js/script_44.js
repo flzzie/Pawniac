@@ -207,7 +207,7 @@
         for(var k = 1; k < L.d.length; k += 2) if(L.d[k] <= -1){ why = 'lose a ' + NAMES[L.cap[k]]; break; }
       }
       o.f.only = 1;
-      o.notes.push('There was only one good move here, and you found it. Every other move would ' + (why || 'let the evaluation slide a long way') + '.');
+      var __alt = a0.best ? C.tryMove(fenB, a0.best) : null; o.notes.push('There was only one good move here, and you found it. ' + (__alt ? 'The next best option I found, ' + __alt.san + ', would ' : 'The next best option I found would ') + (why || 'let the evaluation slide a long way') + '.');
     });
     // ---- punished their mistake / let them off
     T(function(){
@@ -461,7 +461,7 @@
     // ---- gave away the win / great save
     T(function(){
       if(Math.abs(cpA) > 80) return;
-      if(cpB >= 300) bad('You let the win slip.', 'Your opponent let the win slip.');
+      if(cpB >= 300){ if(S.label !== 'best' && S.label !== 'excellent' && S.loss >= 5) bad('You let the win slip.', 'Your opponent let the win slip.'); }
       else if(cpB <= -300) good('A great save.', 'Your opponent found a great save.');
     });
     // ---- already decided (beyond +-5.5)
