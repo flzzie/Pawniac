@@ -763,7 +763,7 @@
       try{
         var evI = ev[i], tops = [{u:evI.best, cp:evI.cp}].concat((evI.alts || []).map(function(x){ return {u:x.best, cp:x.cp}; }));
         var hit = tops.filter(function(x){ return x.u === uci; })[0];
-        if(hit){ var l2 = Math.max(0, winPct(sign * evI.cp) - winPct(sign * hit.cp)); if(l2 < loss) loss = l2; }
+        if(hit){ var l2 = Math.max(0, winPct(sign * evI.cp) - winPct(sign * hit.cp)); if(l2 < loss) loss = l2; if(!isMate(cpA) && !isMate(sign * hit.cp)) cpA = sign * hit.cp; }
       }catch(e){}
       if(uci === ev[i].best) label = 'best';
       else if(loss < 2) label = 'excellent';
@@ -1426,7 +1426,7 @@
     else {
       lines.push('They slipped: this move costs them about ' + gap.toFixed(1) + ' pawns.');
       var rep = evA.best ? tryMove(fenA, evA.best) : null;
-      if(rep){ lines.push('Your best reply was ' + rep.san + '.'); lines.push('Line: ' + sanLine(fenA, evA.pv, 4)); }
+      if(rep){ lines.push('Your best reply now is ' + rep.san + '.'); lines.push('Line: ' + sanLine(fenA, evA.pv, 4)); }
     }
     return {mine:false, title:title, what:what, lines:lines, tip:null, engine:evalBlock(fenA, cpA, me)};
   }
