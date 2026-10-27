@@ -154,11 +154,11 @@
     }
     var msg = document.getElementById('abMsg'), btns = document.getElementById('abBtns'), hint = document.getElementById('abHint');
     var n = (g.moveLog || []).length, text, showBtns = false;
-    if(n < 2){
+    if(n < 2 && g.variant !== 'auction'){
       var left = Math.max(0, Math.ceil((firstMoveMs(g) - (serverNow() - (g.moveAt || serverNow()))) / 1000));
       text = "Your opponent isn't connected. If the game doesn't get going, it is aborted in " + left + "s (no rating change)." + (g.variant === 'auction' ? '' : ' You can also abort it yourself.');
     } else {
-      var wait = claimDelayMs(g.clock) - (Date.now() - PRES.absentSince);
+      var wait = (g.variant === 'auction' ? Math.min(15000, claimDelayMs(g.clock)) : claimDelayMs(g.clock)) - (Date.now() - PRES.absentSince);
       if(wait > 0){
         text = 'Your opponent left the game. You can claim the result in ' + Math.ceil(wait/1000) + 's. They may still come back.';
       } else {
@@ -196,14 +196,14 @@
     var n = (g.moveLog || []).length, idle = serverNow() - g.moveAt, gid = currentGameId;
     var hasClock = g.clock && g.clock.initialSec > 0;
 
-    if(n < 2 && idle > firstMoveMs(g)){
+    if(n < 2 && idle > firstMoveMs(g) && g.variant !== 'auction'){
       busy = true;
       var who = g.turn === 'w' ? 'White' : 'Black';
       endGame(gid, function(c){
         if((c.moveLog || []).length >= 2 || serverNow() - (c.moveAt || 0) <= firstMoveMs(c)) return false;
         markAborted(c, 'game aborted - ' + who + ' did not move in time');
       }).then(function(){ setTimeout(function(){ busy = false; }, 3000); });
-    } else if(n >= 2 && !hasClock && idle > IDLE_MS){
+    } else if((n >= 2 || g.variant === 'auction') && !hasClock && idle > IDLE_MS){
       busy = true;
       endGame(gid, function(c){
         if((c.clock && c.clock.initialSec > 0) || serverNow() - (c.moveAt || 0) <= IDLE_MS) return false;
