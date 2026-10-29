@@ -3,7 +3,7 @@
   // so the browser can run the fast WebAssembly build. If the engine/ folder is missing, nothing breaks:
   // the old CDN engine is used as before.
   var P = null;
-  function dir(){ return new URL('engine/', document.baseURI).href; }
+  function dir(){ return new URL('/engine/', location.origin).href; }
   function handshake(w){
     return new Promise(function(res, rej){
       var t = setTimeout(function(){ try{ w.terminate(); }catch(e){} rej(new Error('engine timeout')); }, 60000);

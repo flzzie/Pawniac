@@ -7,7 +7,7 @@
   // and opening a link (even before logging in) takes you to that page after login.
   var NAME_RE = /^[A-Za-z0-9_]{3,20}$/;
   var curScreen = null, lbV = 'hb', curProfile = null;
-  var lastHash = location.hash, replaceNext = false, holdReplace = false, ready = false, timer = null;
+  var lastHash = PW.hash(), replaceNext = false, holdReplace = false, ready = false, timer = null;
 
   // ---------- reading a link ----------
   function parse(hash){
@@ -45,9 +45,9 @@
     var p = pathFor();
     if(!p) return;
     var h = '#' + p;
-    if(location.hash !== h){
-      if(replaceNext || holdReplace) history.replaceState(null, '', location.pathname + location.search + h);
-      else location.hash = h;      // new history entry, so the back button works
+    if(PW.hash() !== h){
+      if(replaceNext || holdReplace) PW.replace(h);
+      else PW.push(h);      // new history entry, so the back button works
     }
     lastHash = h;
     replaceNext = false;
@@ -103,7 +103,7 @@
   function go(r, skipGuard){
     if(!ME || !r) return;
     if(!skipGuard && inGame() && !confirm('Your clock keeps running while you are away. Leave the game view?')){
-      try{ history.replaceState(null, '', location.pathname + location.search + lastHash); }catch(e){}
+      try{ PW.replace(lastHash); }catch(e){}
       return;
     }
     replaceNext = true;
@@ -118,8 +118,8 @@
 
   // back / forward buttons, or someone editing the address by hand
   window.addEventListener('hashchange', function(){
-    if(!ME || location.hash === lastHash) return;
-    var r = parse(location.hash);
+    if(!ME || PW.hash() === lastHash) return;
+    var r = parse(PW.hash());
     if(r) go(r, false);
   });
 
@@ -127,7 +127,7 @@
   var prevAfter = window.afterAuth;
   window.afterAuth = async function(){
     if(ready) return prevAfter();           // "Play" in the nav bar also calls this: behave as before
-    var want = parse(location.hash);        // read it before the lobby rewrites the address
+    var want = parse(PW.hash());        // read it before the lobby rewrites the address
     holdReplace = true;
     try{
       await prevAfter();                    // resumes a live game / invite room first, same as always

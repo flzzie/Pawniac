@@ -22,7 +22,7 @@
 
   function esc(s){ return String(s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
   function discordReady(){ return !/^PUT_/.test(DISCORD_CLIENT_ID) && !/^PUT_/.test(DISCORD_FUNCTION_URL); }
-  function redirectUri(){ return location.origin + location.pathname; }
+  function redirectUri(){ return location.origin + '/'; }
 
   // ---------- Google ----------
   function authErr(e){
@@ -77,7 +77,7 @@
     if(!saved || saved !== st) return;
     try{ sessionStorage.removeItem(SS_STATE); }catch(e){}
     ['code', 'state', 'error', 'error_description'].forEach(function(k){ q.delete(k); });
-    history.replaceState(null, '', location.pathname + (q.toString() ? '?' + q.toString() : '') + location.hash);
+    history.replaceState(null, '', location.pathname + (q.toString() ? '?' + q.toString() : ''));
     if(err || !code){ later('Discord login was cancelled.'); return; }
     busyDiscord = true;
     fetch(DISCORD_FUNCTION_URL, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({code:code, redirectUri:redirectUri()})})

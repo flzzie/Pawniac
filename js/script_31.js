@@ -6,7 +6,7 @@
   var done = {}, busy = {}, fails = {};
   var G = null, token = 0, okOnce = false;
   // a link like  .../#/game/12  that somebody opened before logging in
-  var pendingN = (/^#\/game\/(\d+)\/?$/.exec(location.hash) || [])[1] || null;
+  var pendingN = (/^#\/game\/(\d+)\/?$/.exec(PW.hash()) || [])[1] || null;
 
   function esc(s){ return String(s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
   function sleep(ms){ return new Promise(function(r){ setTimeout(r, ms); }); }
@@ -161,9 +161,9 @@
   function goToGame(n){
     if(!guardOk()) return;
     var h = '#/game/' + n;
-    if(location.hash === h){ openGame(n); return; }
+    if(PW.hash() === h){ openGame(n); return; }
     okOnce = true;
-    location.hash = h;           // the hashchange handler below opens it (so the back button works)
+    PW.push(h);           // the hashchange handler below opens it (so the back button works)
   }
 
   function boardHtml(fen, last, flip){
@@ -322,7 +322,7 @@
     document.getElementById('ghFlip').onclick = function(){ G.flip = !G.flip; paint(); };
     var cp = document.getElementById('ghCopy');
     cp.onclick = async function(){
-      var link = location.origin + location.pathname + '#/game/' + n;
+      var link = PW.url('#/game/' + n);
       try{ await navigator.clipboard.writeText(link); cp.textContent = 'Copied!'; setTimeout(function(){ cp.textContent = 'Copy link'; }, 1500); }
       catch(e){ prompt('Copy this link:', link); }
     };
@@ -351,13 +351,13 @@
 
   // address bar: #/game/NUMBER (also the back / forward buttons)
   window.addEventListener('hashchange', function(e){
-    var m = /^#\/game\/(\d+)\/?$/.exec(location.hash);
+    var m = /^#\/game\/(\d+)\/?$/.exec(PW.hash());
     if(!m || !ME) return;
     if(okOnce) okOnce = false;
     else if(!guardOk()){
       try{
         var old = String(e.oldURL || '').split('#')[1];
-        history.replaceState(null, '', location.pathname + location.search + (old ? '#' + old : ''));
+        PW.replace((old ? '#' + old : ''));
       }catch(x){}
       return;
     }
@@ -373,7 +373,7 @@
       pendingN = null;
       var s = document.getElementById('screen-game');
       if(!(s && s.style.display === 'block')){      // do not pull you out of a live game
-        try{ history.replaceState(null, '', location.pathname + location.search + '#/game/' + n); }catch(e){}
+        try{ PW.replace('#/game/' + n); }catch(e){}
         openGame(+n);
       }
     }

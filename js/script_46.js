@@ -14,8 +14,8 @@
   }
   function fix(){
     var h = wanted();
-    if(h && location.hash !== h){
-      try{ history.replaceState(null, '', location.pathname + location.search + h); }catch(e){}
+    if(h && PW.hash() !== h){
+      try{ PW.replace(h); }catch(e){}
     }
   }
   function openBot(){ var a = document.querySelector('#navbar [data-nav="bot"]'); if(a) a.click(); }
@@ -26,13 +26,13 @@
   }
   window.addEventListener('hashchange', function(){
     if(!ME) return;
-    var h = location.hash.toLowerCase();
+    var h = PW.hash().toLowerCase();
     if(/^#\/bot\/?$/.test(h)){ if(cur !== 'bot') openBot(); }
     else if(/^#\/auction\/?$/.test(h)){ if(!(cur === 'lobby' && auctionActive())) openAuction(); }
   });
   var prevAfter = window.afterAuth;
   window.afterAuth = async function(){
-    var h = boot ? location.hash.toLowerCase() : '';
+    var h = boot ? PW.hash().toLowerCase() : '';
     boot = false;
     var r = await prevAfter.apply(this, arguments);
     try{

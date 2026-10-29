@@ -16,8 +16,8 @@
     }
     try{
       var h = '#/leaderboard' + (v === 'standard' ? '/standard' : v === 'auction' ? '/auction' : '');
-      if(location.hash !== h && document.getElementById('screen-leaderboard').style.display !== 'none'){
-        history.replaceState(null, '', location.pathname + location.search + h);
+      if(PW.hash() !== h && document.getElementById('screen-leaderboard').style.display !== 'none'){
+        PW.replace(h);
       }
     }catch(e){}
   }
