@@ -113,7 +113,7 @@
     W = {gid:gid, g:null, prevFen:null, last:null, spec:null};
     try{
       var h = '#/watch/' + gid;
-      if(location.hash !== h) history.pushState(null, '', location.pathname + location.search + h);   // shareable link, back button works
+      if(PW.hash() !== h) PW.pushQuiet(h);   // shareable link, back button works
     }catch(e){}
     scr.innerHTML = '<div class="card"><p class="desc">Loading game...</p></div>';
     var me = W;
@@ -191,13 +191,13 @@
   var WRE = /^#\/?watch\/([A-Za-z0-9]{3,12})/i;
   window.addEventListener('hashchange', function(){
     if(!ME) return;
-    var m = WRE.exec(location.hash);
+    var m = WRE.exec(PW.hash());
     if(m){ if(!(W && W.gid === m[1])) openWatch(m[1]); }
     else if(W){ window.renderLobby(); }                       // back button from a watched game
   });
   var linkDone = false, prevAfter = window.afterAuth;
   window.afterAuth = async function(){
-    var m = WRE.exec(location.hash), gid = (m && !linkDone) ? m[1] : null;     // read it before the lobby rewrites the address
+    var m = WRE.exec(PW.hash()), gid = (m && !linkDone) ? m[1] : null;     // read it before the lobby rewrites the address
     var r = await prevAfter.apply(this, arguments);
     if(gid){
       linkDone = true;

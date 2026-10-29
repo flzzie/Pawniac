@@ -695,7 +695,7 @@ a.pn-badge{cursor:pointer;text-decoration:none}
     ids.forEach(function(id){
       var d = BADGES[id], slug = badgeSlug(id, b[id]), el = document.createElement(slug ? 'a' : 'div');
       el.className = 'pn-badge ' + d.cls;
-      if(slug){ el.href = '#/supporters/' + slug; }
+      if(slug){ el.href = '/supporters/' + slug + '/'; el.addEventListener('click', function(ev){ if(ev.defaultPrevented || ev.button || ev.metaKey || ev.ctrlKey || ev.shiftKey || ev.altKey) return; ev.preventDefault(); PW.push('#/supporters/' + slug); }); }
       else { el.tabIndex = 0; }
       el.setAttribute('aria-label', d.name + '. ' + d.tip + (slug ? ' Opens their community on the supporters page.' : ''));
       el.innerHTML = d.icon + '<span class="pn-tip"><b>' + d.name + '</b>' + d.tip + (slug ? '<i>Click to see their community</i>' : '') + '</span>';
@@ -765,7 +765,7 @@ a.pn-badge{cursor:pointer;text-decoration:none}
     scrR.style.display = (n === 'reports') ? 'block' : 'none';
     if(n === 'achievements' || n === 'reports'){
       nav.querySelectorAll('[data-nav]').forEach(function(a){ a.classList.toggle('active', a.dataset.nav === n); });
-      try{ history.replaceState(null, '', location.pathname + location.search + '#/' + n); }catch(e){}
+      try{ PW.replace('#/' + n); }catch(e){}
     }
     if((was === 'minigames' || was === 'quiz') && n !== was && ME) scheduleEval(2500);   // minigame scores are saved when you leave
   };
@@ -798,7 +798,7 @@ a.pn-badge{cursor:pointer;text-decoration:none}
   }
   var prevAfter = window.afterAuth;
   window.afterAuth = async function(){
-    var h = boot ? location.hash : '';
+    var h = boot ? PW.hash() : '';
     boot = false;
     var r = await prevAfter.apply(this, arguments);
     try{
@@ -813,8 +813,8 @@ a.pn-badge{cursor:pointer;text-decoration:none}
   };
   window.addEventListener('hashchange', function(){
     if(!ME) return;
-    if(ROUTE_A.test(location.hash)){ if(cur !== 'achievements' && leaveOk()){ stopPoll(); renderAchievements(); } }
-    else if(ROUTE_R.test(location.hash)){ if(cur !== 'reports' && isAdmin() && leaveOk()){ stopPoll(); renderReports(); } }
+    if(ROUTE_A.test(PW.hash())){ if(cur !== 'achievements' && leaveOk()){ stopPoll(); renderAchievements(); } }
+    else if(ROUTE_R.test(PW.hash())){ if(cur !== 'reports' && isAdmin() && leaveOk()){ stopPoll(); renderReports(); } }
   });
 
   // housekeeping: log out clears things; a new day counts for the streak

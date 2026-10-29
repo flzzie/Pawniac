@@ -9,7 +9,7 @@
     if(pending){
       var code = pending;
       pending = null;
-      history.replaceState(null, '', location.pathname);   // clean the URL
+      try{ history.replaceState(null, '', '/'); }catch(e){}   // clean the URL
       var exists = await kget('hb:game:' + code, true);
       if(exists){ await joinRoom(code); return; }
       alert("That invite link's room doesn't exist anymore.");
@@ -27,7 +27,7 @@
     btn.className = 'secondary full-btn';
     btn.textContent = 'Copy invite link';
     btn.onclick = async function(){
-      var link = location.origin + location.pathname + '?room=' + code;
+      var link = location.origin + '/?room=' + code;
       try{
         await navigator.clipboard.writeText(link);
         btn.textContent = 'Copied!';

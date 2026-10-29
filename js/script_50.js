@@ -23,7 +23,7 @@
       ['How do I start a game?', `<p>Open <b>Play</b> in the top bar. Pick a game type (Hand &amp; Brain, Standard Chess or Piece Auction), pick a time control, then either press <b>Find opponent</b> for a quick match or create a room under <b>Play with friends</b>.</p><p>In a room, share the 5-letter code or press <b>Copy invite link</b>. Anyone who opens the link and logs in lands straight in your room.</p>`],
       ['How do I challenge a specific player?', `<p>Open their profile (click their name anywhere) or find them under <b>Leaderboard &rarr; Players</b>, then press <b>Challenge</b>. Choose the game, time control and colour. A challenge lasts 2 minutes. You can only challenge players who are online.</p>`],
       ['What do the green, yellow and blue dots mean?', `<p>Green means online, yellow means idle (no mouse or keyboard for 3 minutes), blue means in a game, and grey means offline.</p>`],
-      ['Can I watch other people play?', `<p>Yes. On the Play page, the <b>Watch live games</b> list shows games in progress. You can also press <b>Watch live game</b> on a player's profile. Every watch page has its own link you can share, like <code>#/watch/CODE</code>.</p>`],
+      ['Can I watch other people play?', `<p>Yes. On the Play page, the <b>Watch live games</b> list shows games in progress. You can also press <b>Watch live game</b> on a player's profile. Every watch page has its own link you can share, like <code>/watch/CODE</code>.</p>`],
       ['What time controls are there?', `<p>No clock, 1+0, 3+2, 5+3, 10+5, 15+10, or a custom one (1 to 180 minutes, 0 to 60 seconds added per move). The first number is minutes, the second is seconds added after each move.</p>`],
       ['What happens if I run out of time?', `<p>You lose on time, unless your opponent cannot possibly checkmate you with the pieces they have left. Then the game is a draw.</p>`],
       ['What if my opponent leaves or never moves?', `<ul><li>If a side has not made its first move in 30 seconds (60 seconds in 2v2), the game is <b>aborted</b> with no rating change.</li><li>If your opponent disconnects mid-game, after a short wait (40 to 120 seconds depending on the time control) you can <b>claim victory</b> or <b>call a draw</b>. If they come back, the game carries on.</li><li>Games with no clock end in a win for the other side if nobody moves for 24 hours.</li></ul>`],
@@ -150,20 +150,20 @@
     host.appendChild(d);
   }
   function goBack(){
-    try{ history.replaceState(null, '', location.pathname + location.search); }catch(e){}
+    try{ PW.replace(''); }catch(e){}
     try{
       if(loggedIn() && typeof afterAuth === 'function') afterAuth();
       else renderAuthScreen();
     }catch(e){
       console.error(e);
-      location.href = location.pathname + location.search;
+      location.href = '/' + location.search;
       return;
     }
     // safety net: if we are logged out and a Help/Terms page is still showing, reload to the login screen
     var t = document.getElementById('screen-terms');
     var h = document.getElementById('screen-help');
     if(!loggedIn() && ((t && t.style.display === 'block') || (h && h.style.display === 'block'))){
-      location.href = location.pathname + location.search;
+      location.href = '/' + location.search;
     }
   }
 
@@ -324,7 +324,7 @@
       '<div class="lg">' + (isT ? TOS : PRIV) + '</div></div>';
     scrT.querySelectorAll('[data-lg]').forEach(function(t){ t.onclick = function(){ renderLegal(t.dataset.lg); }; });
     addBack(scrT);
-    try{ history.replaceState(null, '', location.pathname + location.search + '#/' + (isT ? 'terms' : 'privacy')); }catch(e){}
+    try{ PW.replace('#/' + (isT ? 'terms' : 'privacy')); }catch(e){}
     window.scrollTo(0, 0);
   }
   window.renderTerms = function(){ renderLegal('tos'); };
@@ -387,14 +387,14 @@
   // links: #/terms and #/privacy (the existing #/help link already uses renderHelp)
   var RT = /^#\/(terms|privacy)\/?$/i;
   window.addEventListener('hashchange', function(){
-    var m = RT.exec(location.hash);
+    var m = RT.exec(PW.hash());
     if(!m || !loggedIn()) return;
     if(scrT.style.display === 'block' && LG === m[1].toLowerCase().replace('terms', 'tos')) return;
     openPublic(function(){ renderLegal(m[1].toLowerCase()); });
   });
   var boot = true, prevAfter = window.afterAuth;
   window.afterAuth = async function(){
-    var h = boot ? location.hash : '';
+    var h = boot ? PW.hash() : '';
     boot = false;
     var r = await prevAfter.apply(this, arguments);
     try{

@@ -118,7 +118,7 @@ function el(tag, cls, text){ var e = document.createElement(tag); if(cls) e.clas
 function focusCard(){
   if(!root) return;
   var old = root.querySelector('.sp-hit'); if(old) old.classList.remove('sp-hit');
-  var m = /^#\/supporters\/([^?\/]+)/i.exec(location.hash);
+  var m = /^#\/supporters\/([^?\/]+)/i.exec(PW.hash());
   if(!m) return;
   var slug; try{ slug = decodeURIComponent(m[1]).toLowerCase(); }catch(e){ return; }
   var target = document.getElementById('sp-c-' + slug);
@@ -224,12 +224,12 @@ function hide(){
 }
 
 function close(updateUrl){
-  if(updateUrl && location.hash.indexOf(ROUTE) === 0) history.pushState(null, '', location.pathname + location.search);
+  if(updateUrl && PW.hash().indexOf(ROUTE) === 0) PW.pushQuiet('');
   hide();
 }
 
 function sync(){
-  if(location.hash.toLowerCase().indexOf(ROUTE) === 0){ show(); focusCard(); }
+  if(PW.hash().toLowerCase().indexOf(ROUTE) === 0){ show(); focusCard(); }
   else hide();
 }
 

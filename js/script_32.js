@@ -48,7 +48,7 @@
     }
     if(my !== seq) return;
     body(html);
-    try{ history.replaceState(null, '', location.pathname + location.search + '#/leaderboard/auction'); }catch(e){}
+    try{ PW.replace('#/leaderboard/auction'); }catch(e){}
   }
 
   window.renderLeaderboard = async function(v){
@@ -66,7 +66,7 @@
   var prevAfter = window.afterAuth;
   window.afterAuth = async function(){
     var link = false;
-    if(boot){ boot = false; link = /^#\/leaderboard\/auction\/?$/i.test(location.hash); }
+    if(boot){ boot = false; link = /^#\/leaderboard\/auction\/?$/i.test(PW.hash()); }
     var r = await prevAfter.apply(this, arguments);
     if(link && ME){
       var gs = document.getElementById('screen-game');

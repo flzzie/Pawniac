@@ -24,7 +24,7 @@
     b.dataset.gid = gid;
     b.onclick = function(){
       if(inActiveGame() && !confirm('Your clock keeps running while you are away. Leave the game view?')) return;
-      location.hash = '#/watch/' + b.dataset.gid;      // step 36 opens it
+      PW.push('#/watch/' + b.dataset.gid);      // step 36 opens it
     };
     if(host) host.appendChild(b); else anchor.after(b);
   }
