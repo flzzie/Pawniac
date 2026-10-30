@@ -42,7 +42,7 @@ ROUTES = [
                "Pick a time control (no clock, 1+0, 3+2, 5+3, 10+5, 15+10, or your own custom clock) and press Find opponent for a quick match, or create a private room and invite a friend with a 5-letter code or an invite link. Rated games count toward your Standard rating and the leaderboard.",
                "Everything on Pawniac is free, with no ads. You need an account to play online games, and you can sign up with an email and password, or continue with Google or Discord."]),
     dict(path="handandbrain", nav="Hand and Brain", sitemap=True,
-         title="Play Hand and Brain Chess Online (1v1 and 2v2) | Pawniac",
+         title="Pawniac",
          desc="Play Hand and Brain chess online for free: one piece type is named before every move. Play 1v1 or 2v2 team games on Pawniac.",
          h="Play Hand and Brain chess online",
          text=["Hand and Brain is a chess variant where one piece type is named before every move, so you have to find the best move using only that kind of piece. It turns normal chess into a puzzle about making the most of the pieces you are given.",
