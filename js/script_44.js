@@ -526,7 +526,11 @@
     return EW;
   }
   function toCp(t, v){ return t === 'mate' ? (v === 0 ? -10000 : (v > 0 ? 10000 - 10 * v : -(10000 - 10 * (-v)))) : v; }
-  async function multi3(fen){
+  function multi3(fen){
+    if(window.PawniacSF && window.PawniacSF.queue) return window.PawniacSF.queue(function(){ return multi30(fen); });
+    return multi30(fen);
+  }
+  async function multi30(fen){
     var w = await loadEng(); if(!w) throw new Error('engine');
     var sign = fen.split(' ')[1] === 'w' ? 1 : -1;
     return new Promise(function(res, rej){
