@@ -53,7 +53,11 @@
     E.p.then(function(w){ if(!w) E.p = null; });
     return E.p;
   }
-  async function run(fen){
+  function run(fen){
+    if(window.PawniacSF && window.PawniacSF.queue) return window.PawniacSF.queue(function(){ return run0(fen); });
+    return run0(fen);
+  }
+  async function run0(fen){
     var c = new Chess(fen), turn = fen.split(' ')[1], sign = turn === 'w' ? 1 : -1;
     if(c.game_over()) return {cp: c.in_checkmate() ? (turn === 'w' ? -10000 : 10000) : 0, best:null, pv:[]};
     var w = await loadEng();
