@@ -30,16 +30,9 @@
       Q = p.then(function(){}, function(){});
       return p;
     },
-    // turns the engine's own win/draw/loss chances into a score on the old Stockfish-10 scale, so every threshold in the analysis keeps its meaning
-    cp: function(line, type, val){
-      if(type !== 'cp') return val;
-      var m = / wdl (\d+) (\d+) (\d+)/.exec(line);
-      if(!m) return val;
-      var w = +m[1], d = +m[2], l = +m[3], tot = w + d + l;
-      if(!tot) return val;
-      var wp = Math.max(0.5, Math.min(99.5, (w + d / 2) / tot * 100)), x = (wp - 50) / 50;
-      return Math.round(Math.log((1 + x) / (1 - x)) / 0.00368208);
-    },
+    // The engine's own score is already on the chess.com scale (100 = about a 50% winning chance), so it is used as it is.
+    // (An earlier win/draw/loss conversion here blew every clear advantage up to +14.38.)
+    cp: function(line, type, val){ return val; },
     get: function(){
       if(P) return P;
       P = (async function(){
