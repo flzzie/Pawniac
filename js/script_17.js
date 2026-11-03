@@ -103,6 +103,10 @@
   }
   // multi = how many lines to search (1 = just the best move; 3 also returns the next two best moves)
   function sfEval(w, fen, ms, multi){
+    if(window.PawniacSF && window.PawniacSF.queue) return window.PawniacSF.queue(function(){ return sfEval0(w, fen, ms, multi); });
+    return sfEval0(w, fen, ms, multi);
+  }
+  function sfEval0(w, fen, ms, multi){
     multi = multi || 1;
     return new Promise(function(resolve, reject){
       var lines = {};
