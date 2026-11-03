@@ -20,8 +20,16 @@
       w.postMessage('isready');
     });
   }
+  // The analysis, the move comments, the alternatives and the bot all use this ONE engine. If two of them
+  // search at the same moment they steal each other's answers (wrong evals), so every search waits its turn here.
+  var Q = Promise.resolve();
   window.PawniacSF = {
     kind: null,
+    queue: function(job){
+      var p = Q.then(function(){ return job(); });
+      Q = p.then(function(){}, function(){});
+      return p;
+    },
     // turns the engine's own win/draw/loss chances into a score on the old Stockfish-10 scale, so every threshold in the analysis keeps its meaning
     cp: function(line, type, val){
       if(type !== 'cp') return val;
