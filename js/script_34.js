@@ -140,6 +140,10 @@
     return Math.round(ms);
   }
   function run(fen, ms){
+    if(window.PawniacSF && window.PawniacSF.queue) return window.PawniacSF.queue(function(){ return run0(fen, ms); });
+    return run0(fen, ms);
+  }
+  function run0(fen, ms){
     return loadSF().then(function(w){
       if(!w) return randomMove(fen);
       return new Promise(function(res){
