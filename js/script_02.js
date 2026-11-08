@@ -1028,6 +1028,7 @@ function drawGame(){
 
   let boardHtml = '<div>';
   boardHtml += clockHtml;
+  boardHtml += (window.PawniacMat ? PawniacMat.row(g.fen, topColor) : '');
   boardHtml += '<div class="board">';
   for(const r of rowsOrder){
     for(const c of colsOrder){
@@ -1053,6 +1054,7 @@ function drawGame(){
     }
   }
   boardHtml += '</div>';
+  boardHtml += (window.PawniacMat ? PawniacMat.row(g.fen, botColor) : '');
   boardHtml += clockHtmlBottom;
   boardHtml += '</div>';
 
