@@ -485,7 +485,7 @@
   }
 
   function drawSetup(){
-    var vs = [['std','Standard Chess','Normal chess against the bot'], ['hb','Hand &amp; Brain','Bot names the piece, or you randomize'], ['auction','Piece Auction','Bid coins, build an army, then play']];
+    var vs = [['std','Standard Chess','Normal chess against the bot'], ['hb','Hand &amp; Brain','Bot names the piece, and yours is picked for you'], ['auction','Piece Auction','Bid coins, build an army, then play']];
     function tb(attr, key, label, on){ return '<div class="tcbtn' + (on ? ' active' : '') + '" data-' + attr + '="' + key + '">' + label + '</div>'; }
     var near = PRESETS[0];
     PRESETS.forEach(function(p){ if(Math.abs(p.s - S.skill) < Math.abs(near.s - S.skill)) near = p; });
@@ -524,6 +524,11 @@
       p += '<div class="result-banner">' + g.over + '</div><button class="full-btn" id="bAgain">Play again</button><button class="secondary full-btn" id="bNew">Change settings</button>';
     } else {
       p += '<div class="status-msg"><b>You</b> (' + (g.me === 'w' ? 'White' : 'Black') + ') vs <b>Bot</b> (skill ' + S.skill + ')</div>';
+      // Hand & Brain: the piece is rolled for you the moment it is your turn (no button press needed)
+      if(g.variant === 'hb' && !g.ann && !g.busy && !g.promo && c.turn() === g.me){
+        var rl = c.moves({verbose:true});
+        if(rl.length){ g.ann = rl[Math.floor(Math.random() * rl.length)].piece; snd('playRandomizeSound'); }
+      }
       if(g.variant === 'hb') p += '<div class="announce' + (g.ann ? '' : ' empty') + '">' + (g.ann ? 'Announced: ' + NM[g.ann] : 'No piece announced yet') + '</div>';
       if(g.said) p += '<div class="status-msg">' + g.said + '</div>';
       if(c.in_check()) p += '<div class="draw-offer">Check!</div>';
