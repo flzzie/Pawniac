@@ -208,7 +208,8 @@
   function paint(){
     if(!G || !document.getElementById('ghBoard')) return;
     var last = G.sel > 0 ? {from:G.moves[G.sel - 1].from, to:G.moves[G.sel - 1].to} : null;
-    document.getElementById('ghBoard').innerHTML = boardHtml(G.fens[G.sel], last, G.flip);
+    var __f = G.fens[G.sel], __b = G.flip ? 'b' : 'w', __t = G.flip ? 'w' : 'b';
+    document.getElementById('ghBoard').innerHTML = (window.PawniacMat ? PawniacMat.row(__f, __t) : '') + boardHtml(__f, last, G.flip) + (window.PawniacMat ? PawniacMat.row(__f, __b) : '');
     document.getElementById('ghMoves').innerHTML = movesHtml();
     var cnt = document.getElementById('ghPly');
     if(cnt) cnt.textContent = G.sel + ' / ' + G.moves.length;
