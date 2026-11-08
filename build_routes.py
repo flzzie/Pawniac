@@ -137,9 +137,7 @@ def seo_block(heading, paras):
     body = "".join("<p>%s</p>" % e(t) for t in paras)
     return (
         START + "\n"
-        '<style>#seo-about{max-width:720px;margin:36px auto 48px;padding:0 20px;font:15px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;opacity:.85}'
-        "#seo-about h2{font-size:20px;margin:0 0 8px}#seo-about p{margin:8px 0}#seo-about a{color:inherit}"
-        "body:has(#userbox:not(:empty)) #seo-about{display:none}</style>\n"   # hidden once someone is logged in
+        '<style>#seo-about{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);clip-path:inset(50%%);border:0}</style>\n'
         '<section id="seo-about"><h2>%s</h2>%s'
         '<p><a href="/">Pawniac</a> &middot; %s</p></section>\n' % (e(heading), body, nav_html())
         + END + "\n"
