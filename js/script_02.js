@@ -34,8 +34,8 @@ const PIECE_UNICODE = {
 };
 // Cburnett piece set (Wikimedia Commons) - the same set Lichess uses by default
 function pieceImgUrl(color, type){
-  const colorLetter = color==='w' ? 'l' : 'd';
-  return `https://commons.wikimedia.org/wiki/Special:FilePath/Chess_${type}${colorLetter}t45.svg`;
+  // the same Cburnett pieces, now served from your own site (images/pieces/wP.svg, bN.svg ...) so they load fast
+  return `/images/pieces/${color}${String(type).toUpperCase()}.svg`;
 }
 
 // ---- sound effects (synthesized, no audio files to host) ----
