@@ -546,7 +546,7 @@
     }
     p += renderMoveLog(g.log);
     var top = g.me === 'w' ? 'b' : 'w';
-    scr.innerHTML = '<div class="card"><div class="board-wrap"><div class="bt-bw">' + clkHtml(top) + boardHtml() + clkHtml(g.me) + '</div><div class="panel">' + p + '</div></div></div>';
+    scr.innerHTML = '<div class="card"><div class="board-wrap"><div class="bt-bw">' + clkHtml(top) + (window.PawniacMat ? PawniacMat.row(c.fen(), top) : '') + boardHtml() + (window.PawniacMat ? PawniacMat.row(c.fen(), g.me) : '') + clkHtml(g.me) + '</div><div class="panel">' + p + '</div></div></div>';
     scr.querySelectorAll('[data-sq]').forEach(function(cell){ cell.onclick = function(){ cellClick(cell.dataset.sq); }; });
     var q = function(id){ return document.getElementById(id); };
     if(q('bRand')) q('bRand').onclick = randomize;
