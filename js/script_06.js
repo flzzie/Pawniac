@@ -172,7 +172,7 @@
     var modes = std ? '' :
       '<div class="modes">' +
         '<div class="modebtn ' + (createMode === 'team' ? 'active' : '') + '" data-mode="team">Team (4 players)<div class="hint">2 per side: Brain names a piece, Hand moves it</div></div>' +
-        '<div class="modebtn ' + (createMode === 'random' ? 'active' : '') + '" data-mode="random">Random-button (2 players)<div class="hint">Each turn, hit Randomize for your piece type</div></div>' +
+        '<div class="modebtn ' + (createMode === 'random' ? 'active' : '') + '" data-mode="random">Random-button (2 players)<div class="hint">Each turn, a random piece type is picked for you</div></div>' +
       '</div>';
     el.innerHTML =
       '<div class="modes">' +
