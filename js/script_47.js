@@ -25,7 +25,7 @@
   // ahead by (a bishop up shows a bishop and +3). Works for every variant, promotions and auction armies included.
   (function(){
     var VAL = {p:1, n:3, b:3, r:5, q:9}, ORDER = ['q','r','b','n','p'];
-    var GLY = {w:{p:'\u2659', n:'\u2658', b:'\u2657', r:'\u2656', q:'\u2655'}, b:{p:'\u265F', n:'\u265E', b:'\u265D', r:'\u265C', q:'\u265B'}};
+    function img(color, t){ var u = window.pieceImgUrl ? window.pieceImgUrl(color, t) : '/images/pieces/' + color + t.toUpperCase() + '.svg'; return u; }
     function count(fen){
       var c = {w:{p:0,n:0,b:0,r:0,q:0}, b:{p:0,n:0,b:0,r:0,q:0}};
       String(fen || '').split(' ')[0].split('').forEach(function(ch){
@@ -36,8 +36,8 @@
     }
     try{
       var st = document.createElement('style');
-      st.textContent = '.pmat{display:flex;align-items:center;gap:1px;min-height:24px;padding:2px 4px;font-size:19px;line-height:1;white-space:nowrap;overflow:hidden}' +
-        '.pmat span{display:inline-block;margin-right:-4px}.pmat span.gap{margin-right:3px}' +
+      st.textContent = '.pmat{display:flex;align-items:center;min-height:26px;padding:2px 4px;line-height:1;white-space:nowrap;overflow:hidden}' +
+        '.pmat img{width:22px;height:22px;margin-right:-9px;flex:none;pointer-events:none}.pmat img.gap{margin-right:3px}' +
         '.pmat b{font-size:13px;font-weight:700;margin-left:8px;opacity:.9;font-variant-numeric:tabular-nums}';
       document.head.appendChild(st);
     }catch(e){}
@@ -53,7 +53,7 @@
           ORDER.forEach(function(t){
             score += VAL[t] * (c[me][t] - c[op][t]);
             var n = c[me][t] - c[op][t];
-            for(var i = 0; i < n; i++) h += '<span' + (i === n - 1 ? ' class="gap"' : '') + '>' + GLY[me][t] + '</span>';
+            for(var i = 0; i < n; i++) h += '<img' + (i === n - 1 ? ' class="gap"' : '') + ' src="' + img(me, t) + '" alt="" draggable="false">';
           });
           return '<div class="pmat" title="Material">' + h + (score > 0 ? '<b>+' + score + '</b>' : '') + '</div>';
         }catch(e){ return ''; }
