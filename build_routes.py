@@ -115,7 +115,7 @@ HOME_TEXT = [
 
 RE_TITLE = re.compile(r"<title>.*?</title>\s*", re.I | re.S)
 RE_META = re.compile(
-    r'<meta\b[^>]*?\b(?:name|property)\s*=\s*["\'](?:description|og:title|og:description|og:url|twitter:title)["\'][^>]*>\s*', re.I)
+    r'<meta\b[^>]*?\b(?:name|property)\s*=\s*["\'](?:description|og:title|og:description|og:url|og:image|og:image:alt|og:image:width|og:image:height|twitter:title|twitter:card|twitter:image)["\'][^>]*>\s*', re.I)
 RE_CANON = re.compile(r'<link\b[^>]*?rel\s*=\s*["\']canonical["\'][^>]*>\s*', re.I)
 RE_CHARSET = re.compile(r"<meta\b[^>]*charset[^>]*>", re.I)
 RE_BLOCK = re.compile(re.escape(START) + r".*?" + re.escape(END) + r"\s*", re.S)
@@ -144,13 +144,28 @@ def seo_block(heading, paras):
     )
 
 
+def share_image(r):
+    """the picture shown when the page is shared (images/<page>.png), falling back to the home one"""
+    slug = r["path"].replace("/", "-")
+    for name in (slug, r["path"].split("/")[0], "home"):
+        if (ROOT / "images" / (name + ".png")).exists():
+            return "%s/images/%s.png" % (DOMAIN, name)
+    return DOMAIN + "/logo.jpg"
+
+
 def head_tags(r):
     url = "%s/%s/" % (DOMAIN, r["path"])
     t, d = e(r["title"]), e(r["desc"])
+    img = share_image(r)
+    big = img.endswith(".png")
     return ('\n<title>%s</title>\n<meta name="description" content="%s">\n<link rel="canonical" href="%s">\n'
             '<meta property="og:title" content="%s">\n<meta property="og:description" content="%s">\n'
             '<meta property="og:url" content="%s">\n<meta name="twitter:title" content="%s">\n'
-            % (t, d, url, t, d, url, t))
+            '<meta property="og:image" content="%s">\n<meta property="og:image:alt" content="%s">\n'
+            '%s<meta name="twitter:card" content="%s">\n<meta name="twitter:image" content="%s">\n'
+            % (t, d, url, t, d, url, t, img, t,
+               '<meta property="og:image:width" content="1200">\n<meta property="og:image:height" content="630">\n' if big else "",
+               "summary_large_image" if big else "summary", img))
 
 
 def insert_block(s, block):
