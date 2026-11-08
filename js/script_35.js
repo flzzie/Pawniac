@@ -176,7 +176,7 @@
     if(c.in_check() && g.status === 'active') p += '<div class="draw-offer">Check!</div>';
     p += '<div style="margin:10px 0;"><span class="backlink" id="wtBack">&larr; Back to lobby</span></div>';
     p += renderMoveLog(g.moveLog || []);
-    scr.innerHTML = '<div class="card"><div class="board-wrap"><div class="wt-bw">' + clk(g, c, 'b') + boardHtml(c) + clk(g, c, 'w') + '</div><div class="panel">' + p + '</div></div></div>';
+    scr.innerHTML = '<div class="card"><div class="board-wrap"><div class="wt-bw">' + clk(g, c, 'b') + (window.PawniacMat ? PawniacMat.row(c.fen(), 'b') : '') + boardHtml(c) + (window.PawniacMat ? PawniacMat.row(c.fen(), 'w') : '') + clk(g, c, 'w') + '</div><div class="panel">' + p + '</div></div></div>';
     el('wtBack').onclick = function(){ window.renderLobby(); };
     paintSpec();
   }
