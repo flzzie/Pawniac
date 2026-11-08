@@ -109,6 +109,7 @@ async function kset(key, value, shared){
 
 let ME = null;
 let currentGameId = null;
+let autoRollKey = null;
 let pollTimer = null;
 let selectedSquare = null;
 let pendingPromotion = null;
@@ -585,7 +586,7 @@ function renderLobby(){
           <p class="desc">Create a room and share the code, or join one someone gave you.</p>
           <div class="modes">
             <div class="modebtn ${createMode==='team'?'active':''}" data-mode="team">Team (4 players)<div class="hint">2 per side: Brain names a piece, Hand moves it</div></div>
-            <div class="modebtn ${createMode==='random'?'active':''}" data-mode="random">Random-button (2 players)<div class="hint">Each turn, hit Randomize for your piece type</div></div>
+            <div class="modebtn ${createMode==='random'?'active':''}" data-mode="random">Random-button (2 players)<div class="hint">Each turn, a random piece type is picked for you</div></div>
           </div>
           <div class="tc-row">${tcButtons.replace(/data-tc/g,'data-tc2')}</div>
           <button id="btnCreate">Create room</button>
@@ -1107,7 +1108,7 @@ function drawGame(){
     } else if(g.mode==='random'){
       if(me.role==='solo' && !g.announced){
         panelHtml += '<button id="btnRandomize">Randomize piece</button>';
-        panelHtml += `<div class="hint">Only picks from pieces that currently have a legal move.</div>`;
+        panelHtml += `<div class="hint">Your piece is picked automatically. Only pieces that currently have a legal move are chosen.</div>`;
       } else if(me.role==='solo' && g.announced){
         panelHtml += `<div class="status-msg">Click a highlighted piece, then a highlighted square.</div>`;
       }
@@ -1148,6 +1149,14 @@ function drawGame(){
     });
     const rb = document.getElementById('btnRandomize');
     if(rb) rb.onclick = randomizeType;
+    // random-button mode: the piece is rolled for you as soon as it is your turn (the button stays as a backup)
+    if(rb && myTurn){
+      const rollKey = currentGameId + '|' + g.fen;
+      if(autoRollKey !== rollKey){
+        autoRollKey = rollKey;
+        randomizeType();
+      }
+    }
     const resignBtn = document.getElementById('btnResign');
     if(resignBtn) resignBtn.onclick = ()=>{ if(confirm('Resign this game?')) resignGame(mySide); };
     const offerBtn = document.getElementById('btnOfferDraw');
