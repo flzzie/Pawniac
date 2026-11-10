@@ -214,7 +214,7 @@
   function loadPref(){
     var d = {variant:'hb', tc:'5+3', color:'random', min:10, inc:0, custom:false};
     try{ Object.assign(d, JSON.parse(localStorage.getItem(PREF_KEY) || '{}')); }catch(e){}
-    if(['hb', 'standard', 'auction'].indexOf(d.variant) < 0) d.variant = 'hb';
+    if(['hb', 'standard', 'auction', 'double'].indexOf(d.variant) < 0) d.variant = 'hb';
     if(['random', 'w', 'b'].indexOf(d.color) < 0) d.color = 'random';
     if(!/^(none|\d+\+\d+)$/.test(String(d.tc))) d.tc = '5+3';
     d.min = Math.min(180, Math.max(1, parseInt(d.min, 10) || 10)); d.inc = Math.min(60, Math.max(0, parseInt(d.inc, 10) || 0));
@@ -278,7 +278,7 @@
       '<div class="hint" style="margin:0;"><span class="st-dot st-' + (D.stLoaded && !D.stFailed ? effOf(D.st).s : 'unknown') + '"></span>' + esc(stateLine()) + '</div>' +
       '<div class="lbl">Game</div>' +
       '<div class="modes"><div class="modebtn' + (D.variant === 'hb' ? ' active' : '') + '" data-v="hb">Hand &amp; Brain<div class="hint">Name a piece, then move it</div></div>' +
-      '<div class="modebtn' + (D.variant === 'standard' ? ' active' : '') + '" data-v="standard">Standard Chess<div class="hint">Normal chess rules</div></div>' + '<div class="modebtn' + (D.variant === 'auction' ? ' active' : '') + '" data-v="auction">Piece Auction<div class="hint">Bid coins, build your army</div></div></div>' +
+      '<div class="modebtn' + (D.variant === 'standard' ? ' active' : '') + '" data-v="standard">Standard Chess<div class="hint">Normal chess rules</div></div>' + '<div class="modebtn' + (D.variant === 'auction' ? ' active' : '') + '" data-v="auction">Piece Auction<div class="hint">Bid coins, build your army</div></div>' + '<div class="modebtn' + (D.variant === 'double' ? ' active' : '') + '" data-v="double">Double Move<div class="hint">Two moves every turn</div></div></div>' +
       '<div class="lbl">Time control</div><div class="tc-row">' + tcs + '</div>' + custom +
       '<div class="lbl">You play</div><div class="tc-row">' + colors + '</div>' +
       '<div class="ch-acts"><button id="chSend"' + (offlineNow() || inGameNow() ? ' disabled' : '') + '>Send challenge</button><button class="secondary" id="chCancel">Cancel</button></div></div>';
@@ -360,14 +360,14 @@
     var h = '';
     MSGS.forEach(function(m){ h += '<div class="ch-toast msg">' + esc(m.text) + '</div>'; });
     if(OUT){
-      if(OUT.state === 'pending') h += '<div class="ch-toast"><div class="ct">Challenge sent to ' + esc(OUT.to) + '</div><div class="cs">' + ({standard:'Standard', auction:'Piece Auction'}[OUT.data.variant] || 'Hand & Brain') + ' &middot; ' + esc(tcLabel(OUT.data.tc)) + ' &middot; waiting for an answer (<span data-oexp="1"></span>)</div><div class="cb"><button class="secondary" data-oact="cancel">Cancel</button></div></div>';
+      if(OUT.state === 'pending') h += '<div class="ch-toast"><div class="ct">Challenge sent to ' + esc(OUT.to) + '</div><div class="cs">' + ({standard:'Standard', auction:'Piece Auction', double:'Double Move'}[OUT.data.variant] || 'Hand & Brain') + ' &middot; ' + esc(tcLabel(OUT.data.tc)) + ' &middot; waiting for an answer (<span data-oexp="1"></span>)</div><div class="cb"><button class="secondary" data-oact="cancel">Cancel</button></div></div>';
       else if(OUT.state === 'declined') h += '<div class="ch-toast"><div class="ct">' + esc(OUT.to) + ' declined your challenge.</div></div>';
       else if(OUT.state === 'expired') h += '<div class="ch-toast"><div class="ct">' + esc(OUT.to) + ' did not answer in time.</div></div>';
       else if(OUT.state === 'gone') h += '<div class="ch-toast"><div class="ct">The challenge to ' + esc(OUT.to) + ' was withdrawn.</div></div>';
     }
     Object.keys(INC).forEach(function(f){
       var c = INC[f];
-      h += '<div class="ch-toast"><div class="ct">' + esc(f) + ' challenges you!</div><div class="cs">' + ({standard:'Standard Chess', auction:'Piece Auction'}[c.variant] || 'Hand &amp; Brain') + ' &middot; ' + esc(tcLabel(c.tc)) + ' &middot; ' + colorText(c.color) +
+      h += '<div class="ch-toast"><div class="ct">' + esc(f) + ' challenges you!</div><div class="cs">' + ({standard:'Standard Chess', auction:'Piece Auction', double:'Double Move'}[c.variant] || 'Hand &amp; Brain') + ' &middot; ' + esc(tcLabel(c.tc)) + ' &middot; ' + colorText(c.color) +
         ' &middot; <span data-iexp="' + esc(f) + '"></span></div><div class="cb"><button data-iacc="' + esc(f) + '"' + (inGameNow() ? ' disabled title="Finish your game first"' : '') + '>Accept</button><button class="secondary" data-idec="' + esc(f) + '">Decline</button></div></div>';
     });
     box.innerHTML = h;
@@ -462,7 +462,7 @@
       var game = {
         mode:'random', status:'active', fen:new Chess().fen(), turn:'w', announced:std ? 'std' : null,
         moveLog:[], winner:null, drawOffer:'', clock:freshClock(c.tc), seats:seats,
-        ratingSnapshot: meWhite ? {white:mp.rating, black:op.rating} : {white:op.rating, black:mp.rating}, wantAuction: c.variant === 'auction'
+        ratingSnapshot: meWhite ? {white:mp.rating, black:op.rating} : {white:op.rating, black:mp.rating}, wantAuction: c.variant === 'auction', wantDouble: c.variant === 'double'
       };
       if(std) game.variant = 'standard';
       var saved = await kset('hb:game:' + code, game, true);

@@ -1,0 +1,15 @@
+/* Double Move chess */
+.dm-banner{background:#eaf3ef;color:#155646;border:1px solid #cfe3da;border-radius:8px;padding:10px 14px;margin-bottom:14px;text-align:center;}
+.dm-banner.mine{background:#1f6f5c;border-color:#1f6f5c;color:#fff;}
+.dm-banner .dm-t{font-weight:700;font-size:15px;}
+.dm-banner .dm-s{font-size:12px;margin-top:3px;opacity:.9;line-height:1.4;}
+[data-theme=dark] .dm-banner{background:#1f3a33;border-color:#2c5247;color:#8fd3bc;}
+[data-theme=dark] .dm-banner.mine{background:#2a7d68;border-color:#2a7d68;color:#fff;}
+
+/* both moves of a turn sit in one cell of the move list */
+.move-row.dm-row .move-white,.move-row.dm-row .move-black{white-space:normal;word-break:break-word;}
+.move-row.dm-row{grid-template-columns:28px 1fr 1fr;}
+
+/* the extra variant card has to fit next to the other three */
+.dm-card{min-width:0;}
+@media (max-width:640px){#screen-lobby .modes:has(.dm-card){flex-wrap:wrap;}#screen-lobby .modes:has(.dm-card) .modebtn{flex:1 1 40%;}}

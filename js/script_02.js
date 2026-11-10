@@ -1134,7 +1134,7 @@ function drawGame(){
     }
   }
 
-  panelHtml += renderMoveLog(g.moveLog);
+  panelHtml += renderMoveLog(g.moveLog, g);
 
   el.innerHTML = `
     <div class="card">

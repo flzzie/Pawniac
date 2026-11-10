@@ -18,6 +18,7 @@
   }
   function kindOf(g){
     if(g.variant === 'auction') return 'Piece Auction';
+    if(g.variant === 'double') return 'Double Move';
     if(g.variant === 'standard') return 'Standard';
     return g.mode === 'team' ? 'Hand & Brain 2v2' : 'Hand & Brain';
   }
@@ -175,7 +176,7 @@
     }
     if(c.in_check() && g.status === 'active') p += '<div class="draw-offer">Check!</div>';
     p += '<div style="margin:10px 0;"><span class="backlink" id="wtBack">&larr; Back to lobby</span></div>';
-    p += renderMoveLog(g.moveLog || []);
+    p += renderMoveLog(g.moveLog || [], g);
     scr.innerHTML = '<div class="card"><div class="board-wrap"><div class="wt-bw">' + clk(g, c, 'b') + (window.PawniacMat ? PawniacMat.row(c.fen(), 'b') : '') + boardHtml(c) + (window.PawniacMat ? PawniacMat.row(c.fen(), 'w') : '') + clk(g, c, 'w') + '</div><div class="panel">' + p + '</div></div></div>';
     el('wtBack').onclick = function(){ window.renderLobby(); };
     paintSpec();

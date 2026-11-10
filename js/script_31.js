@@ -13,7 +13,7 @@
 
   // ---------- helpers about a game ----------
   function worthy(g){
-    return !!g && g.status === 'finished' && !!g.winner && g.winner !== 'abort' && !!g.moveLog && g.moveLog.length >= 2 &&
+    return !!g && g.variant !== 'double' && g.status === 'finished' && !!g.winner && g.winner !== 'abort' && !!g.moveLog && g.moveLog.length >= 2 &&
       (g.variant !== 'auction' || !!startFen(g));
   }
   function variantOf(g){
