@@ -164,7 +164,7 @@
   function draw(){
     if(!W || !W.g) return;
     var g = W.g, c;
-    try{ c = new Chess(g.fen); }catch(e){ return; }
+    try{ c = new (window.PawniacChessFor ? window.PawniacChessFor(g.variant) : Chess)(g.fen); }catch(e){ return; }
     var p = '<div class="status-msg"><b>' + kindOf(g) + '</b> &middot; you are watching</div><div class="wt-spec" id="wtSpec"></div>';
     if(g.status === 'finished'){
       var w = g.winner === 'w' ? 'White wins' : g.winner === 'b' ? 'Black wins' : g.winner === 'abort' ? 'Game aborted' : 'Draw';

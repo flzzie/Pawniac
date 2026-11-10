@@ -986,7 +986,7 @@ function allowedFromSquares(chess, announced){
 
 function drawGame(){
   const g = gameState;
-  const chess = new Chess(g.fen);
+  const chess = new (window.PawniacChessFor ? window.PawniacChessFor(g.variant) : Chess)(g.fen);   // Double Move uses its own chess object (kings can be captured)
   const me = myRole(g);
   const mySide = me ? me.side : null;
   const myTurn = mySide === g.turn;

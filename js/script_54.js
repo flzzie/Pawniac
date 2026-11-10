@@ -108,7 +108,7 @@
 
     if(r.over){
       g.status = 'finished'; g.winner = r.winner;
-      if(r.note && r.note !== 'checkmate') g.statusNote = r.note;
+      if(r.note) g.statusNote = r.note;
     }
 
     var saved = await kset('hb:game:' + currentGameId, g, true);
@@ -241,7 +241,7 @@
       sub = 'White plays just one move to start. After that, each side plays two moves per turn.';
     }else if(mine){
       title = 'Your move ' + idx + ' of 2';
-      sub = idx === 1 ? 'Giving check with your first move ends your turn.' : 'Make your second move.';
+      sub = idx === 1 ? 'Capture the enemy king to win. There is no check.' : 'Make your second move. Capture the king to win.';
     }else{
       title = esc(nm(g, g.turn) || (g.turn === 'w' ? 'White' : 'Black')) + ': move ' + idx + ' of 2';
     }

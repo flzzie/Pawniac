@@ -257,7 +257,8 @@
     if(!c.game_over()) return false;
     if(c.in_checkmate()){
       var botWon = c.turn() === G.me;
-      finish(botWon ? 'Bot wins by checkmate' : 'You win by checkmate!', botWon ? 'l' : 'w');
+      var how = G.variant === 'double' ? 'by capturing the king' : 'by checkmate';
+      finish(botWon ? 'Bot wins ' + how : 'You win ' + how + '!', botWon ? 'l' : 'w');
     } else {
       finish('Draw' + (c.in_stalemate() ? ' (stalemate)' : c.insufficient_material() ? ' (insufficient material)' : c.in_threefold_repetition() ? ' (repetition)' : ' (50-move rule)'), 'd');
     }
@@ -524,7 +525,7 @@
       p += '<div class="result-banner">' + g.over + '</div><button class="full-btn" id="bAgain">Play again</button><button class="secondary full-btn" id="bNew">Change settings</button>';
     } else {
       p += '<div class="status-msg"><b>You</b> (' + (g.me === 'w' ? 'White' : 'Black') + ') vs <b>Bot</b> (skill ' + S.skill + ')</div>';
-      if(g.variant === 'double') p += '<div class="status-msg"><b>' + (g.log.length ? 'Move ' + (c.left() === 2 ? 1 : 2) + ' of 2' : 'Opening move') + '</b> ' + (c.turn() === g.me ? 'for you' : 'for the bot') + (g.log.length ? '. A check with the first move ends the turn.' : ': White plays just one move.') + '</div>';
+      if(g.variant === 'double') p += '<div class="status-msg"><b>' + (g.log.length ? 'Move ' + (c.left() === 2 ? 1 : 2) + ' of 2' : 'Opening move') + '</b> ' + (c.turn() === g.me ? 'for you' : 'for the bot') + (g.log.length ? '. Capture the king to win.' : ': White plays just one move.') + '</div>';
       // Hand & Brain: the piece is rolled for you the moment it is your turn (no button press needed)
       if(g.variant === 'hb' && !g.ann && !g.busy && !g.promo && c.turn() === g.me){
         var rl = c.moves({verbose:true});

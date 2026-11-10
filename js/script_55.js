@@ -7,8 +7,10 @@
  */
 (function(root){
   // ---------------- the search (pure; runs in the worker, and in Node for the tests) ----------------
-  function makeSearch(PD, Chess){
+  function makeSearch(PD){
+    var Chess = PD.Chess;
     var VAL = {p:100, n:320, b:330, r:500, q:900, k:0};
+    var ORD = {p:100, n:320, b:330, r:500, q:900, k:50000};   // move ordering only: look at king captures first
     var MATE = 100000;
     var nodes = 0, deadline = 0, stopped = false;
 
@@ -35,7 +37,7 @@
 
     function orderKey(m){
       var k = 0;
-      if(m.captured) k += 10 * VAL[m.captured] - VAL[m.piece] / 10 + 1000;
+      if(m.captured) k += 10 * ORD[m.captured] - VAL[m.piece] / 10 + 1000;
       if(m.promotion) k += 800;
       return k;
     }
@@ -137,7 +139,7 @@
 
   function Game(){
     this.st = PD.start();
-    this.c = new Chess(this.st.fen);
+    this.c = new PD.Chess(this.st.fen);
     this.over = null;
   }
   Game.prototype = {
@@ -152,12 +154,12 @@
       if(this.over) return null;
       var r = PD.apply(this.st, {from:m.from, to:m.to, promotion:m.promotion});
       if(!r) return null;
-      this.st = r.next; this.c = new Chess(r.next.fen);
+      this.st = r.next; this.c = new PD.Chess(r.next.fen);
       if(r.over) this.over = r;
       return r.mv;
     },
     game_over: function(){ return !!this.over; },
-    in_checkmate: function(){ return !!this.over && this.over.note === 'checkmate'; },
+    in_checkmate: function(){ return !!this.over && this.over.note === 'king captured'; },   // the game ended because a king was captured
     in_stalemate: function(){ return !!this.over && /stalemate/.test(this.over.note); },
     insufficient_material: function(){ return !!this.over && /insufficient/.test(this.over.note); },
     in_threefold_repetition: function(){ return !!this.over && /repetition/.test(this.over.note); },
@@ -165,16 +167,11 @@
   };
 
   // ---------------- worker plumbing ----------------
-  function chessUrl(){
-    var s = document.querySelector('script[src*="chess"]');
-    return s ? s.src : 'https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js';
-  }
   var worker = null, jobs = {}, jobId = 0, workerBad = false;
   function startWorker(){
     if(worker || workerBad) return worker;
     try{
-      var src = 'importScripts(' + JSON.stringify(chessUrl()) + ');' +
-        'var PD=(' + PD_make_src() + ')(Chess);var S=(' + makeSearch.toString() + ')(PD,Chess);' +
+      var src = 'var PD=(' + window.PawniacDoubleMake.toString() + ')();var S=(' + makeSearch.toString() + ')(PD);' +
         'onmessage=function(e){var r;try{r=S.search(e.data.req);}catch(x){r={move:null,error:String(x)};}postMessage({id:e.data.id,res:r});};';
       var url = URL.createObjectURL(new Blob([src], {type:'text/javascript'}));
       worker = new Worker(url);
@@ -183,7 +180,6 @@
     }catch(e){ workerBad = true; worker = null; }
     return worker;
   }
-  function PD_make_src(){ return window.PawniacDoubleMake.toString(); }
 
   function limits(skill){
     // skill is the bot level on the 0..20 scale (Beginner 0, Easy 5, Medium 10, Hard 15, Expert 20)
