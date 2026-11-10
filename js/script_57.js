@@ -5,7 +5,7 @@
  */
 (function(){
   // Discord ping for new appeals: paste the Cloudflare Worker address here (see appeal-notify-worker.js). Empty = no ping.
-  var APPEAL_NOTIFY_URL = '';
+  var APPEAL_NOTIFY_URL = 'https://pawniacappeal.rishiitsrivastava.workers.dev/';
   var prevSignedIn = window.handleSignedIn, watch = null;
   function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
   function dateText(ts){ return typeof ts === 'number' ? new Date(ts).toLocaleString(undefined, {year:'numeric', month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'}) : ''; }
