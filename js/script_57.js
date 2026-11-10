@@ -74,23 +74,20 @@
     }
     return prevSignedIn.apply(this, arguments);
   };
-  // a banned player's profile says so (the admin tool writes hb/bannedPublic/<name>, which holds only the date)
+  // a banned player's profile is not shown at all: only a red notice (the admin tool writes hb/bannedPublic/<name>, which holds only the date)
   var prevOpenProfile = window.openProfile;
   if(typeof prevOpenProfile === 'function') window.openProfile = async function(name){
-    var r = await prevOpenProfile.apply(this, arguments);
-    try{
-      if(!name) return r;
-      var b = (await db.ref('hb/bannedPublic/' + name).once('value')).val();
-      var nm = document.querySelector('#screen-profile .pf-name');
-      if(b && nm && !nm.querySelector('.pf-banned')){
-        var tag = document.createElement('span');          // small solid red badge next to the name, easy to read on light and dark
-        tag.className = 'pf-banned';
-        tag.textContent = 'BANNED';
-        tag.style.cssText = 'display:inline-block;margin-left:10px;padding:3px 8px;border-radius:4px;background:#d62d2d;color:#fff;font-size:11px;font-weight:800;letter-spacing:.6px;line-height:1.2;vertical-align:middle;';
-        nm.appendChild(tag);
-      }
-    }catch(e){}
-    return r;
+    var banned = false;
+    try{ if(name && /^[A-Za-z0-9_]{3,20}$/.test(name)) banned = (await db.ref('hb/bannedPublic/' + name).once('value')).exists(); }catch(e){}
+    if(!banned) return prevOpenProfile.apply(this, arguments);
+    try{ stopPoll(); }catch(e){}
+    showScreen('profile');
+    var box = document.getElementById('screen-profile');
+    if(box) box.innerHTML = '<div class="card" style="text-align:center;padding:36px 20px;">' +
+      '<div style="color:#d62d2d;font-weight:800;font-size:20px;line-height:1.4;">This user has been banned for violating Pawniac\'s Terms of Service.</div>' +
+      '<div style="margin-top:20px;"><span class="backlink" id="bannedBack">&larr; Back</span></div></div>';
+    var back = document.getElementById('bannedBack');
+    if(back) back.onclick = function(){ if(typeof renderLobby === 'function') renderLobby(); };
   };
   var prevLogout = window.logout;
   if(typeof prevLogout === 'function') window.logout = function(){ stopWatch(); return prevLogout.apply(this, arguments); };
