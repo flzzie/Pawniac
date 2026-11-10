@@ -315,10 +315,10 @@
     var log = g.moveLog || [], me = myRole(g);
     if(!me || log.length < 2) return;
     SEEN[gid] = 1;
-    var side = me.side, win = g.winner === side, isAuc = g.variant === 'auction', isStd = g.variant === 'standard', isTeam = g.mode === 'team';
+    var side = me.side, win = g.winner === side, isAuc = g.variant === 'auction', isDbl = g.variant === 'double', isStd = g.variant === 'standard', isTeam = g.mode === 'team';
     var fam = null, f = {};
     try{ if(isStd) fam = familyOf(openingName(log)); }catch(e){ console.error(e); }
-    try{ if(!isAuc) f = funFlags(g, log, side, win); }catch(e){ console.error(e); }
+    try{ if(!isAuc && !isDbl) f = funFlags(g, log, side, win); }catch(e){ console.error(e); }   // Double Move has two moves per turn, so the one-move-per-side replay does not apply
     db.ref('hb/achievements/' + ME.username + '/c').transaction(function(c){
       c = c || {};
       var sg = c.sg || [];
@@ -327,13 +327,13 @@
       c.sg = sg; c.gp = (c.gp || 0) + 1;
       if(win){ c.wn = (c.wn || 0) + 1; c.ws = (c.ws || 0) + 1; if(c.ws > (c.bw || 0)) c.bw = c.ws; } else c.ws = 0;
       if(win && isAuc) c.aw = 1;
-      if(win && !isAuc && !isStd) c.hw = 1;
+      if(win && !isAuc && !isStd && !isDbl) c.hw = 1;
       if(win && isTeam) c.tw = 1;
       if(fam){ var op = c.op || (c.op = {}), o = op[fam.k] || (op[fam.k] = {p:0, w:0}); o.p = (o.p || 0) + 1; if(win) o.w = (o.w || 0) + 1; }
       if(f.f1) c.f1 = 1; if(f.f2) c.f2 = 1; if(f.f3) c.f3 = 1; if(f.f4) c.f4 = 1;
       return c;
     }).then(function(){ scheduleEval(4500); }).catch(function(e){ console.error('achievement counters failed', e); });
-    try{ recordSignals(g, gid, log, side, win, isAuc, isTeam); }catch(e){ console.error(e); }
+    try{ recordSignals(g, gid, log, side, win, isAuc || isDbl, isTeam); }catch(e){ console.error(e); }
   }
 
   // =====================================================================
@@ -392,7 +392,7 @@
       }
     }
     db.ref('hb/cheatByUser/' + ME.username + '/' + gid).set({
-      ts:TS, num:g.num || 0, v:isAuc ? 'a' : (isTeam ? 't' : (g.variant === 'standard' ? 's' : 'h')), pl:log.length,
+      ts:TS, num:g.num || 0, v:g.variant === 'double' ? 'd' : (isAuc ? 'a' : (isTeam ? 't' : (g.variant === 'standard' ? 's' : 'h'))), pl:log.length,
       res:g.winner === 'draw' ? 'd' : (win ? 'w' : 'l'), tabs:t.leaves || 0, mv:mv, run:run, rep:rep, k:k, mean:mean, cv:cv, even:even
     }).catch(function(e){ console.error('signals not saved (publish the new Firebase rules)', e); });
   }

@@ -64,7 +64,7 @@
   var chain = Promise.resolve();
   function paintEng(){
     var e = document.getElementById('bEng'), b = document.getElementById('bStart');
-    if(b) b.disabled = (eng.state !== 'ready');
+    if(b) b.disabled = (eng.state !== 'ready' && S.variant !== 'double');   // Double Move uses its own search, no Stockfish needed
     if(!e) return;
     if(eng.state === 'ready') e.innerHTML = 'Engine ready.';
     else if(eng.state === 'fail') e.innerHTML = 'Could not load the engine (check your connection or ad blocker). <span class="backlink" id="bRetry">Retry</span>';
@@ -208,13 +208,13 @@
 
   // ---------- starting a game ----------
   function startNew(){
-    if(eng.state !== 'ready'){ boot(); return; }
+    if(eng.state !== 'ready' && S.variant !== 'double'){ boot(); return; }
     var me = S.color === 'random' ? (Math.random() < .5 ? 'w' : 'b') : S.color;
     G = {variant:S.variant, hbMode:S.hbMode, me:me, bot:opp(me), phase:'play', chess:null, ann:null, sel:null, last:null,
          log:[], said:'', msg:'', busy:false, over:null, au:null, layout:null, sel2:null, clock:null};
     if(eng.w) try{ eng.w.postMessage('ucinewgame'); }catch(e){}
     if(G.variant === 'auction'){ initAuction(); }
-    else { G.chess = new Chess(); G.clock = mkClock(); nextTurn(); }
+    else { G.chess = G.variant === 'double' ? new window.PawniacDoubleBot.Game() : new Chess(); G.sides = ''; G.clock = mkClock(); nextTurn(); }
   }
 
   // ---------- playing ----------
@@ -240,10 +240,10 @@
     if(!mv) return null;
     if(G.clock){
       var now = Date.now();
-      G.clock[mover] = G.clock[mover] - (now - G.clock.t0) + G.clock.inc;
+      G.clock[mover] = G.clock[mover] - (now - G.clock.t0) + ((G.variant === 'double' && G.chess.turn() === mover && !G.chess.game_over()) ? 0 : G.clock.inc);   // Double Move: the increment is paid once per turn
       G.clock.t0 = now;
     }
-    G.last = {from:mv.from, to:mv.to}; G.log.push(mv.san); G.ann = null; G.sel = null;
+    G.last = {from:mv.from, to:mv.to}; G.sides = (G.sides || '') + mover; G.log.push(mv.san); G.ann = null; G.sel = null;
     snd(/[+#]/.test(mv.san) ? 'playCheckSound' : (mv.captured ? 'playCaptureSound' : 'playMoveSound'));
     return mv;
   }
@@ -257,7 +257,8 @@
     if(!c.game_over()) return false;
     if(c.in_checkmate()){
       var botWon = c.turn() === G.me;
-      finish(botWon ? 'Bot wins by checkmate' : 'You win by checkmate!', botWon ? 'l' : 'w');
+      var how = G.variant === 'double' ? 'by capturing the king' : 'by checkmate';
+      finish(botWon ? 'Bot wins ' + how : 'You win ' + how + '!', botWon ? 'l' : 'w');
     } else {
       finish('Draw' + (c.in_stalemate() ? ' (stalemate)' : c.insufficient_material() ? ' (insufficient material)' : c.in_threefold_repetition() ? ' (repetition)' : ' (50-move rule)'), 'd');
     }
@@ -283,7 +284,7 @@
   function botMove(){
     var g = G, t0 = Date.now();
     g.busy = true; g.msg = 'Bot is thinking...'; draw();
-    best(g.chess.fen(), thinkMs(g.bot)).then(function(u){
+    (g.variant === 'double' ? window.PawniacDoubleBot.pick(g.chess, thinkMs(g.bot), S.skill) : best(g.chess.fen(), thinkMs(g.bot))).then(function(u){
       setTimeout(function(){
         if(G !== g || g.over) return;
         var mv = u ? play(u.slice(0, 2), u.slice(2, 4), u.slice(4, 5) || 'q') : null;
@@ -485,7 +486,7 @@
   }
 
   function drawSetup(){
-    var vs = [['std','Standard Chess','Normal chess against the bot'], ['hb','Hand &amp; Brain','Bot names the piece, and yours is picked for you'], ['auction','Piece Auction','Bid coins, build an army, then play']];
+    var vs = [['std','Standard Chess','Normal chess against the bot'], ['hb','Hand &amp; Brain','Bot names the piece, and yours is picked for you'], ['auction','Piece Auction','Bid coins, build an army, then play'], ['double','Double Move','Two moves every turn']];
     function tb(attr, key, label, on){ return '<div class="tcbtn' + (on ? ' active' : '') + '" data-' + attr + '="' + key + '">' + label + '</div>'; }
     var near = PRESETS[0];
     PRESETS.forEach(function(p){ if(Math.abs(p.s - S.skill) < Math.abs(near.s - S.skill)) near = p; });
@@ -524,6 +525,7 @@
       p += '<div class="result-banner">' + g.over + '</div><button class="full-btn" id="bAgain">Play again</button><button class="secondary full-btn" id="bNew">Change settings</button>';
     } else {
       p += '<div class="status-msg"><b>You</b> (' + (g.me === 'w' ? 'White' : 'Black') + ') vs <b>Bot</b> (skill ' + S.skill + ')</div>';
+      if(g.variant === 'double') p += '<div class="status-msg"><b>' + (g.log.length ? 'Move ' + (c.left() === 2 ? 1 : 2) + ' of 2' : 'Opening move') + '</b> ' + (c.turn() === g.me ? 'for you' : 'for the bot') + (g.log.length ? '. Capture the king to win.' : ': White plays just one move.') + '</div>';
       // Hand & Brain: the piece is rolled for you the moment it is your turn (no button press needed)
       if(g.variant === 'hb' && !g.ann && !g.busy && !g.promo && c.turn() === g.me){
         var rl = c.moves({verbose:true});
@@ -544,7 +546,7 @@
       p += skillHtml('bSk2');
       p += '<div class="game-actions"><button class="secondary danger" id="bResign">Resign</button><button class="secondary" id="bNew">New game</button></div>';
     }
-    p += renderMoveLog(g.log);
+    p += renderMoveLog(g.log, {variant:g.variant, mvSides:g.sides});
     var top = g.me === 'w' ? 'b' : 'w';
     scr.innerHTML = '<div class="card"><div class="board-wrap"><div class="bt-bw">' + clkHtml(top) + (window.PawniacMat ? PawniacMat.row(c.fen(), top) : '') + boardHtml() + (window.PawniacMat ? PawniacMat.row(c.fen(), g.me) : '') + clkHtml(g.me) + '</div><div class="panel">' + p + '</div></div></div>';
     scr.querySelectorAll('[data-sq]').forEach(function(cell){ cell.onclick = function(){ cellClick(cell.dataset.sq); }; });
@@ -638,7 +640,7 @@
     if(a && a.classList.contains('bt-h')) a.remove();
   }
   // premoves: Standard and Piece Auction, while it is the bot's turn
-  function canPre(){ return !!G && G.phase === 'play' && !G.over && G.variant !== 'hb' && G.chess.turn() === G.bot; }
+  function canPre(){ return !!G && G.phase === 'play' && !G.over && G.variant !== 'hb' && G.variant !== 'double' && G.chess.turn() === G.bot; }
   // same rules as premoves in the main game: where this piece COULD go once the bot has moved.
   // Ignores enemy pieces in the way and checks. Squares with your OWN piece count too (that is how
   // you premove a recapture), and a pawn can aim at its diagonals even when they are empty now.

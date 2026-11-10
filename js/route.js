@@ -17,7 +17,7 @@
 
   // first parts of the address that really are pages of the site
   var KNOWN = ['analyze','auction','bot','game','handandbrain','help','leaderboard','minigames',
-               'privacy','profile','quiz','settings','standard','supporters','terms','watch',
+               'privacy','profile','quiz','settings','standard','supporters','terms','watch','doublemove',
                'play','reports','achievements'];
 
   function isHome(p){ return p === '' || p === '/' || /^\/index\.html$/i.test(p); }

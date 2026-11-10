@@ -9,7 +9,7 @@
 // made on the fly (a game, a live game, a profile ...) are sent to the app, which opens them.
 (function(){
   var p = location.pathname;
-  if(/^\/(game\/\d+|watch\/[A-Za-z0-9_-]+|profile(\/[A-Za-z0-9_]{3,20})?|supporters\/[^\/]+|leaderboard\/(standard|auction)|settings|achievements|reports|play)\/?$/i.test(p)){
+  if(/^\/(game\/\d+|watch\/[A-Za-z0-9_-]+|profile(\/[A-Za-z0-9_]{3,20})?|supporters\/[^\/]+|leaderboard\/(standard|auction|doublemove)|settings|achievements|reports|play)\/?$/i.test(p)){
     location.replace('/?__p=' + encodeURIComponent(p + location.search));
   }
 })();
