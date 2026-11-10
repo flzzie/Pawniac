@@ -4,6 +4,8 @@
  * This file shows them why, and lets them send ONE appeal (hb/appeals/<uid>) the owner reviews with the tool.
  */
 (function(){
+  // Discord ping for new appeals: paste the Cloudflare Worker address here (see appeal-notify-worker.js). Empty = no ping.
+  var APPEAL_NOTIFY_URL = 'https://pawniacappeal.rishiitsrivastava.workers.dev/';
   var prevSignedIn = window.handleSignedIn, watch = null;
   function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
   function dateText(ts){ return typeof ts === 'number' ? new Date(ts).toLocaleString(undefined, {year:'numeric', month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'}) : ''; }
@@ -40,6 +42,12 @@
       send.disabled = true; msg.textContent = '';
       try{
         await db.ref('hb/appeals/' + user.uid).set({message:t.slice(0, 1000), ts:firebase.database.ServerValue.TIMESTAMP});
+        if(APPEAL_NOTIFY_URL){      // best effort: the appeal is already saved whatever happens here
+          try{
+            var tok = await user.getIdToken();
+            fetch(APPEAL_NOTIFY_URL, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({token:tok})}).catch(function(){});
+          }catch(e){}
+        }
         showBan(user, ban);
       }catch(e){
         console.error('appeal failed', e);
