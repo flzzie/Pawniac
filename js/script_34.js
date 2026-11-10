@@ -533,7 +533,7 @@
       }
       if(g.variant === 'hb') p += '<div class="announce' + (g.ann ? '' : ' empty') + '">' + (g.ann ? 'Announced: ' + NM[g.ann] : 'No piece announced yet') + '</div>';
       if(g.said) p += '<div class="status-msg">' + g.said + '</div>';
-      if(c.in_check()) p += '<div class="draw-offer">Check!</div>';
+      if(c.in_check()) p += '<div class="draw-offer">' + (G.variant === 'double' ? 'King attacked!' : 'Check!') + '</div>';
             if(g.promo){
         p += '<div class="hint" style="margin-bottom:10px;">Promote to:</div><div class="types">' +
           [['q','Queen'],['r','Rook'],['b','Bishop'],['n','Knight']].map(function(x){ return '<button data-promo="' + x[0] + '">' + x[1] + '</button>'; }).join('') +
