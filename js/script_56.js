@@ -15,8 +15,14 @@
     a.setAttribute('aria-label', 'Join the Pawniac Discord');
     a.title = 'Join our Discord';
     a.innerHTML = '<svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden="true"><path d="' + PATH + '"/></svg>';
-    a.addEventListener('mouseenter', function () { a.style.opacity = '1'; a.style.color = '#5865F2'; a.style.transform = 'scale(1.1)'; });
-    a.addEventListener('mouseleave', function () { a.style.opacity = '.7'; a.style.color = ''; a.style.transform = ''; });
+    if (!document.getElementById('pawniac-discord-css')) {
+      var st = document.createElement('style');
+      st.id = 'pawniac-discord-css';
+      st.textContent =
+        '@media (hover:hover){#pawniac-discord:hover{opacity:1!important;color:#8EA1FF!important;transform:scale(1.1)!important}}' +
+        '#pawniac-discord:active{opacity:1!important}';
+      document.head.appendChild(st);
+    }
   }
 
   function place() {
