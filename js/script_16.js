@@ -1,4 +1,6 @@
 (function(){
+  // Double Move has no check, so it needs its own move generator (script_53.js loads later: look it up at call time)
+  function CF(g){ return (window.PawniacChessFor ? window.PawniacChessFor(g && g.variant) : Chess); }
   var FILES = 'abcdefgh';
   var PKEY = 'pawniac-input';
   var P = {dnd:true, premove:true};
@@ -160,7 +162,7 @@
     if(!cell) return;
     var c = ctx();
     if(!c) return;
-    var sq = cell.dataset.sq, chess = new Chess(c.g.fen), mode = null, dests = [];
+    var sq = cell.dataset.sq, chess = new (CF(c.g))(c.g.fen), mode = null, dests = [];
     if(canMoveNow(c)){
       if(!P.dnd) return;                              // normal clicking handles it
       var allowed = allowedFromSquares(chess, c.g.announced);
@@ -210,7 +212,7 @@
     if(d.mode !== 'premove') return;
     var c = ctx();
     if(!c || !canMoveNow(c)) return;
-    var allowed = allowedFromSquares(new Chess(c.g.fen), c.g.announced);
+    var allowed = allowedFromSquares(new (CF(c.g))(c.g.fen), c.g.announced);
     d.mode = 'move';
     d.dests = allowed.filter(function(m){ return m.from === d.from; }).map(function(m){ return m.to; });
     var cell = document.querySelector('#screen-game .sq[data-sq="' + d.from + '"]');
@@ -224,7 +226,7 @@
       if(!canMoveNow(c)) return false;
       if(!to){ selectedSquare = null; drawGame(); return false; }
       if(to === d.from){ drawGame(); return false; }          // dropped back: stays selected
-      var chess = new Chess(c.g.fen);
+      var chess = new (CF(c.g))(c.g.fen);
       var allowed = allowedFromSquares(chess, c.g.announced);
       var destMoves = allowed.filter(function(m){ return m.from === d.from; });
       var destSquares = new Set(destMoves.map(function(m){ return m.to; }));
@@ -238,7 +240,7 @@
     // premove
     if(!canPremoveNow(c)) return false;
     if(to && to !== d.from){
-      var ch2 = new Chess(c.g.fen);
+      var ch2 = new (CF(c.g))(c.g.fen);
       if(pmDests(ch2, d.from, c.me.side).indexOf(to) >= 0){
         PM = {gid:currentGameId, from:d.from, to:to};
       }
@@ -282,7 +284,7 @@
     if(!cell) return;
     var c = ctx();
     if(!c || !canPremoveNow(c)) return;
-    var sq = cell.dataset.sq, chess = new Chess(c.g.fen), p = chess.get(sq);
+    var sq = cell.dataset.sq, chess = new (CF(c.g))(c.g.fen), p = chess.get(sq);
     if(p && p.color === c.me.side) return;                   // your own pieces are handled on pointerdown
     if(pmSel && pmDests(chess, pmSel, c.me.side).indexOf(sq) >= 0){
       PM = {gid:currentGameId, from:pmSel, to:sq};
@@ -309,7 +311,7 @@
   // ---------- hook into the game screen ----------
   function runPremove(g){
     var pm = PM; PM = null; pmSel = null;
-    var mv = new Chess(g.fen).moves({verbose:true}).filter(function(m){
+    var mv = new (CF(g))(g.fen).moves({verbose:true}).filter(function(m){
       return m.from === pm.from && m.to === pm.to;
     })[0];
     if(mv) makeMove(pm.from, pm.to, mv.promotion ? 'q' : undefined);   // illegal now? it is simply dropped
@@ -324,7 +326,7 @@
       if(el) el.classList.add(cls);
       return el;
     }
-    var chess = new Chess(g.fen);
+    var chess = new (CF(g))(g.fen);
     if(canMoveNow(c)){
       if(P.dnd) allowedFromSquares(chess, g.announced).forEach(function(m){ mark(m.from, 'dnd-from'); });
     } else if(canPremoveNow(c)){
@@ -357,7 +359,7 @@
         if(me && g.turn === me.side){        // opponent just moved
           if(pmSel){                          // you were half-way through a premove: keep the piece selected as a normal move
             var sq0 = pmSel; pmSel = null;
-            var pc0 = new Chess(g.fen).get(sq0);
+            var pc0 = new (CF(g))(g.fen).get(sq0);
             if(pc0 && pc0.color === me.side && !PM) selectedSquare = sq0;
           }
           if(PM) runPremove(g);              // a finished premove plays now

@@ -123,7 +123,8 @@
       if(W !== me) return;
       var g = s.exists() ? s.val() : null;
       if(!g || !g.fen){ scr.innerHTML = '<div class="card"><p class="desc">This game is not available.</p><span class="backlink" id="wtBack">&larr; Back to lobby</span></div>'; el('wtBack').onclick = function(){ window.renderLobby(); }; return; }
-      if(W.prevFen && g.fen !== W.prevFen){ var m = findMove(W.prevFen, g.fen); if(m) W.last = m; }
+      if(g.variant === 'double') W.lastList = g.lastMoves || [];                // Double Move saves the moves of the turn itself
+      else if(W.prevFen && g.fen !== W.prevFen){ var m = findMove(W.prevFen, g.fen); if(m) W.last = m; }
       W.prevFen = g.fen; W.g = g;
       draw();
     }, function(){ scr.innerHTML = '<div class="card"><p class="desc">Could not open this game.</p></div>'; });
@@ -152,7 +153,7 @@
     var h = '<div class="board">';
     for(var r = 0; r < 8; r++) for(var f = 0; f < 8; f++){
       var sq = FILES[f] + (8 - r), p = b[r][f], cls = 'sq ' + (((r + f) % 2 === 0) ? 'light' : 'dark');
-      if(W.last && (sq === W.last.from || sq === W.last.to)) cls += ' last';
+      if((W.last && (sq === W.last.from || sq === W.last.to)) || (W.lastList && W.lastList.some(function(m){ return sq === m.from || sq === m.to; }))) cls += ' last';
       if(sq === chk) cls += ' in-check';
       var co = '';
       if(f === 0) co += '<span class="coord rank">' + (8 - r) + '</span>';
@@ -174,7 +175,7 @@
       if(g.announced && g.announced !== 'std') p += '<div class="announce">Announced: ' + NMS[g.announced] + '</div>';
       else if(!g.announced && g.variant !== 'standard' && g.variant !== 'auction') p += '<div class="announce empty">No piece announced yet</div>';
     }
-    if(c.in_check() && g.status === 'active') p += '<div class="draw-offer">Check!</div>';
+    if(c.in_check() && g.status === 'active') p += '<div class="draw-offer">' + (g.variant === 'double' ? 'King attacked!' : 'Check!') + '</div>';
     p += '<div style="margin:10px 0;"><span class="backlink" id="wtBack">&larr; Back to lobby</span></div>';
     p += renderMoveLog(g.moveLog || [], g);
     scr.innerHTML = '<div class="card"><div class="board-wrap"><div class="wt-bw">' + clk(g, c, 'b') + (window.PawniacMat ? PawniacMat.row(c.fen(), 'b') : '') + boardHtml(c) + (window.PawniacMat ? PawniacMat.row(c.fen(), 'w') : '') + clk(g, c, 'w') + '</div><div class="panel">' + p + '</div></div></div>';

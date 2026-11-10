@@ -1,7 +1,7 @@
 (function(){
   var NAME_RE = /^[A-Za-z0-9_]{3,20}$/;
   var FILES = 'abcdefgh';
-  var VNAME = {hb:'Hand & Brain', team:'Hand & Brain team', std:'Standard', auction:'Piece Auction'};
+  var VNAME = {hb:'Hand & Brain', team:'Hand & Brain team', std:'Standard', auction:'Piece Auction', double:'Double Move'};
   var PAGE = 20;
   var done = {}, busy = {}, fails = {};
   var G = null, token = 0, okOnce = false;
@@ -13,11 +13,12 @@
 
   // ---------- helpers about a game ----------
   function worthy(g){
-    return !!g && g.variant !== 'double' && g.status === 'finished' && !!g.winner && g.winner !== 'abort' && !!g.moveLog && g.moveLog.length >= 2 &&
+    return !!g && g.status === 'finished' && !!g.winner && g.winner !== 'abort' && !!g.moveLog && g.moveLog.length >= 2 &&
       (g.variant !== 'auction' || !!startFen(g));
   }
   function variantOf(g){
     if(g.variant === 'auction') return 'auction';
+    if(g.variant === 'double') return 'double';
     return g.mode === 'team' ? 'team' : (g.variant === 'standard' ? 'std' : 'hb');
   }
   // Piece Auction games start from the armies the players placed. Those layouts are saved in the game,
@@ -167,7 +168,7 @@
   }
 
   function boardHtml(fen, last, flip){
-    var b = new Chess(fen).board(), idx = [0,1,2,3,4,5,6,7];
+    var b = new (window.PawniacChessFor ? window.PawniacChessFor(G && G.g && G.g.variant) : Chess)(fen).board(), idx = [0,1,2,3,4,5,6,7];
     var rows = flip ? idx.slice().reverse() : idx, cols = flip ? idx.slice().reverse() : idx;
     var h = '<div class="board">';
     rows.forEach(function(r){
@@ -190,6 +191,24 @@
   function movesHtml(){
     var m = G.moves;
     if(!m.length) return '<div class="movelog-wrap empty">No moves.</div>';
+    if(G.g && G.g.variant === 'double'){      // both moves of a turn share one cell
+      var sides = G.sides || [], runs = [], k0;
+      for(k0 = 0; k0 < m.length; k0++){
+        var sd = sides[k0] || (k0 === 0 ? 'w' : 'b'), lastRun = runs[runs.length - 1];
+        if(lastRun && lastRun.side === sd) lastRun.ids.push(k0); else runs.push({side:sd, ids:[k0]});
+      }
+      function runHtml(r){
+        return r.ids.map(function(ix){
+          return '<span class="dm-mv' + (G.sel === ix + 1 ? ' current' : '') + '" data-ply="' + (ix + 1) + '" style="cursor:pointer;margin-right:6px;">' + esc(sanToFigurine(m[ix].san, r.side)) + '</span>';
+        }).join('');
+      }
+      var hh = '', ri = 0, n0 = 1;
+      while(ri < runs.length){
+        var wr = runs[ri].side === 'w' ? runs[ri++] : null, br = (ri < runs.length && runs[ri].side === 'b') ? runs[ri++] : null;
+        hh += '<div class="move-row dm-row"><span class="move-num">' + (n0++) + '</span><span class="move-white">' + (wr ? runHtml(wr) : '') + '</span><span class="move-black">' + (br ? runHtml(br) : '') + '</span></div>';
+      }
+      return '<div class="movelog-wrap">' + hh + '</div>';
+    }
     var items = [];
     if(G.blackFirst) items.push(null);                       // empty White slot on move 1
     for(var j = 0; j < m.length; j++) items.push(j);
@@ -288,19 +307,28 @@
       screen.innerHTML = msgCard('Game #' + n + ' not found', "There is no game with that number. Games played before numbering was added do not have one.");
       return;
     }
-    var sf = startFen(g), c = sf ? new Chess(sf) : new Chess(), fens = [c.fen()], moves = [];
-    (g.moveLog || []).forEach(function(san){
+    var sf = startFen(g), isDbl = g.variant === 'double', sides = [];
+    var c = isDbl ? new (window.PawniacChessFor('double'))() : (sf ? new Chess(sf) : new Chess()), fens = [c.fen()], moves = [];
+    (g.moveLog || []).forEach(function(san, i){
       if(moves.length !== fens.length - 1) return;
-      var mv = c.move(san);
+      var mv;
+      if(isDbl){
+        // Double Move: the same side can move twice in a row, so set the side to move from the saved list first
+        var sd = (g.mvSides || '').charAt(i) || (c.turn ? c.turn() : 'w');
+        if(c.turn() !== sd){ var pp = c.fen().split(' '); pp[1] = sd; pp[3] = '-'; c.load(pp.join(' ')); }
+        var found = c.moves({verbose:true}).filter(function(x){ return x.san === san; })[0];
+        mv = found ? c.move({from:found.from, to:found.to, promotion:found.promotion}) : null;
+        if(mv) sides.push(sd);
+      } else mv = c.move(san);
       if(mv){ moves.push(mv); fens.push(c.fen()); }
     });
     var me = myRole(g);
-    G = {n:n, code:code, g:g, fens:fens, moves:moves, sel:moves.length, flip:!!(me && me.side === 'b'), blackFirst:!!(sf && sf.split(' ')[1] === 'b')};
+    G = {n:n, code:code, g:g, fens:fens, moves:moves, sides:sides, sel:moves.length, flip:!!(me && me.side === 'b'), blackFirst:!!(sf && sf.split(' ')[1] === 'b')};
 
     var res = g.winner === 'w' ? 'White wins' : g.winner === 'b' ? 'Black wins' : g.winner === 'draw' ? 'Draw' : 'No result';
     var note = g.statusNote || (moves.length && /#$/.test(moves[moves.length - 1].san) ? 'checkmate' : '');
     var meta = [VNAME[variantOf(g)] || 'Game', tcText(g.clock && g.clock.initialSec, g.clock && g.clock.incrementSec), dateText(g.moveAt)].filter(Boolean).join(' \u00b7 ');
-    var canAn = worthy(g) && moves.length >= 2;
+    var canAn = worthy(g) && g.variant !== 'double' && moves.length >= 2;   // the analysis engine only understands one move per turn
     screen.innerHTML =
       '<div class="card">' +
         '<div class="gh-head"><div><div class="gh-title">Game #' + n + '</div><div class="hint" style="margin-top:4px;">' + esc(meta) + '</div></div>' +
