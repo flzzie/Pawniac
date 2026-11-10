@@ -103,6 +103,15 @@
         sec: (g.clock && g.clock.initialSec) || 0,
         inc: (g.clock && g.clock.incrementSec) || 0
       };
+      // the rating change this game caused (same maths as settleMyRating), so a refund after a ban is exact
+      entry.g = gid;
+      try{
+        if(g.mode === 'random' && g.ratingSnapshot && typeof computeEloChange === 'function'){
+          var mine = me.side === 'w' ? g.ratingSnapshot.white : g.ratingSnapshot.black, theirs = me.side === 'w' ? g.ratingSnapshot.black : g.ratingSnapshot.white;
+          var dd = computeEloChange(mine, theirs, scoreForSide(g.winner, me.side));
+          if(typeof dd === 'number' && isFinite(dd)) entry.d = dd;
+        }
+      }catch(e){}
       await db.ref('hb/history/' + ME.username + '/' + n).transaction(function(c){ return c ? undefined : entry; });
       done[gid] = true;
     }catch(e){
