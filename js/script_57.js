@@ -81,13 +81,13 @@
     try{
       if(!name) return r;
       var b = (await db.ref('hb/bannedPublic/' + name).once('value')).val();
-      var card = document.querySelector('#screen-profile .card');
-      if(b && card && !card.querySelector('.pf-banned')){
-        var d = document.createElement('div');
-        d.className = 'draw-offer pf-banned';
-        d.style.cssText = 'color:#b8433f;margin-bottom:12px;font-weight:600;';
-        d.textContent = 'This player is banned.';
-        card.insertBefore(d, card.firstChild);
+      var nm = document.querySelector('#screen-profile .pf-name');
+      if(b && nm && !nm.querySelector('.pf-banned')){
+        var tag = document.createElement('span');          // small solid red badge next to the name, easy to read on light and dark
+        tag.className = 'pf-banned';
+        tag.textContent = 'BANNED';
+        tag.style.cssText = 'display:inline-block;margin-left:10px;padding:3px 8px;border-radius:4px;background:#d62d2d;color:#fff;font-size:11px;font-weight:800;letter-spacing:.6px;line-height:1.2;vertical-align:middle;';
+        nm.appendChild(tag);
       }
     }catch(e){}
     return r;
