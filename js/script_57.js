@@ -66,6 +66,24 @@
     }
     return prevSignedIn.apply(this, arguments);
   };
+  // a banned player's profile says so (the admin tool writes hb/bannedPublic/<name>, which holds only the date)
+  var prevOpenProfile = window.openProfile;
+  if(typeof prevOpenProfile === 'function') window.openProfile = async function(name){
+    var r = await prevOpenProfile.apply(this, arguments);
+    try{
+      if(!name) return r;
+      var b = (await db.ref('hb/bannedPublic/' + name).once('value')).val();
+      var card = document.querySelector('#screen-profile .card');
+      if(b && card && !card.querySelector('.pf-banned')){
+        var d = document.createElement('div');
+        d.className = 'draw-offer pf-banned';
+        d.style.cssText = 'color:#b8433f;margin-bottom:12px;font-weight:600;';
+        d.textContent = 'This player is banned.';
+        card.insertBefore(d, card.firstChild);
+      }
+    }catch(e){}
+    return r;
+  };
   var prevLogout = window.logout;
   if(typeof prevLogout === 'function') window.logout = function(){ stopWatch(); return prevLogout.apply(this, arguments); };
 })();
