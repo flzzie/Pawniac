@@ -4,9 +4,11 @@
  */
 (function(){
   var SKEY = 'pawniac-bg', DB_NAME = 'pawniac-bg', STORE = 'img', MAX_FILE = 12 * 1024 * 1024, MAX_SIDE = 1920;
-  // box: 'solid' (the normal look), 'glass' (see-through) or 'match' (tinted with the picture's own colours). tint = [r,g,b] average of the picture.
+  // box: 'solid' (the normal look) or 'match' (cards blend into the picture). tint = [r,g,b] average of the picture, used to judge how bright it is.
   var S = {on:true, dim:55, blur:0, box:'solid', tint:null};
   try{ var raw = localStorage.getItem(SKEY); if(raw) Object.assign(S, JSON.parse(raw)); }catch(e){}
+  if(S.box !== 'solid') S.box = 'match';   // the earlier see-through option became part of "match"
+
   function saveS(){ try{ localStorage.setItem(SKEY, JSON.stringify(S)); }catch(e){} }
   var url = null, blob = null, memoryOnly = false;
 
@@ -45,9 +47,11 @@
     // text that sits straight on the picture (the footer) gets a soft backing so it stays readable on any image
     'html.pw-bg #pnFooter{background:#f4f1ea;border-radius:10px;padding:8px 14px;width:fit-content;max-width:calc(100% - 32px);margin-left:auto;margin-right:auto;}' +
     'html[data-theme=dark].pw-bg #pnFooter{background:#16140f;}' +
-    // "Boxes" setting: cards and the menu bar stop being solid and pick up the picture (see boxColours below)
-    'html.pw-bg.pw-box .card,html.pw-bg.pw-box .navbar{background:var(--pw-box);border-color:var(--pw-box-line);' +
-      '-webkit-backdrop-filter:blur(12px) saturate(1.15);backdrop-filter:blur(12px) saturate(1.15);}' +
+    // "Boxes" = match: cards stop being solid panels. The picture shows straight through (no blur, so no smudges), with just a
+    // little of the same dimming the page already has, and the buttons / chips inside them follow along.
+    'html.pw-bg.pw-box .card,html.pw-bg.pw-box .navbar{background:var(--pw-box);border-color:var(--pw-box-line);box-shadow:none;}' +
+    'html.pw-bg.pw-box .modebtn:not(.active),html.pw-bg.pw-box .tcbtn:not(.active),html.pw-bg.pw-box .seat,html.pw-bg.pw-box .clock:not(.active),html.pw-bg.pw-box button.secondary{background:var(--pw-box-in);border-color:var(--pw-box-line);}' +
+    'html.pw-bg.pw-box button.secondary:hover,html.pw-bg.pw-box .modebtn:not(.active):hover,html.pw-bg.pw-box .tcbtn:not(.active):hover{background:var(--pw-box);}' +
     '#bgCard .bg-prev{width:100%;height:110px;border-radius:8px;border:1px solid rgba(128,128,128,.3);background-size:cover;background-position:center;margin:6px 0 12px;}' +
     '#bgCard .bg-none{display:flex;align-items:center;justify-content:center;font-size:13px;opacity:.7;}' +
     '#bgCard input[type=range]{width:150px;accent-color:#1f6f5c;}' +
@@ -79,20 +83,16 @@
     });
   }
   function lum(c){ return (0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]) / 255; }
-  // boxes keep the site's own dark / light feel but lean toward the picture, so text stays readable on any image
+  // Same colour the page dims the picture with, a bit stronger on bright pictures (dark theme) / dark pictures (light theme) so text stays readable
   function boxColours(){
     var dark = document.documentElement.getAttribute('data-theme') === 'dark';
-    var base = dark ? [37, 35, 32] : [255, 253, 249], c = base, a = 0.55;
-    if(S.box === 'match' && S.tint){
-      c = [0, 1, 2].map(function(i){ return Math.round(S.tint[i] * 0.5 + base[i] * 0.5); });
-      var l = lum(c), k;
-      if(dark && l > 0.18){ k = 0.18 / l; c = c.map(function(v){ return Math.round(v * k); }); }
-      if(!dark && l < 0.78){ k = (0.78 - l) / (1 - l); c = c.map(function(v){ return Math.round(v + (255 - v) * k); }); }
-      a = 0.86;
-    }
+    var base = dark ? '22,20,15' : '244,241,234';
+    var L = S.tint ? lum(S.tint) : 0.5;
+    var a = Math.min(0.72, 0.28 + 0.4 * (dark ? L : 1 - L));
     var st = document.documentElement.style;
-    st.setProperty('--pw-box', 'rgba(' + c[0] + ',' + c[1] + ',' + c[2] + ',' + a + ')');
-    st.setProperty('--pw-box-line', dark ? 'rgba(255,255,255,.14)' : 'rgba(0,0,0,.10)');
+    st.setProperty('--pw-box', 'rgba(' + base + ',' + a.toFixed(2) + ')');
+    st.setProperty('--pw-box-in', 'rgba(' + base + ',' + (a * 0.55).toFixed(2) + ')');
+    st.setProperty('--pw-box-line', dark ? 'rgba(255,255,255,.16)' : 'rgba(0,0,0,.13)');
   }
 
   function apply(){
@@ -152,8 +152,8 @@
         '<div class="set-row"><div><div class="set-label">Use my background</div></div><div class="set-ctl"><label class="switch"><input type="checkbox" id="bgOn"' + (S.on ? ' checked' : '') + '><span></span></label></div></div>' +
         '<div class="set-row"><div><div class="set-label">Darken</div><div class="hint">Higher = easier to read the site</div></div><div class="set-ctl"><input type="range" id="bgDim" min="0" max="90" value="' + S.dim + '"></div></div>' +
         '<div class="set-row"><div><div class="set-label">Blur</div></div><div class="set-ctl"><input type="range" id="bgBlur" min="0" max="20" value="' + S.blur + '"></div></div>' +
-        '<div class="set-row"><div><div class="set-label">Boxes</div><div class="hint">How the cards and menu look on top of your picture</div></div><div class="set-ctl"><select id="bgBox">' +
-          [['solid', 'Solid'], ['glass', 'See-through'], ['match', 'Match my picture']].map(function(o){ return '<option value="' + o[0] + '"' + (S.box === o[0] ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') +
+        '<div class="set-row"><div><div class="set-label">Boxes</div><div class="hint">Match = cards blend into your picture instead of sitting on it as solid boxes</div></div><div class="set-ctl"><select id="bgBox">' +
+          [['solid', 'Solid'], ['match', 'Match my picture']].map(function(o){ return '<option value="' + o[0] + '"' + (S.box === o[0] ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') +
         '</select></div></div>' : '');
     var file = card.querySelector('#bgFile');
     card.querySelector('#bgPick').onclick = function(){ file.click(); };
