@@ -631,7 +631,7 @@
   // ---------- profile badges (Day One, Founding Supporter, Bug Hunter) ----------
   // stored in Firebase at hb/badges/<username>/<badge_id>
   //   bug_hunter          = true
-  //   day_one             = true      (also given automatically to the first 150 accounts, see dayOneSet below)
+  //   day_one             = true      (also given automatically to the first 150 accounts, see DAY_ONE_CUTOFF below)
   //   founding_supporter  = true                                (badge only)
   //                       = "community-slug"                    (badge links to that card on the supporters page,
   //                                                              e.g. "magma-knights-chess-society")
@@ -663,18 +663,14 @@
     return (id === 'founding_supporter' && typeof v === 'string' && /^[a-z0-9-]{1,60}$/.test(v)) ? v : '';
   }
 
-  // Day One: the first 150 accounts, by the "joined" date on their profile (hb/profile/<name>/joined). Read once per page load.
-  // Needs the database rules to let people read hb/profile and, ideally, "hb/profile": {".indexOn": ["joined"]}.
-  var DAY_ONE_LIMIT = 150, dayOneP = null;
-  function dayOneSet(){
-    if(!dayOneP){
-      dayOneP = db.ref('hb/profile').orderByChild('joined').startAt(1).limitToFirst(DAY_ONE_LIMIT).once('value').then(function(snap){
-        var set = {};
-        snap.forEach(function(c){ set[c.key] = true; });
-        return set;
-      }).catch(function(){ dayOneP = null; return {}; });   // rules not published / offline: nobody gets it automatically
-    }
-    return dayOneP;
+  // Day One: the first 150 accounts. Fixed cutoff = the "joined" time (hb/profile/<name>/joined, set from the account's real
+  // creation time) of account number 150: 9 Nov 2026, 12:25:35 UTC. Anyone who joined at or before it gets the badge. A player
+  // whose profile does not exist yet gets it the first time they log in, because the profile is created with their signup time.
+  var DAY_ONE_CUTOFF = 1794227135000;
+  function isDayOne(name){
+    return val('hb/profile/' + name + '/joined').then(function(j){
+      return typeof j === 'number' && j > 0 && j <= DAY_ONE_CUTOFF;
+    }).catch(function(){ return false; });
   }
 
   function badgeCss(){
@@ -710,8 +706,7 @@ a.pn-badge{cursor:pointer;text-decoration:none}
     try{ b = await val('hb/badges/' + name); }catch(e){ b = null; }        // no badges / rules not published: just the automatic one below
     b = b || {};
     if(!badgeOn('day_one', b.day_one)){
-      var first = await dayOneSet();
-      if(first[name]) b.day_one = true;
+      if(await isDayOne(name)) b.day_one = true;
     }
     if(!stillOn(name) || scr.querySelector('#pfBadges')) return;
     var ids = BADGE_ORDER.filter(function(id){ return badgeOn(id, b[id]); });
