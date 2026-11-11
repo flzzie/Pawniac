@@ -9,7 +9,8 @@
   function applyBody(){ document.body.classList.toggle('dnd-on', !!P.dnd); }
   applyBody();
 
-  var PM = null;          // queued premove {gid, from, to}
+  var PQ = [];            // queued premoves [{gid, from, to}]: up to 2 in Double Move (one per move of your turn), 1 elsewhere
+  var firedFen = null;    // the position the last queued premove was played from (stops one premove firing twice)
   var pmSel = null;       // piece picked up for a premove
   var D = null;           // active pointer interaction
   var suppressUntil = 0;  // swallow the click that follows a drag
@@ -29,9 +30,46 @@
     return c.myTurn && !pendingPromotion && !!c.g.announced &&
       ((c.g.mode === 'team' && c.me.role === 'hand') || (c.g.mode === 'random' && c.me.role === 'solo'));
   }
-  // premoves: Standard Chess and Piece Auction (once the army is placed), while it is the opponent's turn
+  // premoves: Standard Chess, Piece Auction (once the army is placed) and Double Move, while it is the opponent's turn
+  function isPmVariant(g){ return !!g && (g.variant === 'standard' || g.variant === 'auction' || g.variant === 'double'); }
   function canPremoveNow(c){
-    return P.premove && (c.g.variant === 'standard' || c.g.variant === 'auction') && c.g.mode === 'random' && !c.myTurn;
+    return P.premove && isPmVariant(c.g) && c.g.mode === 'random' && !c.myTurn;
+  }
+  function pmMax(g){ return g && g.variant === 'double' ? 2 : 1; }
+  // queue a premove; when the queue is full the new one replaces the last
+  function pmAdd(g, from, to){
+    if(PQ.length >= pmMax(g)) PQ.pop();
+    PQ.push({gid:currentGameId, from:from, to:to});
+  }
+  // the pieces as they will stand after the premoves already queued (so a queued piece can be premoved again)
+  function fenAfter(fen, from, to){
+    var parts = fen.split(' '), rows = parts[0].split('/').map(function(r){
+      var a = [];
+      for(var i = 0; i < r.length; i++){ var ch = r.charAt(i); if(ch >= '1' && ch <= '8'){ for(var k = 0; k < +ch; k++) a.push(''); } else a.push(ch); }
+      return a;
+    });
+    function at(sq){ return [8 - parseInt(sq.charAt(1), 10), FILES.indexOf(sq.charAt(0))]; }
+    var f = at(from), t = at(to), pc = rows[f[0]][f[1]];
+    if(!pc) return fen;
+    rows[f[0]][f[1]] = '';
+    if((pc === 'P' && t[0] === 0) || (pc === 'p' && t[0] === 7)) pc = pc === 'P' ? 'Q' : 'q';
+    if((pc === 'K' || pc === 'k') && Math.abs(t[1] - f[1]) === 2){            // castling: the rook comes along
+      var rf = t[1] > f[1] ? 7 : 0, rt = t[1] > f[1] ? 5 : 3;
+      rows[f[0]][rt] = rows[f[0]][rf]; rows[f[0]][rf] = '';
+    }
+    rows[t[0]][t[1]] = pc;
+    parts[0] = rows.map(function(row){
+      var o = '', n = 0;
+      row.forEach(function(x){ if(x){ if(n){ o += n; n = 0; } o += x; } else n++; });
+      return o + (n || '');
+    }).join('/');
+    return parts.join(' ');
+  }
+  window.PawniacFenAfter = fenAfter;       // the bot screen (script_34.js) uses the same helper
+  function pmBase(g){
+    var fen = g.fen, n = PQ.length >= pmMax(g) ? PQ.length - 1 : PQ.length;
+    for(var i = 0; i < n; i++) fen = fenAfter(fen, PQ[i].from, PQ[i].to);
+    return fen;
   }
   function cellOf(target){
     return (target && target.closest) ? target.closest('#screen-game .sq[data-sq]') : null;
@@ -170,19 +208,20 @@
       mode = 'move';
       dests = allowed.filter(function(m){ return m.from === sq; }).map(function(m){ return m.to; });
     } else if(canPremoveNow(c)){
-      var pc = chess.get(sq);
+      var pch = new (CF(c.g))(pmBase(c.g));
+      var pc = pch.get(sq);
       if(!pc || pc.color !== c.me.side) return;
       // a piece is already picked up and this square of yours is one of its targets: that is a
       // recapture premove, so queue it instead of switching the selection to this piece
-      if(pmSel && pmSel !== sq && pmDests(chess, pmSel, c.me.side).indexOf(sq) >= 0){
+      if(pmSel && pmSel !== sq && pmDests(pch, pmSel, c.me.side).indexOf(sq) >= 0){
         e.preventDefault();
-        PM = {gid:currentGameId, from:pmSel, to:sq};
+        pmAdd(c.g, pmSel, sq);
         pmSel = null;
         drawGame();
         return;
       }
       mode = 'premove';
-      dests = pmDests(chess, sq, c.me.side);
+      dests = pmDests(pch, sq, c.me.side);
     } else {
       return;
     }
@@ -240,9 +279,9 @@
     // premove
     if(!canPremoveNow(c)) return false;
     if(to && to !== d.from){
-      var ch2 = new (CF(c.g))(c.g.fen);
+      var ch2 = new (CF(c.g))(pmBase(c.g));
       if(pmDests(ch2, d.from, c.me.side).indexOf(to) >= 0){
-        PM = {gid:currentGameId, from:d.from, to:to};
+        pmAdd(c.g, d.from, to);
       }
       pmSel = null;
     } else if(!to){
@@ -284,37 +323,43 @@
     if(!cell) return;
     var c = ctx();
     if(!c || !canPremoveNow(c)) return;
-    var sq = cell.dataset.sq, chess = new (CF(c.g))(c.g.fen), p = chess.get(sq);
+    var sq = cell.dataset.sq, chess = new (CF(c.g))(pmBase(c.g)), p = chess.get(sq);
     if(p && p.color === c.me.side) return;                   // your own pieces are handled on pointerdown
     if(pmSel && pmDests(chess, pmSel, c.me.side).indexOf(sq) >= 0){
-      PM = {gid:currentGameId, from:pmSel, to:sq};
+      pmAdd(c.g, pmSel, sq);
       pmSel = null;
       drawGame();
       return;
     }
-    if(pmSel || PM){ pmSel = null; PM = null; drawGame(); }  // clicked elsewhere: cancel
+    if(pmSel || PQ.length){ pmSel = null; PQ = []; drawGame(); }  // clicked elsewhere: cancel everything queued
   });
   function cancelPremove(){
-    PM = null; pmSel = null;
+    PQ = []; pmSel = null;
     if(ctx()) drawGame();
   }
   document.addEventListener('contextmenu', function(e){
-    if((PM || pmSel) && e.target.closest && e.target.closest('#screen-game .board')){
+    if((PQ.length || pmSel) && e.target.closest && e.target.closest('#screen-game .board')){
       e.preventDefault();
       cancelPremove();
     }
   });
   document.addEventListener('keydown', function(e){
-    if(e.key === 'Escape' && (PM || pmSel)) cancelPremove();
+    if(e.key === 'Escape' && (PQ.length || pmSel)) cancelPremove();
   });
 
   // ---------- hook into the game screen ----------
+  // plays the next queued premove. In Double Move the second one plays after the first has landed (drawGame calls
+  // this again with the new position). If one is no longer legal it is dropped together with the ones after it,
+  // because those were planned on a board that did not happen.
   function runPremove(g){
-    var pm = PM; PM = null; pmSel = null;
+    var pm = PQ.shift(); pmSel = null;
+    if(!pm) return;
     var mv = new (CF(g))(g.fen).moves({verbose:true}).filter(function(m){
       return m.from === pm.from && m.to === pm.to;
     })[0];
-    if(mv) makeMove(pm.from, pm.to, mv.promotion ? 'q' : undefined);   // illegal now? it is simply dropped
+    if(!mv){ PQ = []; return; }
+    firedFen = g.fen;
+    makeMove(pm.from, pm.to, mv.promotion ? 'q' : undefined);
   }
   function decorate(){
     var g = gameState, scr = document.getElementById('screen-game');
@@ -332,16 +377,17 @@
     } else if(canPremoveNow(c)){
       var side = c.me.side;
       if(P.dnd){
-        chess.board().forEach(function(row, ri){
+        new (CF(g))(pmBase(g)).board().forEach(function(row, ri){
           row.forEach(function(p, ci){ if(p && p.color === side) mark(FILES[ci] + (8 - ri), 'dnd-from'); });
         });
       }
-      if(PM){ mark(PM.from, 'pm-from'); mark(PM.to, 'pm-to'); }
+      PQ.forEach(function(q){ mark(q.from, 'pm-from'); mark(q.to, 'pm-to'); });
       if(pmSel){
+        var pch = new (CF(g))(pmBase(g));
         mark(pmSel, 'pm-from');
-        pmDests(chess, pmSel, side).forEach(function(s){
+        pmDests(pch, pmSel, side).forEach(function(s){
           var el = mark(s, 'pm-dest');
-          var q = chess.get(s);
+          var q = pch.get(s);
           if(el && q) el.classList.add('pm-cap');          // any occupied square gets the capture ring
         });
       }
@@ -351,8 +397,8 @@
   window.drawGame = function(){
     var g = gameState;
     try{
-      var std = !!g && g.status === 'active' && (g.variant === 'standard' || g.variant === 'auction') && P.premove;
-      if(PM && (!std || PM.gid !== currentGameId)) PM = null;
+      var std = !!g && g.status === 'active' && isPmVariant(g) && P.premove;
+      if(PQ.length && (!std || PQ[0].gid !== currentGameId)) PQ = [];
       if(pmSel && !std) pmSel = null;
       if(std){
         var me = myRole(g);
@@ -360,9 +406,9 @@
           if(pmSel){                          // you were half-way through a premove: keep the piece selected as a normal move
             var sq0 = pmSel; pmSel = null;
             var pc0 = new (CF(g))(g.fen).get(sq0);
-            if(pc0 && pc0.color === me.side && !PM) selectedSquare = sq0;
+            if(pc0 && pc0.color === me.side && !PQ.length) selectedSquare = sq0;
           }
-          if(PM) runPremove(g);              // a finished premove plays now
+          if(PQ.length && g.fen !== firedFen) runPremove(g);   // a queued premove plays now (the next one once this has landed)
         }
       }
     }catch(e){ console.error('premove failed', e); }
@@ -386,7 +432,7 @@
     card.id = 'inputCard';
     card.innerHTML = '<h2>Moving pieces</h2><p class="desc">Saved on this device.</p>' +
       row('dnd', 'Drag and drop', 'Drag pieces to move them (clicking still works). Works in every game mode.') +
-      row('premove', 'Premoves', 'Standard Chess and Piece Auction. Queue a move on your opponent\'s turn and it plays automatically if it is legal. Right-click or Esc cancels it.');
+      row('premove', 'Premoves', 'Standard Chess, Piece Auction and Double Move. Queue a move on your opponent\'s turn and it plays automatically if it is legal (Double Move: up to 2, one for each move of your turn). Right-click or Esc cancels them.');
     var reset = document.getElementById('setReset');
     var host = reset && reset.closest('.card');
     if(host) scr.insertBefore(card, host); else scr.appendChild(card);
@@ -395,7 +441,7 @@
         P[cb.dataset.in] = cb.checked;
         saveP();
         applyBody();
-        if(!P.premove){ PM = null; pmSel = null; }
+        if(!P.premove){ PQ = []; pmSel = null; }
       };
     });
   }

@@ -639,13 +639,25 @@
     r.remove();
     if(a && a.classList.contains('bt-h')) a.remove();
   }
-  // premoves: Standard and Piece Auction, while it is the bot's turn
-  function canPre(){ return !!G && G.phase === 'play' && !G.over && G.variant !== 'hb' && G.variant !== 'double' && G.chess.turn() === G.bot; }
+  // premoves: Standard, Piece Auction and Double Move, while it is the bot's turn.
+  // Double Move allows two queued premoves (one for each move of your turn), everything else one.
+  function canPre(){ return !!G && G.phase === 'play' && !G.over && G.variant !== 'hb' && G.chess.turn() === G.bot; }
+  function pq(){ return G.pq || (G.pq = []); }
+  function preMax(){ return G.variant === 'double' ? 2 : 1; }
+  function preAdd(from, to){ var q = pq(); if(q.length >= preMax()) q.pop(); q.push({from:from, to:to}); }
+  // the pieces as they will stand after the premoves already queued, so a queued piece can be premoved again
+  function preChess(){
+    var q = pq(), n = q.length >= preMax() ? q.length - 1 : q.length;
+    if(!n || G.variant !== 'double' || !window.PawniacFenAfter || !window.PawniacChessFor) return G.chess;
+    var fen = G.chess.fen();
+    for(var i = 0; i < n; i++) fen = window.PawniacFenAfter(fen, q[i].from, q[i].to);
+    return new (window.PawniacChessFor('double'))(fen);
+  }
   // same rules as premoves in the main game: where this piece COULD go once the bot has moved.
   // Ignores enemy pieces in the way and checks. Squares with your OWN piece count too (that is how
   // you premove a recapture), and a pawn can aim at its diagonals even when they are empty now.
   function preDests(from){
-    var chess = G.chess, color = G.me, p = chess.get(from);
+    var chess = preChess(), color = G.me, p = chess.get(from);
     if(!p || p.color !== color) return [];
     var f = FILES.indexOf(from[0]), r = parseInt(from[1], 10) - 1, out = [];
     function sqAt(nf, nr){ return (nf < 0 || nf > 7 || nr < 0 || nr > 7) ? null : FILES[nf] + (nr + 1); }
@@ -688,13 +700,15 @@
   nextTurn = function(){
     if(G && !G.over && G.chess.turn() === G.me){
       if(G.psel){ if(allowed().some(function(m){ return m.from === G.psel; })) G.sel = G.psel; G.psel = null; }
-      if(G.pm && G.variant !== 'hb'){
-        var pm = G.pm; G.pm = null;
+      if(pq().length && G.variant !== 'hb'){
+        var pm = pq().shift();
         var m = allowed().filter(function(x){ return x.from === pm.from && x.to === pm.to; })[0];
-                if(m){
-          if(m.promotion && !autoQ()){ G.promo = {from:m.from, to:m.to}; draw(); return; }
-          play(m.from, m.to, m.promotion ? 'q' : undefined); return _nt();
+        if(m){
+          if(m.promotion && !autoQ()){ G.pq = []; G.promo = {from:m.from, to:m.to}; draw(); return; }
+          play(m.from, m.to, m.promotion ? 'q' : undefined);
+          return nextTurn();          // Double Move: the next queued premove plays now; otherwise this goes on to the bot's turn
         }
+        G.pq = [];                    // not legal any more: the rest were planned on a board that did not happen
       }
     }
     return _nt();
@@ -702,9 +716,9 @@
   var _cc = cellClick;
   cellClick = function(sq){
     if(canPre()){
-      var p = G.chess.get(sq);
-      if(G.psel && G.psel !== sq && preDests(G.psel).indexOf(sq) >= 0){ G.pm = {from:G.psel, to:sq}; G.psel = null; draw(); return; }
-      if(p && p.color === G.me){ G.psel = sq; G.pm = null; } else { G.psel = null; G.pm = null; }
+      var p = preChess().get(sq);
+      if(G.psel && G.psel !== sq && preDests(G.psel).indexOf(sq) >= 0){ preAdd(G.psel, sq); G.psel = null; draw(); return; }
+      if(p && p.color === G.me){ G.psel = sq; } else { G.psel = null; G.pq = []; }
       draw(); return;
     }
     return _cc(sq);
@@ -717,12 +731,13 @@
       killSlider('bSk2');
       if(!G || G.over) return;
       if(canPre()){
-        if(G.pm){ mark(G.pm.from, 'pm-from'); mark(G.pm.to, 'pm-to'); }
+        pq().forEach(function(q){ mark(q.from, 'pm-from'); mark(q.to, 'pm-to'); });
+        var vc = preChess();
         if(G.psel){
           mark(G.psel, 'pm-from');
-          preDests(G.psel).forEach(function(s){ var el = mark(s, 'pm-dest'); if(el && G.chess.get(s)) el.classList.add('pm-cap'); });
+          preDests(G.psel).forEach(function(s){ var el = mark(s, 'pm-dest'); if(el && vc.get(s)) el.classList.add('pm-cap'); });
         }
-        scr.querySelectorAll('.sq[data-sq]').forEach(function(c){ var p = G.chess.get(c.dataset.sq); if(p && p.color === G.me) c.classList.add('selectable'); });
+        scr.querySelectorAll('.sq[data-sq]').forEach(function(c){ var p = vc.get(c.dataset.sq); if(p && p.color === G.me) c.classList.add('selectable'); });
       }
       var acts = scr.querySelector('.game-actions');
       if(acts && G.variant !== 'hb' && !scr.querySelector('.bt-pmh')){
@@ -734,10 +749,10 @@
     }catch(e){ console.error('bot decorate failed', e); }
   };
   scr.addEventListener('contextmenu', function(e){
-    if(G && (G.pm || G.psel) && e.target.closest && e.target.closest('.board')){ e.preventDefault(); G.pm = null; G.psel = null; draw(); }
+    if(G && (pq().length || G.psel) && e.target.closest && e.target.closest('.board')){ e.preventDefault(); G.pq = []; G.psel = null; draw(); }
   });
   document.addEventListener('keydown', function(e){
-    if(e.key === 'Escape' && G && (G.pm || G.psel)){ G.pm = null; G.psel = null; if(scr.style.display === 'block') draw(); }
+    if(e.key === 'Escape' && G && (pq().length || G.psel)){ G.pq = []; G.psel = null; if(scr.style.display === 'block') draw(); }
   });
 
   // drag and drop
@@ -757,16 +772,16 @@
       if(!allowed().some(function(m){ return m.from === sq; })) return;
       mode = 'move'; G.sel = sq;
     } else if(canPre()){
-      var pc = G.chess.get(sq);
+      var pc = preChess().get(sq);
       if(!pc || pc.color !== G.me) return;
       // a piece is already picked up and this square of yours is one of its targets: that is a
       // recapture premove, so queue it instead of switching the selection (same as the main game)
       if(G.psel && G.psel !== sq && preDests(G.psel).indexOf(sq) >= 0){
         e.preventDefault();
-        G.pm = {from:G.psel, to:sq}; G.psel = null; draw();
+        preAdd(G.psel, sq); G.psel = null; draw();
         return;
       }
-      mode = 'pre'; G.psel = sq; G.pm = null;
+      mode = 'pre'; G.psel = sq;
     } else return;
     e.preventDefault();
     D = {mode:mode, from:sq, id:e.pointerId, x:e.clientX, y:e.clientY, drag:false, ghost:null, w:0};
@@ -805,7 +820,7 @@
       }
       G.sel = (to === d.from) ? d.from : null; draw(); return;
     }
-    if(canPre() && to && to !== d.from && preDests(d.from).indexOf(to) >= 0){ G.pm = {from:d.from, to:to}; G.psel = null; }
+    if(canPre() && to && to !== d.from && preDests(d.from).indexOf(to) >= 0){ preAdd(d.from, to); G.psel = null; }
     else if(to !== d.from) G.psel = null;
     draw();
   });
