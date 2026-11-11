@@ -4,7 +4,7 @@
  */
 (function(){
   var SKEY = 'pawniac-bg', DB_NAME = 'pawniac-bg', STORE = 'img', MAX_FILE = 12 * 1024 * 1024, MAX_SIDE = 1920;
-  var S = {on:true, dim:40, blur:0};
+  var S = {on:true, dim:55, blur:0};
   try{ var raw = localStorage.getItem(SKEY); if(raw) Object.assign(S, JSON.parse(raw)); }catch(e){}
   function saveS(){ try{ localStorage.setItem(SKEY, JSON.stringify(S)); }catch(e){} }
   var url = null, blob = null, memoryOnly = false;
@@ -41,9 +41,12 @@
     '#pwBg .d{position:absolute;inset:0;background:#f4f1ea;}' +
     '[data-theme=dark] #pwBg .d{background:#16140f;}' +
     'html.pw-bg body::before,html.pw-bg #screen-auth::before{display:none;}' +
+    // text that sits straight on the picture (the footer) gets a soft backing so it stays readable on any image
+    'html.pw-bg #pnFooter{background:#f4f1ea;border-radius:10px;padding:8px 14px;width:fit-content;max-width:calc(100% - 32px);margin-left:auto;margin-right:auto;}' +
+    'html[data-theme=dark].pw-bg #pnFooter{background:#16140f;}' +
     '#bgCard .bg-prev{width:100%;height:110px;border-radius:8px;border:1px solid rgba(128,128,128,.3);background-size:cover;background-position:center;margin:6px 0 12px;}' +
     '#bgCard .bg-none{display:flex;align-items:center;justify-content:center;font-size:13px;opacity:.7;}' +
-    '#bgCard input[type=range]{width:150px;}' +
+    '#bgCard input[type=range]{width:150px;accent-color:#1f6f5c;}' +
     '#bgCard .bg-btns{display:flex;gap:10px;flex-wrap:wrap;margin:4px 0 10px;}';
   document.head.appendChild(css);
   var layer = document.createElement('div');
