@@ -51,6 +51,11 @@
     // little of the same dimming the page already has, and the buttons / chips inside them follow along.
     'html.pw-bg.pw-box .card,html.pw-bg.pw-box .navbar{background:var(--pw-box);border-color:var(--pw-box-line);box-shadow:none;}' +
     'html.pw-bg.pw-box .modebtn:not(.active),html.pw-bg.pw-box .tcbtn:not(.active),html.pw-bg.pw-box .seat,html.pw-bg.pw-box .clock:not(.active),html.pw-bg.pw-box button.secondary{background:var(--pw-box-in);border-color:var(--pw-box-line);}' +
+    // text boxes, the selected (green) tiles / chips and the footer follow along too
+    'html.pw-bg.pw-box input[type=text],html.pw-bg.pw-box input[type=email],html.pw-bg.pw-box input[type=password],html.pw-bg.pw-box input[type=number],html.pw-bg.pw-box textarea{background:var(--pw-box-in);border-color:var(--pw-box-line);}' +
+    'html.pw-bg.pw-box .modebtn.active,html.pw-bg.pw-box .tcbtn.active{background:var(--pw-act);}' +
+    'html.pw-bg.pw-box .code-display,html.pw-bg.pw-box .announce:not(.empty){background:var(--pw-box-in);}' +
+    'html.pw-bg.pw-box #pnFooter,html[data-theme=dark].pw-bg.pw-box #pnFooter{background:var(--pw-box);}' +
     'html.pw-bg.pw-box button.secondary:hover,html.pw-bg.pw-box .modebtn:not(.active):hover,html.pw-bg.pw-box .tcbtn:not(.active):hover{background:var(--pw-box);}' +
     '#bgCard .bg-prev{width:100%;height:110px;border-radius:8px;border:1px solid rgba(128,128,128,.3);background-size:cover;background-position:center;margin:6px 0 12px;}' +
     '#bgCard .bg-none{display:flex;align-items:center;justify-content:center;font-size:13px;opacity:.7;}' +
@@ -92,6 +97,7 @@
     var st = document.documentElement.style;
     st.setProperty('--pw-box', 'rgba(' + base + ',' + a.toFixed(2) + ')');
     st.setProperty('--pw-box-in', 'rgba(' + base + ',' + (a * 0.55).toFixed(2) + ')');
+    st.setProperty('--pw-act', 'rgba(31,111,92,' + (dark ? 0.42 : 0.2) + ')');
     st.setProperty('--pw-box-line', dark ? 'rgba(255,255,255,.16)' : 'rgba(0,0,0,.13)');
   }
 
