@@ -4,7 +4,8 @@
  */
 (function(){
   var SKEY = 'pawniac-bg', DB_NAME = 'pawniac-bg', STORE = 'img', MAX_FILE = 12 * 1024 * 1024, MAX_SIDE = 1920;
-  var S = {on:true, dim:55, blur:0};
+  // box: 'solid' (the normal look), 'glass' (see-through) or 'match' (tinted with the picture's own colours). tint = [r,g,b] average of the picture.
+  var S = {on:true, dim:55, blur:0, box:'solid', tint:null};
   try{ var raw = localStorage.getItem(SKEY); if(raw) Object.assign(S, JSON.parse(raw)); }catch(e){}
   function saveS(){ try{ localStorage.setItem(SKEY, JSON.stringify(S)); }catch(e){} }
   var url = null, blob = null, memoryOnly = false;
@@ -44,9 +45,14 @@
     // text that sits straight on the picture (the footer) gets a soft backing so it stays readable on any image
     'html.pw-bg #pnFooter{background:#f4f1ea;border-radius:10px;padding:8px 14px;width:fit-content;max-width:calc(100% - 32px);margin-left:auto;margin-right:auto;}' +
     'html[data-theme=dark].pw-bg #pnFooter{background:#16140f;}' +
+    // "Boxes" setting: cards and the menu bar stop being solid and pick up the picture (see boxColours below)
+    'html.pw-bg.pw-box .card,html.pw-bg.pw-box .navbar{background:var(--pw-box);border-color:var(--pw-box-line);' +
+      '-webkit-backdrop-filter:blur(12px) saturate(1.15);backdrop-filter:blur(12px) saturate(1.15);}' +
     '#bgCard .bg-prev{width:100%;height:110px;border-radius:8px;border:1px solid rgba(128,128,128,.3);background-size:cover;background-position:center;margin:6px 0 12px;}' +
     '#bgCard .bg-none{display:flex;align-items:center;justify-content:center;font-size:13px;opacity:.7;}' +
     '#bgCard input[type=range]{width:150px;accent-color:#1f6f5c;}' +
+    '#bgCard select{font:inherit;font-size:13.5px;padding:8px 10px;border-radius:7px;border:1px solid rgba(128,128,128,.4);background:transparent;color:inherit;}' +
+    '#bgCard select option{color:#22201b;background:#fffdf9;}' +
     '#bgCard .bg-btns{display:flex;gap:10px;flex-wrap:wrap;margin:4px 0 10px;}';
   document.head.appendChild(css);
   var layer = document.createElement('div');
@@ -54,11 +60,48 @@
   layer.innerHTML = '<div class="i"></div><div class="d"></div>';
   document.body.appendChild(layer);
 
+  // average colour of the picture, from a tiny copy of it
+  function findTint(){
+    return new Promise(function(res){
+      if(!url){ res(null); return; }
+      var img = new Image();
+      img.onload = function(){
+        try{
+          var c = document.createElement('canvas'); c.width = c.height = 16;
+          var g = c.getContext('2d'); g.drawImage(img, 0, 0, 16, 16);
+          var d = g.getImageData(0, 0, 16, 16).data, r = 0, gr = 0, b = 0, n = d.length / 4;
+          for(var i = 0; i < d.length; i += 4){ r += d[i]; gr += d[i + 1]; b += d[i + 2]; }
+          res([Math.round(r / n), Math.round(gr / n), Math.round(b / n)]);
+        }catch(e){ res(null); }
+      };
+      img.onerror = function(){ res(null); };
+      img.src = url;
+    });
+  }
+  function lum(c){ return (0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]) / 255; }
+  // boxes keep the site's own dark / light feel but lean toward the picture, so text stays readable on any image
+  function boxColours(){
+    var dark = document.documentElement.getAttribute('data-theme') === 'dark';
+    var base = dark ? [37, 35, 32] : [255, 253, 249], c = base, a = 0.55;
+    if(S.box === 'match' && S.tint){
+      c = [0, 1, 2].map(function(i){ return Math.round(S.tint[i] * 0.5 + base[i] * 0.5); });
+      var l = lum(c), k;
+      if(dark && l > 0.18){ k = 0.18 / l; c = c.map(function(v){ return Math.round(v * k); }); }
+      if(!dark && l < 0.78){ k = (0.78 - l) / (1 - l); c = c.map(function(v){ return Math.round(v + (255 - v) * k); }); }
+      a = 0.86;
+    }
+    var st = document.documentElement.style;
+    st.setProperty('--pw-box', 'rgba(' + c[0] + ',' + c[1] + ',' + c[2] + ',' + a + ')');
+    st.setProperty('--pw-box-line', dark ? 'rgba(255,255,255,.14)' : 'rgba(0,0,0,.10)');
+  }
+
   function apply(){
     var on = !!(url && S.on);
     document.documentElement.classList.toggle('pw-bg', on);
+    document.documentElement.classList.toggle('pw-box', on && S.box !== 'solid');
     layer.style.display = on ? 'block' : 'none';
     if(!on) return;
+    if(S.box !== 'solid') boxColours();
     var i = layer.querySelector('.i'), d = layer.querySelector('.d');
     i.style.backgroundImage = 'url("' + url + '")';
     i.style.filter = S.blur ? 'blur(' + S.blur + 'px)' : 'none';
@@ -68,7 +111,11 @@
     if(url){ try{ URL.revokeObjectURL(url); }catch(e){} }
     blob = b; url = b ? URL.createObjectURL(b) : null;
     apply();
+    var mine = url;
+    findTint().then(function(t){ if(url !== mine) return; S.tint = t; saveS(); apply(); });
   }
+  // light / dark switch: recolour the boxes
+  new MutationObserver(function(){ if(S.box !== 'solid') apply(); }).observe(document.documentElement, {attributes:true, attributeFilter:['data-theme']});
 
   // ---------- turning a chosen file into a reasonably small picture ----------
   function shrink(file){
@@ -104,7 +151,10 @@
       (url ?
         '<div class="set-row"><div><div class="set-label">Use my background</div></div><div class="set-ctl"><label class="switch"><input type="checkbox" id="bgOn"' + (S.on ? ' checked' : '') + '><span></span></label></div></div>' +
         '<div class="set-row"><div><div class="set-label">Darken</div><div class="hint">Higher = easier to read the site</div></div><div class="set-ctl"><input type="range" id="bgDim" min="0" max="90" value="' + S.dim + '"></div></div>' +
-        '<div class="set-row"><div><div class="set-label">Blur</div></div><div class="set-ctl"><input type="range" id="bgBlur" min="0" max="20" value="' + S.blur + '"></div></div>' : '');
+        '<div class="set-row"><div><div class="set-label">Blur</div></div><div class="set-ctl"><input type="range" id="bgBlur" min="0" max="20" value="' + S.blur + '"></div></div>' +
+        '<div class="set-row"><div><div class="set-label">Boxes</div><div class="hint">How the cards and menu look on top of your picture</div></div><div class="set-ctl"><select id="bgBox">' +
+          [['solid', 'Solid'], ['glass', 'See-through'], ['match', 'Match my picture']].map(function(o){ return '<option value="' + o[0] + '"' + (S.box === o[0] ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') +
+        '</select></div></div>' : '');
     var file = card.querySelector('#bgFile');
     card.querySelector('#bgPick').onclick = function(){ file.click(); };
     file.onchange = function(){
@@ -125,6 +175,11 @@
     if(on) on.onchange = function(){ S.on = on.checked; saveS(); apply(); };
     if(dim) dim.oninput = function(){ S.dim = +dim.value; saveS(); apply(); };
     if(bl) bl.oninput = function(){ S.blur = +bl.value; saveS(); apply(); };
+    var bx = card.querySelector('#bgBox');
+    if(bx) bx.onchange = function(){
+      S.box = bx.value; saveS(); apply();
+      if(S.box === 'match' && !S.tint) findTint().then(function(t){ S.tint = t; saveS(); apply(); });
+    };
   }
   function addCard(){
     var scr = document.getElementById('screen-settings');
