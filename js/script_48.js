@@ -628,14 +628,20 @@
     return !!(s && s.style.display === 'block' && n && n.textContent.indexOf(name) >= 0);
   }
 
-  // ---------- profile badges (Founding Supporter, Bug Hunter) ----------
+  // ---------- profile badges (Day One, Founding Supporter, Bug Hunter) ----------
   // stored in Firebase at hb/badges/<username>/<badge_id>
   //   bug_hunter          = true
+  //   day_one             = true      (also given automatically to the first 150 accounts, see dayOneSet below)
   //   founding_supporter  = true                                (badge only)
   //                       = "community-slug"                    (badge links to that card on the supporters page,
   //                                                              e.g. "magma-knights-chess-society")
-  var BADGE_ORDER = ['founding_supporter', 'bug_hunter'];
+  var BADGE_ORDER = ['day_one', 'founding_supporter', 'bug_hunter'];
   var BADGES = {
+    day_one: {
+      name: 'Day One', cls: 'pn-aurora',
+      tip: 'One of the first 150 players. Was here before Pawniac hit 150 members.',
+      icon: '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="10" cy="7.5" r="3"/><rect x="6.5" y="11" width="7" height="1.8" rx=".9"/><path d="M7.6 12.8h4.8l1.4 5.2H6.2z"/><rect x="4.5" y="18" width="11" height="2.6" rx="1.3"/><path d="M17 6.2l2.2-1.6V11" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>'
+    },
     founding_supporter: {
       name: 'Founding Supporter', cls: 'pn-gold',
       tip: 'An early believer. Backed Pawniac from its early stage and promoted it in their community.',
@@ -657,6 +663,20 @@
     return (id === 'founding_supporter' && typeof v === 'string' && /^[a-z0-9-]{1,60}$/.test(v)) ? v : '';
   }
 
+  // Day One: the first 150 accounts, by the "joined" date on their profile (hb/profile/<name>/joined). Read once per page load.
+  // Needs the database rules to let people read hb/profile and, ideally, "hb/profile": {".indexOn": ["joined"]}.
+  var DAY_ONE_LIMIT = 150, dayOneP = null;
+  function dayOneSet(){
+    if(!dayOneP){
+      dayOneP = db.ref('hb/profile').orderByChild('joined').startAt(1).limitToFirst(DAY_ONE_LIMIT).once('value').then(function(snap){
+        var set = {};
+        snap.forEach(function(c){ set[c.key] = true; });
+        return set;
+      }).catch(function(){ dayOneP = null; return {}; });   // rules not published / offline: nobody gets it automatically
+    }
+    return dayOneP;
+  }
+
   function badgeCss(){
     if($('pnBadgeCss')) return;
     var s = document.createElement('style'); s.id = 'pnBadgeCss';
@@ -667,6 +687,8 @@ a.pn-badge{cursor:pointer;text-decoration:none}
 .pn-badge svg{width:24px;height:24px;position:relative;z-index:1}
 .pn-gold{color:#ffd777;background:linear-gradient(145deg,#6a4f1a,#2b2111 55%,#57421a);border-color:#d6a547;box-shadow:inset 0 1px 0 rgba(255,236,176,.4),inset 0 -6px 10px rgba(0,0,0,.25),0 0 16px rgba(240,185,74,.28)}
 .pn-gold svg{filter:drop-shadow(0 0 5px rgba(255,200,80,.65))}
+.pn-aurora{color:#d8f6ff;background:linear-gradient(145deg,#4a37a8,#150f33 55%,#3a2a8a);border-color:#7fe0ff;box-shadow:inset 0 1px 0 rgba(200,245,255,.4),inset 0 -6px 10px rgba(0,0,0,.25),0 0 16px rgba(127,224,255,.3)}
+.pn-aurora svg{filter:drop-shadow(0 0 5px rgba(127,224,255,.7))}
 .pn-green{color:#8cf0a8;background:linear-gradient(145deg,#2c6a46,#12281c 55%,#265a3b);border-color:#4fbf7b;box-shadow:inset 0 1px 0 rgba(190,255,210,.35),inset 0 -6px 10px rgba(0,0,0,.25),0 0 16px rgba(111,207,138,.25)}
 .pn-green svg{filter:drop-shadow(0 0 5px rgba(120,240,160,.6))}
 .pn-badge::before{content:"";position:absolute;inset:1px;border-radius:inherit;background:linear-gradient(180deg,rgba(255,255,255,.22),rgba(255,255,255,0) 50%);pointer-events:none}
@@ -685,8 +707,13 @@ a.pn-badge{cursor:pointer;text-decoration:none}
   async function decorateBadges(name, scr){
     if(!scr || scr.querySelector('#pfBadges')) return;
     var b = null;
-    try{ b = await val('hb/badges/' + name); }catch(e){ return; }          // no badges / rules not published: show nothing
-    if(!b || !stillOn(name) || scr.querySelector('#pfBadges')) return;
+    try{ b = await val('hb/badges/' + name); }catch(e){ b = null; }        // no badges / rules not published: just the automatic one below
+    b = b || {};
+    if(!badgeOn('day_one', b.day_one)){
+      var first = await dayOneSet();
+      if(first[name]) b.day_one = true;
+    }
+    if(!stillOn(name) || scr.querySelector('#pfBadges')) return;
     var ids = BADGE_ORDER.filter(function(id){ return badgeOn(id, b[id]); });
     if(!ids.length) return;
     badgeCss();
