@@ -644,10 +644,12 @@
   function canPre(){ return !!G && G.phase === 'play' && !G.over && G.variant !== 'hb' && G.chess.turn() === G.bot; }
   function pq(){ return G.pq || (G.pq = []); }
   function preMax(){ return G.variant === 'double' ? 2 : 1; }
-  function preAdd(from, to){ var q = pq(); if(q.length >= preMax()) q.pop(); q.push({from:from, to:to}); }
+  // Double Move: a third premove is ignored once two are queued (Esc / right-click cancels). Elsewhere a new one replaces the old.
+  function preFull(){ return preMax() > 1 && pq().length >= preMax(); }
+  function preAdd(from, to){ if(preFull()) return; var q = pq(); if(q.length >= preMax()) q.pop(); q.push({from:from, to:to}); }
   // the pieces as they will stand after the premoves already queued, so a queued piece can be premoved again
   function preChess(){
-    var q = pq(), n = q.length >= preMax() ? q.length - 1 : q.length;
+    var q = pq(), n = (q.length >= preMax() && preMax() === 1) ? q.length - 1 : q.length;
     if(!n || G.variant !== 'double' || !window.PawniacFenAfter || !window.PawniacChessFor) return G.chess;
     var fen = G.chess.fen();
     for(var i = 0; i < n; i++) fen = window.PawniacFenAfter(fen, q[i].from, q[i].to);
@@ -716,6 +718,10 @@
   var _cc = cellClick;
   cellClick = function(sq){
     if(canPre()){
+      if(preFull()){                    // both queued: other taps are ignored; tapping a highlighted premove square cancels them
+        if(pq().some(function(q){ return q.from === sq || q.to === sq; })){ G.psel = null; G.pq = []; draw(); }
+        return;
+      }
       var p = preChess().get(sq);
       if(G.psel && G.psel !== sq && preDests(G.psel).indexOf(sq) >= 0){ preAdd(G.psel, sq); G.psel = null; draw(); return; }
       if(p && p.color === G.me){ G.psel = sq; } else { G.psel = null; G.pq = []; }
@@ -772,6 +778,7 @@
       if(!allowed().some(function(m){ return m.from === sq; })) return;
       mode = 'move'; G.sel = sq;
     } else if(canPre()){
+      if(preFull()) return;
       var pc = preChess().get(sq);
       if(!pc || pc.color !== G.me) return;
       // a piece is already picked up and this square of yours is one of its targets: that is a

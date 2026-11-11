@@ -36,8 +36,11 @@
     return P.premove && isPmVariant(c.g) && c.g.mode === 'random' && !c.myTurn;
   }
   function pmMax(g){ return g && g.variant === 'double' ? 2 : 1; }
-  // queue a premove; when the queue is full the new one replaces the last
+  // Double Move: once both premoves are queued a third is ignored (cancel with Esc / right-click to change them).
+  // Elsewhere there is only one premove and a new one replaces it.
+  function pmFull(g){ return pmMax(g) > 1 && PQ.length >= pmMax(g); }
   function pmAdd(g, from, to){
+    if(pmFull(g)) return;
     if(PQ.length >= pmMax(g)) PQ.pop();
     PQ.push({gid:currentGameId, from:from, to:to});
   }
@@ -67,7 +70,7 @@
   }
   window.PawniacFenAfter = fenAfter;       // the bot screen (script_34.js) uses the same helper
   function pmBase(g){
-    var fen = g.fen, n = PQ.length >= pmMax(g) ? PQ.length - 1 : PQ.length;
+    var fen = g.fen, n = (PQ.length >= pmMax(g) && pmMax(g) === 1) ? PQ.length - 1 : PQ.length;
     for(var i = 0; i < n; i++) fen = fenAfter(fen, PQ[i].from, PQ[i].to);
     return fen;
   }
@@ -208,6 +211,7 @@
       mode = 'move';
       dests = allowed.filter(function(m){ return m.from === sq; }).map(function(m){ return m.to; });
     } else if(canPremoveNow(c)){
+      if(pmFull(c.g)) return;                          // both premoves are queued: nothing more to pick up
       var pch = new (CF(c.g))(pmBase(c.g));
       var pc = pch.get(sq);
       if(!pc || pc.color !== c.me.side) return;
@@ -323,6 +327,13 @@
     if(!cell) return;
     var c = ctx();
     if(!c || !canPremoveNow(c)) return;
+    if(pmFull(c.g)){
+      // both premoves are queued: anything else is ignored. Tapping one of the highlighted premove squares cancels
+      // them (that is how you cancel on a phone, where there is no Esc or right-click).
+      var tapped = cell.dataset.sq;
+      if(PQ.some(function(q){ return q.from === tapped || q.to === tapped; })){ pmSel = null; PQ = []; drawGame(); }
+      return;
+    }
     var sq = cell.dataset.sq, chess = new (CF(c.g))(pmBase(c.g)), p = chess.get(sq);
     if(p && p.color === c.me.side) return;                   // your own pieces are handled on pointerdown
     if(pmSel && pmDests(chess, pmSel, c.me.side).indexOf(sq) >= 0){
