@@ -57,13 +57,14 @@
   document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeModal(); });
 
   // ---------- page ----------
-  var POS = {'0,0':'bR','0,2':'bB','0,3':'bQ','0,4':'bK','0,7':'bR','1,0':'bP','1,1':'bP','1,5':'bP','1,6':'bP','2,2':'bN','3,3':'bP','4,4':'wP','5,5':'wN',
-    '6,0':'wP','6,1':'wP','6,2':'wP','6,6':'wP','6,7':'wP','7,0':'wR','7,2':'wB','7,3':'wQ','7,4':'wK','7,7':'wR'};
+  var POS = {'0,0':'bR','0,2':'bB','0,3':'bQ','0,4':'bK','0,5':'bB','0,7':'bR','0,6':'bN','1,0':'bP','1,1':'bP','1,2':'bP','1,3':'bP','1,5':'bP','1,6':'bP','1,7':'bP',
+    '2,2':'bN','3,4':'bP','3,1':'wB','4,4':'wP','5,5':'wN','6,0':'wP','6,1':'wP','6,2':'wP','6,3':'wP','6,5':'wP','6,6':'wP','6,7':'wP',
+    '7,0':'wR','7,1':'wN','7,2':'wB','7,3':'wQ','7,4':'wK','7,7':'wR'};
   function board(){
     var h = '';
     for(var r = 0; r < 8; r++) for(var c = 0; c < 8; c++){
       var p = POS[r + ',' + c], light = (r + c) % 2 === 0, cls = light ? 'l' : 'd';
-      if((r === 5 && c === 5) || (r === 7 && c === 6)) cls += ' h';
+      if((r === 3 && c === 1) || (r === 7 && c === 5)) cls += ' h';
       h += '<div class="' + cls + '">' + (p ? '<img src="' + IMG(p[0], p[1]) + '" alt="" draggable="false">' : '') + '</div>';
     }
     return h;
