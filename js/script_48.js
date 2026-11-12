@@ -124,15 +124,17 @@
   async function gather(){
     var me = ME.username, P = function(p){ return val(p).catch(function(){ return undefined; }); };
     var r = await Promise.all(['hb/achievements/' + me, 'hb/stats/' + me, 'hb/leaderboard/' + me, 'hb/leaderboardStd/' + me, 'hb/leaderboardAuc/' + me,
-      'hb/ktLeaderboard/' + me, 'hb/bbLeaderboard/' + me, 'hb/quizLeaderboard/' + me].map(P));
+      'hb/ktLeaderboard/' + me, 'hb/bbLeaderboard/' + me, 'hb/quizLeaderboard/' + me, 'hb/leaderboardDbl/' + me].map(P));
     if(r[0] === undefined) throw new Error('rules');
     var node = r[0] || {}, c = node.c || {}, S = {}, tot = 0, won = 0, st = r[1] || {};
     ['hb', 'team', 'std'].forEach(function(k){
       var x = st[k]; if(!x) return;
       won += +x.w || 0; tot += (+x.w || 0) + (+x.l || 0) + (+x.d || 0);
     });
-    S.games = Math.max(c.gp || 0, tot); S.wins = Math.max(c.wn || 0, won); S.bw = Math.max(c.bw || 0, c.ws || 0);
-    var rs = [r[2], r[3], r[4]].filter(function(x){ return x && x.games > 0; }).map(function(x){ return +x.rating || 1200; });
+    // rated games per board (Standard, Hand & Brain, Auction, Double Move) are the most complete game count
+    var rated = [r[2], r[3], r[4], r[8]].reduce(function(n, x){ return n + ((x && +x.games) || 0); }, 0);
+    S.games = Math.max(c.gp || 0, tot, rated); S.wins = Math.max(c.wn || 0, won); S.bw = Math.max(c.bw || 0, c.ws || 0);
+    var rs = [r[2], r[3], r[4], r[8]].filter(function(x){ return x && x.games > 0; }).map(function(x){ return +x.rating || 1200; });
     S.rating = rs.length ? Math.max.apply(null, rs) : 1200;
     var op = c.op || {}, ks = Object.keys(op);
     S.opDistinct = ks.filter(function(k){ return (op[k].p || 0) > 0; }).length;
