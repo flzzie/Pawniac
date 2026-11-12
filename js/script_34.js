@@ -16,6 +16,7 @@
   function saveS(){ try{ localStorage.setItem(PKEY, JSON.stringify(S)); }catch(e){} }
   S.skill = Math.min(20, Math.max(0, parseInt(S.skill, 10) || 0));
   var G = null;
+  var GUEST = false, S_BAK = null;   // guest mode: logged-out visitors get one fixed game (Standard, about 1600), nothing saved
 
   // ---------- screen + nav link ----------
   var scr = document.createElement('div');
@@ -474,6 +475,7 @@
   }
 
   function skillHtml(id){
+    if(GUEST) return '';
     return '<div class="bt-h">Bot skill: <span id="' + id + 'L">' + S.skill + ' / 20 (' + levelName() + ')</span></div>' +
       '<input type="range" id="' + id + '" min="0" max="20" step="1" value="' + S.skill + '">' +
       '<div class="hint">0 = makes lots of mistakes, 20 = full strength.</div>';
@@ -486,6 +488,7 @@
   }
 
   function drawSetup(){
+    if(GUEST) return drawGuestSetup();
     var vs = [['std','Standard Chess','Normal chess against the bot'], ['hb','Hand &amp; Brain','Bot names the piece, and yours is picked for you'], ['auction','Piece Auction','Bid coins, build an army, then play'], ['double','Double Move','Two moves every turn']];
     function tb(attr, key, label, on){ return '<div class="tcbtn' + (on ? ' active' : '') + '" data-' + attr + '="' + key + '">' + label + '</div>'; }
     var near = PRESETS[0];
@@ -519,6 +522,37 @@
     boot(); paintEng();
   }
 
+  function guestBar(){
+    scr.insertAdjacentHTML('afterbegin', '<div class="card guest-bar"><b>Guest game.</b> Nothing is saved or rated. <span class="backlink" id="gbSign">Create a free account</span> to play every mode online, <span class="backlink" id="gbBack">or go back</span>.</div>');
+    var a = document.getElementById('gbSign'), b = document.getElementById('gbBack');
+    if(a) a.onclick = function(){ if(window.PawniacHome) window.PawniacHome.openAuth('signup'); };
+    if(b) b.onclick = function(){ if(window.PawniacHome) window.PawniacHome.show(); };
+  }
+  function drawGuestSetup(){
+    scr.innerHTML = '<div class="card"><h2>Try a game against the bot</h2><p class="desc">Standard chess against Stockfish at around 1600 strength, 5+3 clock. You play a random colour. As a guest nothing is saved or rated.</p>' +
+      '<button id="bStart" style="margin-top:6px;" disabled>Start game</button> <button class="secondary" id="gbBack2" style="margin-top:6px;">Back</button><div class="bt-eng hint" id="bEng"></div>' +
+      '<div class="hint" style="margin-top:14px;">Want every mode, ratings and friends? <span class="backlink" id="gbSign2">Create a free account</span></div></div>';
+    document.getElementById('bStart').onclick = startNew;
+    document.getElementById('gbBack2').onclick = function(){ if(window.PawniacHome) window.PawniacHome.show(); };
+    document.getElementById('gbSign2').onclick = function(){ if(window.PawniacHome) window.PawniacHome.openAuth('signup'); };
+    boot(); paintEng();
+  }
+  window.PawniacGuestBot = {
+    enter: function(){
+      if(!GUEST){ S_BAK = JSON.stringify(S); }
+      GUEST = true; G = null;
+      S.variant = 'std'; S.skill = 8; S.color = 'random'; S.tc = '5+3'; S.custom = false;
+      renderBot();
+    },
+    active: function(){ return GUEST; },
+    leave: function(){
+      if(!GUEST) return;
+      GUEST = false; G = null;
+      try{ Object.assign(S, JSON.parse(S_BAK)); }catch(e){}
+      window.__botActive = false;
+    }
+  };
+
   function drawPlay(){
     var g = G, c = g.chess, p = '';
     if(g.over){
@@ -549,6 +583,7 @@
     p += renderMoveLog(g.log, {variant:g.variant, mvSides:g.sides});
     var top = g.me === 'w' ? 'b' : 'w';
     scr.innerHTML = '<div class="card"><div class="board-wrap"><div class="bt-bw">' + clkHtml(top) + (window.PawniacMat ? PawniacMat.row(c.fen(), top) : '') + boardHtml() + (window.PawniacMat ? PawniacMat.row(c.fen(), g.me) : '') + clkHtml(g.me) + '</div><div class="panel">' + p + '</div></div></div>';
+    if(GUEST) guestBar();
     scr.querySelectorAll('[data-sq]').forEach(function(cell){ cell.onclick = function(){ cellClick(cell.dataset.sq); }; });
     var q = function(id){ return document.getElementById(id); };
     if(q('bRand')) q('bRand').onclick = randomize;
