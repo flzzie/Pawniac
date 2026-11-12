@@ -13,7 +13,7 @@
   var PKEY = 'pawniac-bot';
   var S = {variant:'std', hbMode:'brain', skill:10, color:'random', tc:'5+3', custom:false, cmin:10, cinc:0};
   try{ var raw = localStorage.getItem(PKEY); if(raw) Object.assign(S, JSON.parse(raw)); }catch(e){}
-  function saveS(){ try{ localStorage.setItem(PKEY, JSON.stringify(S)); }catch(e){} }
+  function saveS(){ if(GUEST) return; try{ localStorage.setItem(PKEY, JSON.stringify(S)); }catch(e){} }
   S.skill = Math.min(20, Math.max(0, parseInt(S.skill, 10) || 0));
   var G = null;
   var GUEST = false, S_BAK = null;   // guest mode: logged-out visitors get one fixed game (Standard, about 1600), nothing saved
@@ -528,20 +528,39 @@
     if(a) a.onclick = function(){ if(window.PawniacHome) window.PawniacHome.openAuth('signup'); };
     if(b) b.onclick = function(){ if(window.PawniacHome) window.PawniacHome.show(); };
   }
+  function guestUsed(){ try{ return localStorage.getItem('pawniac-guest-used') === '1'; }catch(e){ return false; } }
   function drawGuestSetup(){
-    scr.innerHTML = '<div class="card"><h2>Try a game against the bot</h2><p class="desc">Standard chess against Stockfish at around 1600 strength, 5+3 clock. You play a random colour. As a guest nothing is saved or rated.</p>' +
-      '<button id="bStart" style="margin-top:6px;" disabled>Start game</button> <button class="secondary" id="gbBack2" style="margin-top:6px;">Back</button><div class="bt-eng hint" id="bEng"></div>' +
-      '<div class="hint" style="margin-top:14px;">Want every mode, ratings and friends? <span class="backlink" id="gbSign2">Create a free account</span></div></div>';
-    document.getElementById('bStart').onclick = startNew;
-    document.getElementById('gbBack2').onclick = function(){ if(window.PawniacHome) window.PawniacHome.show(); };
-    document.getElementById('gbSign2').onclick = function(){ if(window.PawniacHome) window.PawniacHome.openAuth('signup'); };
+    var home = function(){ if(window.PawniacHome) window.PawniacHome.show(); };
+    var sign = function(m){ return function(){ if(window.PawniacHome) window.PawniacHome.openAuth(m); }; };
+    if(guestUsed()){
+      scr.innerHTML = '<div class="card"><h2>That was your free guest game</h2><p class="desc">Log in or create a free account to keep playing: every mode, ratings, friends and your game history.</p>' +
+        '<div class="row" style="gap:10px;"><button id="gbSign2">Create a free account</button><button class="secondary" id="gbLog2">Log in</button></div>' +
+        '<div style="margin-top:14px;"><span class="backlink" id="gbBack2">Back to home</span></div></div>';
+      document.getElementById('gbSign2').onclick = sign('signup'); document.getElementById('gbLog2').onclick = sign('login');
+      document.getElementById('gbBack2').onclick = home;
+      return;
+    }
+    var vs = [['std','Standard Chess'], ['hb','Hand &amp; Brain'], ['auction','Piece Auction'], ['double','Double Move']];
+    function tb(attr, key, label, on){ return '<div class="tcbtn' + (on ? ' active' : '') + '" data-' + attr + '="' + key + '">' + label + '</div>'; }
+    scr.innerHTML = '<div class="card"><h2>Play one free game against the bot</h2><p class="desc">The bot plays at around 2300 strength. As a guest you get one game, and nothing is saved or rated. To play again you need an account.</p>' +
+      '<div class="bt-h">Mode</div><div class="modes">' + vs.map(function(v){ return '<div class="modebtn' + (S.variant === v[0] ? ' active' : '') + '" data-v="' + v[0] + '">' + v[1] + '</div>'; }).join('') + '</div>' +
+      '<div class="bt-h">Time control</div><div class="tc-row">' + TIME_CONTROLS.map(function(t){ return tb('tc', t.key, t.label, S.tc === t.key); }).join('') + '</div>' +
+      '<button id="bStart" style="margin-top:16px;" disabled>Start game</button> <button class="secondary" id="gbBack2" style="margin-top:16px;">Back</button><div class="bt-eng hint" id="bEng"></div></div>';
+    scr.querySelectorAll('[data-v]').forEach(function(b){ b.onclick = function(){ S.variant = b.dataset.v; drawGuestSetup(); }; });
+    scr.querySelectorAll('[data-tc]').forEach(function(b){ b.onclick = function(){ S.tc = b.dataset.tc; drawGuestSetup(); }; });
+    document.getElementById('bStart').onclick = function(){
+      try{ localStorage.setItem('pawniac-guest-used', '1'); }catch(e){}
+      startNew();
+    };
+    document.getElementById('gbBack2').onclick = home;
     boot(); paintEng();
   }
   window.PawniacGuestBot = {
     enter: function(){
+      if(guestUsed() && window.PawniacHome){ window.PawniacHome.openAuth('signup'); return; }
       if(!GUEST){ S_BAK = JSON.stringify(S); }
       GUEST = true; G = null;
-      S.variant = 'std'; S.skill = 8; S.color = 'random'; S.tc = '5+3'; S.custom = false;
+      S.variant = 'std'; S.skill = 15; S.color = 'random'; S.tc = '5+3'; S.custom = false;
       renderBot();
     },
     active: function(){ return GUEST; },
@@ -556,9 +575,9 @@
   function drawPlay(){
     var g = G, c = g.chess, p = '';
     if(g.over){
-      p += '<div class="result-banner">' + g.over + '</div><button class="full-btn" id="bAgain">Play again</button><button class="secondary full-btn" id="bNew">Change settings</button>';
+      p += '<div class="result-banner">' + g.over + '</div>' + (GUEST ? '<div class="status-msg">That was your free guest game. Log in or create a free account to play again.</div><button class="full-btn" id="gbSign3">Create a free account</button><button class="secondary full-btn" id="gbLog3">Log in</button>' : '<button class="full-btn" id="bAgain">Play again</button><button class="secondary full-btn" id="bNew">Change settings</button>');
     } else {
-      p += '<div class="status-msg"><b>You</b> (' + (g.me === 'w' ? 'White' : 'Black') + ') vs <b>Bot</b> (skill ' + S.skill + ')</div>';
+      p += '<div class="status-msg"><b>You</b> (' + (g.me === 'w' ? 'White' : 'Black') + ') vs <b>Bot</b> (' + (GUEST ? 'about 2300' : 'skill ' + S.skill) + ')</div>';
       if(g.variant === 'double') p += '<div class="status-msg"><b>' + (g.log.length ? 'Move ' + (c.left() === 2 ? 1 : 2) + ' of 2' : 'Opening move') + '</b> ' + (c.turn() === g.me ? 'for you' : 'for the bot') + (g.log.length ? '. Capture the king to win.' : ': White plays just one move.') + '</div>';
       // Hand & Brain: the piece is rolled for you the moment it is your turn (no button press needed)
       if(g.variant === 'hb' && !g.ann && !g.busy && !g.promo && c.turn() === g.me){
@@ -578,7 +597,7 @@
         else p += '<div class="status-msg">Your move: click a piece, then a square.</div>';
       }
       p += skillHtml('bSk2');
-      p += '<div class="game-actions"><button class="secondary danger" id="bResign">Resign</button><button class="secondary" id="bNew">New game</button></div>';
+      p += '<div class="game-actions"><button class="secondary danger" id="bResign">Resign</button>' + (GUEST ? '' : '<button class="secondary" id="bNew">New game</button>') + '</div>';
     }
     p += renderMoveLog(g.log, {variant:g.variant, mvSides:g.sides});
     var top = g.me === 'w' ? 'b' : 'w';
@@ -590,6 +609,8 @@
     if(q('bResign')) q('bResign').onclick = function(){ if(confirm('Resign this game?')) finish('You resigned', 'l'); };
     if(q('bNew')) q('bNew').onclick = function(){ if(g.over || confirm('Leave this game?')){ G = null; draw(); } };
         if(q('bAgain')) q('bAgain').onclick = startNew;
+    if(q('gbSign3')) q('gbSign3').onclick = function(){ if(window.PawniacHome) window.PawniacHome.openAuth('signup'); };
+    if(q('gbLog3')) q('gbLog3').onclick = function(){ if(window.PawniacHome) window.PawniacHome.openAuth('login'); };
     scr.querySelectorAll('[data-promo]').forEach(function(b){
       b.onclick = function(){ var pr = g.promo; if(!pr) return; g.promo = null; play(pr.from, pr.to, b.dataset.promo); nextTurn(); };
     });
