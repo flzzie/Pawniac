@@ -885,18 +885,42 @@
     });
     return {firstBad:firstBad, slips:slips, best:best};
   }
+  // Accuracy: per-move accuracy from the win-chance lost (the Lichess curve), then combined the way Lichess does it.
+  // Moves played in a turbulent part of the game count more than moves in a position that is already decided, and
+  // the harmonic mean pulls the result down when there are a few really bad moves. A plain average let 17 "perfect"
+  // moves in a lost position hide a blunder and a forced mate.
+  function moveAcc(loss){ return Math.max(0, Math.min(100, 103.1668 * Math.exp(-0.04354 * loss) - 3.1669)); }
+  function accuracy(A, idx){
+    var N = A.moves.length, wp = A.ev.map(function(e){ return winPct(e.cp); });
+    var ws = Math.max(2, Math.min(8, Math.floor(N / 10))), num = 0, den = 0, inv = 0, n = 0;
+    idx.forEach(function(i){
+      var s0 = Math.max(0, Math.min(wp.length - ws, i - Math.floor(ws / 2))), win = wp.slice(s0, s0 + ws);
+      var mean = win.reduce(function(x, y){ return x + y; }, 0) / win.length;
+      var sd = Math.sqrt(win.reduce(function(x, y){ return x + (y - mean) * (y - mean); }, 0) / win.length);
+      var w = Math.max(0.5, Math.min(12, sd)), a = Math.max(1, moveAcc(A.stats[i].loss));
+      num += w * a; den += w; inv += 1 / a; n++;
+    });
+    if(!n) return 0;
+    return (num / den + n / inv) / 2;
+  }
+  function safeAccuracy(A, idx){
+    var r = NaN;
+    try{ r = accuracy(A, idx); }catch(e){ console.error('accuracy', e); }
+    if(typeof r === 'number' && isFinite(r)) return Math.max(0, Math.min(100, r));
+    var sum = 0; idx.forEach(function(i){ sum += moveAcc((A.stats[i] && +A.stats[i].loss) || 0); });   // fallback: the old plain average
+    return sum / (idx.length || 1);
+  }
   function sideSummary(A){
-    var counts = {book:0, best:0, excellent:0, good:0, inaccuracy:0, mistake:0, blunder:0}, accSum = 0, n = 0;
+    var counts = {book:0, best:0, excellent:0, good:0, inaccuracy:0, mistake:0, blunder:0}, n = 0;
     var phases = {opening:[], middlegame:[], endgame:[]}, maxAdv = -99999, maxAdvIdx = -1;
     myIdx(A).forEach(function(i){
       var s = A.stats[i]; n++; counts[s.label]++;
-      accSum += Math.max(0, Math.min(100, 103.1668 * Math.exp(-0.04354 * s.loss) - 3.1669));
       phases[s.phase].push(s.loss);
       if(s.cpBefore > maxAdv){ maxAdv = s.cpBefore; maxAdvIdx = i; }
     });
     var phaseAvg = {};
     Object.keys(phases).forEach(function(k){ phaseAvg[k] = phases[k].length >= 3 ? phases[k].reduce(function(a, b){ return a + b; }, 0) / phases[k].length : null; });
-    return {counts:counts, acc:accSum / (n || 1), n:n, phaseAvg:phaseAvg, maxAdv:maxAdv, maxAdvIdx:maxAdvIdx};
+    return {counts:counts, acc:safeAccuracy(A, myIdx(A)), n:n, phaseAvg:phaseAvg, maxAdv:maxAdv, maxAdvIdx:maxAdvIdx};
   }
   function coachNotes(A, S){
     var pros = [], cons = [], good = S.counts.best + S.counts.excellent + (S.counts.book || 0), st = stretches(A);
