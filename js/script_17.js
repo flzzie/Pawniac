@@ -903,6 +903,13 @@
     if(!n) return 0;
     return (num / den + n / inv) / 2;
   }
+  function safeAccuracy(A, idx){
+    var r = NaN;
+    try{ r = accuracy(A, idx); }catch(e){ console.error('accuracy', e); }
+    if(typeof r === 'number' && isFinite(r)) return Math.max(0, Math.min(100, r));
+    var sum = 0; idx.forEach(function(i){ sum += moveAcc((A.stats[i] && +A.stats[i].loss) || 0); });   // fallback: the old plain average
+    return sum / (idx.length || 1);
+  }
   function sideSummary(A){
     var counts = {book:0, best:0, excellent:0, good:0, inaccuracy:0, mistake:0, blunder:0}, n = 0;
     var phases = {opening:[], middlegame:[], endgame:[]}, maxAdv = -99999, maxAdvIdx = -1;
@@ -913,7 +920,7 @@
     });
     var phaseAvg = {};
     Object.keys(phases).forEach(function(k){ phaseAvg[k] = phases[k].length >= 3 ? phases[k].reduce(function(a, b){ return a + b; }, 0) / phases[k].length : null; });
-    return {counts:counts, acc:accuracy(A, myIdx(A)), n:n, phaseAvg:phaseAvg, maxAdv:maxAdv, maxAdvIdx:maxAdvIdx};
+    return {counts:counts, acc:safeAccuracy(A, myIdx(A)), n:n, phaseAvg:phaseAvg, maxAdv:maxAdv, maxAdvIdx:maxAdvIdx};
   }
   function coachNotes(A, S){
     var pros = [], cons = [], good = S.counts.best + S.counts.excellent + (S.counts.book || 0), st = stretches(A);
