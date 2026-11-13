@@ -1,12 +1,13 @@
 (function(){
   var MAXL=29, LIVES=3, FILES='abcdefgh';
   var PAL=['wk','wq','wr','wb','wn','wp','bk','bq','br','bb','bn','bp'];
-  var S={phase:'idle',level:1,rl:1,lives:LIVES,score:0,n:4,pos:null,placed:{},sel:null,secs:0,t0:0,timer:null,seen:{},
+  var S={phase:'idle',level:1,rl:1,lives:LIVES,score:0,n:4,pos:null,placed:{},sel:null,secs:0,t0:0,rsecs:0,r0:0,timer:null,seen:{},
          best:null,bestLoaded:false,msg:'',marks:null,last:0,next:'round',done:false,newBest:false,perfect:false,rid:0};
 
   function esc(s){return String(s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
   function nPieces(l){return 3+l;}                       // level 1 = 4 pieces (both kings count)
   function secsFor(l){var n=nPieces(l);return Math.max(3,Math.round((2+n*0.6-(l-1)*0.1)*10)/10);}
+  function recallFor(n){return Math.round((6+n*1.6)*10)/10;}   // seconds you get to put the pieces back: placing is timed too, so a screenshot does not help
   function bestTxt(){return S.best?S.best.score+' points (level '+S.best.level+')':'none yet';}
 
   // ---------- realistic positions: random played-out games ----------
@@ -73,7 +74,7 @@
     var over=S.phase==='over';
     return '<div class="card"><h2>Blindfold board</h2>'+
       (over?'<div class="result-banner">'+(S.done?'Perfect run!':'Run over')+'<div class="rc">Score '+S.score+' &middot; reached level '+S.rl+' ('+nPieces(S.rl)+' pieces)'+(S.newBest?' &middot; new personal best!':'')+'</div></div>':'')+
-      '<p class="desc">A position from a played-out game is shown for a few seconds, then the pieces vanish. Place them back from memory. A perfect round takes you up a level (one more piece, a little less time per piece). A mistake costs a life, and 3 lives ends the run. Your score is the total number of pieces you placed correctly.</p>'+
+      '<p class="desc">A position from a played-out game is shown for a few seconds, then the pieces vanish. Place them back from memory, and you have a limited time to do that too, so a screenshot will not help. A perfect round takes you up a level (one more piece, a little less time per piece). A mistake costs a life, and 3 lives ends the run. Your score is the total number of pieces you placed correctly.</p>'+
       '<div class="status-msg">Your best: '+esc(bestTxt())+'</div><button id="bbStart">'+(over?'Play again':'Start')+'</button></div>';
   }
   function draw(){
@@ -89,12 +90,13 @@
         '<div class="bb-btns"><button class="secondary" id="bbHide">Hide now</button></div>';
     }else if(S.phase==='recall'){
       map=S.placed;
-      panel=head+'<div class="hint" style="margin-bottom:8px;">Pick a piece, then click a square. Click a placed piece (with nothing picked) to remove it.</div>'+palHtml()+
+      var rleft=Math.max(0,S.rsecs*1000-(Date.now()-S.r0));
+      panel=head+'<div class="bb-bar" id="bbRBar"><div id="bbRBarIn" style="width:'+(rleft/(S.rsecs*1000)*100)+'%"></div></div><div class="hint" style="margin-bottom:8px;"><b id="bbRLeft">'+(rleft/1000).toFixed(1)+'s</b> left to place them. Pick a piece, then click a square. Click a placed piece (with nothing picked) to remove it.</div>'+palHtml()+
         '<div class="hint">Placed '+Object.keys(S.placed).length+' / '+S.n+'</div>'+(S.msg?'<div class="draw-offer" style="margin-top:8px;">'+esc(S.msg)+'</div>':'')+
         '<div class="bb-btns"><button id="bbSubmit">Submit</button><button class="secondary" id="bbClear">Clear</button></div>';
     }else{
       map=S.pos;marks=S.marks;
-      panel=head+'<div class="draw-offer">'+(S.perfect?(S.done?'Perfect run! Every level cleared.':'Perfect! All '+S.n+' pieces right.'):S.last+' of '+S.n+' right. You lost a life.')+
+      panel=head+'<div class="draw-offer">'+(S.msg?S.msg+' ':'')+(S.perfect?(S.done?'Perfect run! Every level cleared.':'Perfect! All '+S.n+' pieces right.'):S.last+' of '+S.n+' right. You lost a life.')+
         ' +'+S.last+' points.<div class="hint" style="margin-top:6px;">Green = right. Red = wrong or missed. The board shows the real position.</div></div>'+
         '<div class="bb-btns"><button id="bbNext">'+(S.next==='over'?'See results':'Next round')+'</button></div>';
     }
@@ -119,6 +121,15 @@
   function tick(){
     var scr=document.getElementById('screen-minigames'),wrap=document.getElementById('bbWrap');
     if(!scr||scr.style.display!=='block'||!wrap||wrap.style.display==='none'){endActive();return;}
+    if(S.phase==='recall'){
+      var rl=S.rsecs*1000-(Date.now()-S.r0);
+      if(rl<=0){S.msg='Time is up!';submit();return;}
+      var rb=document.getElementById('bbRBarIn'),rt=document.getElementById('bbRLeft');
+      if(rb) rb.style.width=(rl/(S.rsecs*1000)*100)+'%';
+      if(rt) rt.textContent=(rl/1000).toFixed(1)+'s';
+      return;
+    }
+    if(S.phase!=='show'){return;}
     var left=S.secs*1000-(Date.now()-S.t0);
     if(left<=0){toRecall();return;}
     var bar=document.getElementById('bbBarIn'),tx=document.getElementById('bbLeft');
@@ -135,7 +146,7 @@
     S.seen[keyOf(pos)]=1;S.pos=pos;S.placed={};S.sel=null;S.msg='';S.marks=null;
     S.phase='show';S.t0=Date.now();stopTimer();S.timer=setInterval(tick,100);draw();
   }
-  function toRecall(){stopTimer();S.phase='recall';S.placed={};S.sel=null;S.msg='';draw();}
+  function toRecall(){stopTimer();S.phase='recall';S.placed={};S.sel=null;S.msg='';S.rsecs=recallFor(S.n);S.r0=Date.now();S.timer=setInterval(tick,100);draw();}
   function placeAt(sq){
     var cur=S.placed[sq];
     if(!S.sel){
@@ -151,6 +162,8 @@
     S.msg='';playMoveSound();draw();
   }
   function submit(){
+    if(S.phase!=='recall') return;
+    stopTimer();
     var correct=0,marks={};
     Object.keys(S.pos).forEach(function(k){
       if(S.placed[k]===S.pos[k]){correct++;marks[k]='ok';}else marks[k]='bad';

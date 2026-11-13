@@ -269,7 +269,7 @@
   try{ var m0 = localStorage.getItem(MODE_KEY); if(m0 === 'mixed' || m0 === 'name' || m0 === 'play') S.mode = m0; }catch(e){}
 
   function level(){ return 1 + 4 * Math.min(1, S.k / 45); }              // 1 = common ... 5 = obscure, over ~45 questions
-  function baseTime(){ return Math.max(6, 20 - 0.3 * S.k); }              // 20s at the start, 6s from question ~47
+  function baseTime(){ return Math.max(5, 12 - 0.2 * S.k); }              // 12s at the start, 5s from question ~35
   function bestTxt(){ return S.best ? S.best.score + ' points (' + S.best.q + ' correct)' : 'none yet'; }
 
   function pickOpening(){
@@ -318,7 +318,7 @@
     var o = pickOpening();
     S.used[o.name] = 1;
     var type = S.mode === 'mixed' ? (Math.random() < 0.5 ? 'name' : 'play') : S.mode;
-    var T = baseTime() + (type === 'play' ? 2.5 * o.sans.length : 0);
+    var T = type === 'play' ? Math.max(5, baseTime() - 3) + 1.5 * o.sans.length : baseTime();
     var q = {o:o, type:type, tier:o.t, T:T, ply:0, picked:-1, ok:false, pts:0, timeout:false, wrong:null, choices:null};
     if(type === 'name') q.choices = makeChoices(o);
     else { S.chess = new Chess(); S.sel = null; S.dests = []; S.lastMv = null; }
