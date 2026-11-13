@@ -662,7 +662,7 @@
   }
   // where the badge should take people: the owner's card on the supporters page (only for a valid slug)
   function badgeSlug(id, v){
-    return (id === 'founding_supporter' && typeof v === 'string' && /^[a-z0-9-]{1,60}$/.test(v)) ? v : '';
+    return '';   // the supporters page was removed, so badges no longer link anywhere
   }
 
   // Day One: the first 150 accounts. Fixed cutoff = the "joined" time (hb/profile/<name>/joined, set from the account's real

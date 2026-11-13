@@ -115,8 +115,6 @@ ROUTES = [
          desc="The Pawniac Terms of Service.", h=None, text=[]),
     dict(path="privacy", nav=None, sitemap=False, title="Privacy Policy | Pawniac",
          desc="The Pawniac Privacy Policy.", h=None, text=[]),
-    dict(path="supporters", nav=None, sitemap=False, title="Supporters | Pawniac",
-         desc="The communities and people who support Pawniac.", h=None, text=[]),
 ]
 
 HOME_H = "Free chess variants, with analysis that explains your moves"
