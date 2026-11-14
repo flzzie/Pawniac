@@ -1552,6 +1552,156 @@
     }catch(e){ console.error('insight summary failed', e); return ''; }
   }
 
+
+  // =====================================================================
+  //  habits (kept on this device) + share card
+  // =====================================================================
+  var HKEY = 'pawniac-habits-v1', HMAX = 30, HUSE = 20, HMIN = 5;
+  function loadHabits(){ try{ var a = JSON.parse(localStorage.getItem(HKEY) || '[]'); return Array.isArray(a) ? a : []; }catch(e){ return []; } }
+  function habitKey(A){
+    var str = A.me + ':' + A.moves.map(function(m){ return m.san; }).join(' '), h = 5381;
+    for(var i = 0; i < str.length; i++) h = ((h << 5) + h + str.charCodeAt(i)) | 0;
+    return String(h);
+  }
+  function gameSummary(A){
+    var mine = myIdx(A), S = sideSummary(A), types = {}, phases = {opening:0, middlegame:0, endgame:0}, nBad = 0, onlyTot = 0, onlyFound = 0;
+    mine.forEach(function(i){
+      var om = onlyMoveInfo(A, i);
+      if(om){ onlyTot++; if(om.found) onlyFound++; }
+      var st = A.stats[i];
+      if(isBadLabel(st.label)){
+        nBad++;
+        if(phases[st.phase] !== undefined) phases[st.phase]++;
+        var t = mistakeType(A, i);
+        if(t.k !== 'quiet'){
+          var cost = Math.max(0, Math.min(10, (st.cpBefore - st.cpAfter) / 100));
+          var o = types[t.t] || (types[t.t] = {n:0, p:0});
+          o.n++; o.p += cost;
+        }
+      }
+    });
+    return {k:habitKey(A), t:Date.now(), me:A.me, acc:Math.round(S.acc), moves:mine.length, bad:nBad, types:types, phases:phases, only:[onlyFound, onlyTot]};
+  }
+  function saveHabit(A){
+    try{
+      if(A.habitSaved) return; A.habitSaved = true;
+      if(myIdx(A).length < 8) return;
+      var g = gameSummary(A), arr = loadHabits().filter(function(x){ return x.k !== g.k; });
+      arr.push(g);
+      arr.sort(function(a, b){ return a.t - b.t; });
+      localStorage.setItem(HKEY, JSON.stringify(arr.slice(-HMAX)));
+    }catch(e){ console.error('habit save failed', e); }
+  }
+  function bar(pct, color){ return '<div class="an-hbar"><div style="width:' + Math.max(2, Math.round(pct)) + '%;background:' + color + '"></div></div>'; }
+  function habitsHtml(){
+    try{
+      var all = loadHabits(), g = all.slice(-HUSE);
+      if(g.length < HMIN){
+        return '<div class="card"><h2>Your habits</h2><p class="desc">Analyze ' + (HMIN - g.length) + ' more game' + (HMIN - g.length === 1 ? '' : 's') + ' to unlock your habits report. It looks at your last ' + HUSE + ' analyzed games and shows the mistakes you keep repeating. You have ' + g.length + ' of ' + HMIN + ' so far. It is saved only on this device.</p></div>';
+      }
+      var types = {}, phases = {opening:0, middlegame:0, endgame:0}, bad = 0, oF = 0, oT = 0, accSum = 0;
+      g.forEach(function(x){
+        bad += x.bad; accSum += x.acc; oF += x.only[0]; oT += x.only[1];
+        Object.keys(x.types).forEach(function(k){ var o = types[k] || (types[k] = {n:0, p:0}); o.n += x.types[k].n; o.p += x.types[k].p; });
+        Object.keys(phases).forEach(function(k){ phases[k] += (x.phases[k] || 0); });
+      });
+      var names = Object.keys(types).sort(function(a, b){ return types[b].p - types[a].p; }), out = '';
+      out += '<div class="card"><h2>Your habits</h2><p class="desc">Based on your last ' + plural(g.length, 'analyzed game') + ', saved on this device.</p>';
+      if(names.length){
+        var top = names[0], maxP = Math.max.apply(null, names.map(function(k){ return types[k].p; })) || 1;
+        out += '<div class="an-hero"><div class="hint" style="margin:0;">Your most expensive habit</div><div class="an-hbig">' + esc(top) + '</div><div class="hint" style="margin:0;">' + plural(types[top].n, 'time') + ' in ' + plural(g.length, 'game') + ', about ' + types[top].p.toFixed(1) + ' pawns lost</div></div>';
+        out += sec('What your mistakes were', names.map(function(k){
+          return '<div class="an-hrow"><span>' + esc(k) + '</span><span>' + types[k].n + ' &middot; ' + types[k].p.toFixed(1) + ' pawns</span></div>' + bar(types[k].p / maxP * 100, '#e0532e');
+        }).join(''));
+      } else out += '<p class="an-note">No mistakes with a clear cause in these games. That is a good sign.</p>';
+      var maxPh = Math.max(phases.opening, phases.middlegame, phases.endgame) || 1;
+      if(bad) out += sec('Where you go wrong', ['opening', 'middlegame', 'endgame'].map(function(k){
+        return '<div class="an-hrow"><span>' + cap(k) + '</span><span>' + phases[k] + '</span></div>' + bar(phases[k] / maxPh * 100, '#5f9ea0');
+      }).join(''));
+      if(oT) out += sec('Only moves', ps(['You found ' + oF + ' of ' + oT + ' positions where only one or two moves held the game.']));
+      var avg = Math.round(accSum / g.length), trend = '';
+      if(g.length >= 6){
+        var h = Math.floor(g.length / 2), a1 = 0, a2 = 0;
+        g.slice(0, h).forEach(function(x){ a1 += x.acc; }); g.slice(h).forEach(function(x){ a2 += x.acc; });
+        var d = Math.round(a2 / (g.length - h) - a1 / h);
+        trend = d === 0 ? ' Your recent games are about the same as your earlier ones.' : ' Your recent games are ' + Math.abs(d) + ' points ' + (d > 0 ? 'better' : 'worse') + ' than your earlier ones.';
+      }
+      out += sec('Accuracy', ps(['Average accuracy: ' + avg + '%.' + trend]) + '<div class="an-hspark">' + g.map(function(x){ return '<i title="' + x.acc + '%" style="height:' + Math.max(6, Math.min(100, (x.acc - 30) / 70 * 100)) + '%"></i>'; }).join('') + '</div>');
+      out += '<div style="margin-top:14px;"><button class="secondary" id="anHabClear">Clear habits history</button></div></div>';
+      return out;
+    }catch(e){ console.error('habits failed', e); return '<div class="card"><h2>Your habits</h2><p class="desc">I could not build the habits report.</p></div>'; }
+  }
+
+  function drawShareCard(A){
+    var W = 1200, H = 630, c = document.createElement('canvas'); c.width = W; c.height = H;
+    var x = c.getContext('2d'), F = 'system-ui,-apple-system,Segoe UI,Roboto,sans-serif', S = sideSummary(A);
+    x.fillStyle = '#1f1c18'; x.fillRect(0, 0, W, H);
+    x.fillStyle = '#e0532e'; x.fillRect(0, 0, 14, H);
+    x.textBaseline = 'alphabetic';
+    x.fillStyle = '#e0532e'; x.font = '800 36px ' + F; x.fillText('PAWNIAC', 54, 76);
+    var tw = x.measureText('PAWNIAC').width;
+    x.fillStyle = '#a29d90'; x.font = '500 24px ' + F; x.fillText('Game analysis', 54 + tw + 18, 76);
+    x.fillStyle = '#f4f1ea'; x.font = '800 190px ' + F; x.fillText(Math.round(S.acc) + '%', 50, 280);
+    x.fillStyle = '#a29d90'; x.font = '500 30px ' + F; x.fillText('accuracy as ' + (A.me === 'w' ? 'White' : 'Black'), 58, 328);
+    var ck = ['best', 'excellent', 'good', 'inaccuracy', 'mistake', 'blunder'], cx0 = 58, cy0 = 380;
+    ck.forEach(function(k, i){
+      var col = i % 3, row = Math.floor(i / 3), px = cx0 + col * 170, py = cy0 + row * 46;
+      x.fillStyle = LABEL[k].c; x.beginPath(); x.arc(px + 10, py - 8, 10, 0, 7); x.fill();
+      x.fillStyle = '#f4f1ea'; x.font = '700 26px ' + F; x.fillText(String(S.counts[k]), px + 28, py);
+      x.fillStyle = '#a29d90'; x.font = '500 20px ' + F; x.fillText(LABEL[k].t.replace(' move', '').toLowerCase(), px + 28 + String(S.counts[k]).length * 15 + 6, py);
+    });
+    // eval graph
+    var gx = 600, gy = 120, gw = 560, gh = 200, n = A.fens.length;
+    x.fillStyle = '#2b2924'; x.fillRect(gx, gy, gw, gh);
+    x.fillStyle = '#f4f1ea'; x.beginPath(); x.moveTo(gx, gy + gh);
+    for(var i = 0; i < n; i++) x.lineTo(gx + (n > 1 ? i / (n - 1) : 0) * gw, gy + gh - winPct(A.ev[i].cp) / 100 * gh);
+    x.lineTo(gx + gw, gy + gh); x.closePath(); x.fill();
+    x.strokeStyle = 'rgba(160,160,160,.6)'; x.setLineDash([8, 8]); x.lineWidth = 2; x.beginPath(); x.moveTo(gx, gy + gh / 2); x.lineTo(gx + gw, gy + gh / 2); x.stroke(); x.setLineDash([]);
+    // turning point
+    var sw = myIdx(A).map(function(i){ return {i:i, loss:A.stats[i].loss}; }).sort(function(a, b){ return b.loss - a.loss; })[0], tp = 'A clean game with no big swings.';
+    if(sw && sw.loss >= 10){
+      var st = A.stats[sw.i], pawns = Math.max(0, Math.min(10, (st.cpBefore - st.cpAfter) / 100));
+      tp = 'Turning point: ' + moveNumText(A.fens[sw.i]) + ' ' + A.moves[sw.i].san + (pawns >= 0.3 ? ' (cost about ' + pawns.toFixed(1) + ' pawns)' : '');
+      var mxp = gx + (n > 1 ? (sw.i + 1) / (n - 1) : 0) * gw;
+      x.strokeStyle = '#e0532e'; x.lineWidth = 3; x.beginPath(); x.moveTo(mxp, gy); x.lineTo(mxp, gy + gh); x.stroke();
+    }
+    x.fillStyle = '#f4f1ea'; x.font = '600 26px ' + F; x.fillText(tp, gx, gy + gh + 46);
+    // top mistake type + only moves
+    var cnt = {}, oF = 0, oT = 0;
+    myIdx(A).forEach(function(i){
+      var om = onlyMoveInfo(A, i); if(om){ oT++; if(om.found) oF++; }
+      if(isBadLabel(A.stats[i].label)){ var t = mistakeType(A, i); if(t.k !== 'quiet') cnt[t.t] = (cnt[t.t] || 0) + 1; }
+    });
+    var tk = Object.keys(cnt).sort(function(a, b){ return cnt[b] - cnt[a]; });
+    var l1 = tk.length ? 'Main mistake: ' + tk[0] + (cnt[tk[0]] > 1 ? ' (' + cnt[tk[0]] + ')' : '') : 'No mistakes with a clear cause';
+    x.fillStyle = '#a29d90'; x.font = '500 24px ' + F; x.fillText(l1, gx, gy + gh + 86);
+    if(oT) x.fillText('Only moves found: ' + oF + ' of ' + oT, gx, gy + gh + 120);
+    x.fillStyle = '#a29d90'; x.font = '600 28px ' + F; x.textAlign = 'right'; x.fillText('pawniac.fun', W - 50, H - 40); x.textAlign = 'left';
+    return c;
+  }
+  function openShare(){
+    try{
+      var old = document.getElementById('anShareOv'); if(old) old.remove();
+      var c = drawShareCard(A), ov = document.createElement('div'); ov.id = 'anShareOv'; ov.className = 'an-shareov';
+      ov.innerHTML = '<div class="an-sharebox"><div id="anShareCv"></div><div class="an-sharebtns"><button id="anShDl">Download image</button><button class="secondary" id="anShCp">Copy image</button><button class="secondary" id="anShX">Close</button></div><p class="hint" id="anShMsg" style="margin-top:8px;"></p></div>';
+      document.body.appendChild(ov);
+      c.style.width = '100%'; c.style.height = 'auto'; c.style.borderRadius = '8px';
+      document.getElementById('anShareCv').appendChild(c);
+      function msg(t){ document.getElementById('anShMsg').textContent = t; }
+      document.getElementById('anShX').onclick = function(){ ov.remove(); };
+      ov.onclick = function(e){ if(e.target === ov) ov.remove(); };
+      document.getElementById('anShDl').onclick = function(){
+        c.toBlob(function(b){ if(!b){ msg('Could not make the image.'); return; } var a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = 'pawniac-analysis.png'; document.body.appendChild(a); a.click(); a.remove(); setTimeout(function(){ URL.revokeObjectURL(a.href); }, 2000); });
+      };
+      document.getElementById('anShCp').onclick = function(){
+        c.toBlob(function(b){
+          if(!b || !navigator.clipboard || !window.ClipboardItem){ msg('Copying is not supported here. Use Download image.'); return; }
+          navigator.clipboard.write([new ClipboardItem({'image/png':b})]).then(function(){ msg('Copied. Paste it into Reddit or Discord.'); }, function(){ msg('Copy was blocked. Use Download image.'); });
+        });
+      };
+    }catch(e){ console.error('share failed', e); }
+  }
+
   // =====================================================================
   //  UI state
   // =====================================================================
@@ -1924,16 +2074,20 @@
   function renderResults(){
     var res = document.getElementById('anRes');
     if(!res || !A) return;
-    var tabs = [['board', 'Board'], ['report', 'Report'], ['practice', 'Practice']];
+    var tabs = [['board', 'Board'], ['report', 'Report'], ['habits', 'Habits'], ['practice', 'Practice']];
+    saveHabit(A);
     res.innerHTML =
       '<div class="an-tabs">' + tabs.map(function(t){ return '<button class="an-tabbtn' + (activeTab === t[0] ? ' active' : '') + '" data-tab="' + t[0] + '">' + t[1] + '</button>'; }).join('') + '</div>' +
       '<div id="anBoardTab" style="display:' + (activeTab === 'board' ? 'block' : 'none') + '">' + boardTabHtml() + '</div>' +
-      '<div id="anReportTab" style="display:' + (activeTab === 'report' ? 'block' : 'none') + '">' + reportHtml() + '</div>' +
+      '<div id="anReportTab" style="display:' + (activeTab === 'report' ? 'block' : 'none') + '"><div class="an-sharerow"><button class="secondary" id="anShare">Share card</button></div>' + reportHtml() + '</div>' +
+      '<div id="anHabitsTab" style="display:' + (activeTab === 'habits' ? 'block' : 'none') + '">' + (activeTab === 'habits' ? habitsHtml() : '') + '</div>' +
       '<div id="anPracticeTab" style="display:' + (activeTab === 'practice' ? 'block' : 'none') + '"></div>';
     res.querySelectorAll('.an-tabbtn').forEach(function(b){ b.onclick = function(){ activeTab = b.dataset.tab; renderResults(); }; });
     res.querySelectorAll('.an-moment').forEach(function(el){
       el.onclick = function(){ activeTab = 'board'; renderResults(); goto(+el.dataset.ply); window.scrollTo({top:res.offsetTop, behavior:'smooth'}); };
     });
+    var shb = document.getElementById('anShare'); if(shb) shb.onclick = openShare;
+    var hc = document.getElementById('anHabClear'); if(hc) hc.onclick = function(){ try{ localStorage.removeItem(HKEY); }catch(e){} renderResults(); };
     var tp = document.getElementById('anToPractice');
     if(tp) tp.onclick = function(){ activeTab = 'practice'; renderResults(); };
     document.getElementById('anFirst').onclick = function(){ goto(0); };
