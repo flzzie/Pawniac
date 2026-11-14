@@ -209,6 +209,16 @@
     return r;
   };
 
+  // while you play, the address bar shows the game's own link (anyone can open it to watch)
+  var prevEnter = window.enterGameScreen;
+  if(typeof prevEnter === 'function'){
+    window.enterGameScreen = function(code){
+      var r = prevEnter.apply(this, arguments);
+      try{ if(code && /^[A-Za-z0-9]{3,12}$/.test(String(code))) PW.replace('#/watch/' + code); }catch(e){}
+      return r;
+    };
+  }
+
   var prevShow = window.showScreen;
   window.showScreen = function(n){
     if(n !== 'watch') stopWatch();
