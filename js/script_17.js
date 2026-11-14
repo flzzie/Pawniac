@@ -775,7 +775,7 @@
       else if(loss < 10) label = 'inaccuracy';
       else if(loss < 15) label = 'mistake';
       else label = 'blunder';
-      if(i < bookN && loss < 12) label = 'book';                              // known theory is never an inaccuracy
+      if(i < bookN && loss < 12){ if(label === 'inaccuracy' || label === 'mistake') label = 'good'; }   // known theory is never an inaccuracy (no 'Book move' label any more)
       else if(label === 'inaccuracy' && i < 20 && loss < 8) label = 'good';   // opening evals are noisy: small differences are just choices
       if((label === 'inaccuracy' || label === 'mistake' || label === 'blunder') && !isMate(cpB)){
         var winning = (cpB >= 400 && cpA >= 250), lost = (cpB <= -400 && cpA <= -250), equalish = (Math.abs(cpB) <= 60 && Math.abs(cpA) <= 120);

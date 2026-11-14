@@ -167,7 +167,7 @@
     var ka = key(fa);
     if(BOOK[ka] && loss < 20){
       var nm = NAME[ka], th = theory(fb);
-      return {label:'book', loss:0, note:'Opening theory' + (nm ? ': ' + nm : '') + '. A standard move that strong players have used for a long time.' + (th ? ' Book moves in the position before it: ' + th + '.' : '')};
+      return {label:(label === 'best' || label === 'excellent') ? label : 'good', loss:0, note:'Opening theory' + (nm ? ': ' + nm : '') + '. A standard move that strong players have used for a long time.' + (th ? ' Book moves in the position before it: ' + th + '.' : '')};
     }
     if(!(label === 'inaccuracy' || label === 'mistake' || label === 'blunder')) return null;
     if(Math.abs(cpB) >= 9000 || Math.abs(cpA) >= 9000) return null;      // forced mates are never softened
