@@ -1510,10 +1510,6 @@
       if(pb.firstCap && pb.firstCap.ply === 0 && pb.firstCap.color === me) return {k:'free', t:'Missed free material'};
       return {k:'missed', t:'Missed a tactic'};
     }
-    if(m.captured && evA && evA.pv && evA.pv.length){
-      var rc = tryMove(fenA, evA.pv[0]), bm = evB && evB.best ? tryMove(fenB, evB.best) : null;
-      if(rc && rc.captured && rc.to === m.to && !(bm && bm.captured)) return {k:'trade', t:'Bad trade'};
-    }
     return {k:'quiet', t:'Quiet mistake'};
   }
   function isBadLabel(l){ return l === 'mistake' || l === 'blunder'; }
@@ -1602,7 +1598,7 @@
       var types = {}, phases = {opening:0, middlegame:0, endgame:0}, bad = 0, oF = 0, oT = 0, accSum = 0;
       g.forEach(function(x){
         bad += x.bad; accSum += x.acc; oF += x.only[0]; oT += x.only[1];
-        Object.keys(x.types).forEach(function(k){ var o = types[k] || (types[k] = {n:0, p:0}); o.n += x.types[k].n; o.p += x.types[k].p; });
+        Object.keys(x.types).forEach(function(k){ if(k === 'Bad trade') return; var o = types[k] || (types[k] = {n:0, p:0}); o.n += x.types[k].n; o.p += x.types[k].p; });
         Object.keys(phases).forEach(function(k){ phases[k] += (x.phases[k] || 0); });
       });
       var names = Object.keys(types).sort(function(a, b){ return types[b].p - types[a].p; }), out = '';
