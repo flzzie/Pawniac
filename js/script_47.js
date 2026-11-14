@@ -73,6 +73,7 @@
     // The engine's own score is already on the chess.com scale (100 = about a 50% winning chance), so it is used as it is.
     // (An earlier win/draw/loss conversion here blew every clear advantage up to +14.38.)
     cp: function(line, type, val){ return val; },
+    reset: function(){ var old = P; P = null; try{ if(old) old.then(function(w){ try{ w.terminate(); }catch(e){} }, function(){}); }catch(e){} },
     get: function(){
       if(P) return P;
       P = (async function(){
