@@ -2314,4 +2314,38 @@
       }catch(e){ console.error('analyze button failed', e); }
     }
   };
+
+  // ---------- open the analysis for a given PGN (used by the bot page and by shared links) ----------
+  window.PawniacAnalyzePgn = function(pgn, side, min, inc){
+    stopPoll(); A = null; PR = null; activeTab = 'board';
+    sideManual = false; tcManual = false;
+    formSide = (side === 'w' || side === 'b') ? side : null;
+    if(min > 0){ formMin = min; formInc = inc || 0; tcFilled = true; } else { formMin = 0; formInc = 0; tcFilled = false; }
+    renderAnalyze();
+    document.getElementById('anPgn').value = pgn;
+    refreshForm();
+    if(formSide) start(pgn);
+  };
+  // a link like  pawniac.fun/analyze/?g=...  : read it once while the address is still intact
+  var SHARED = null;
+  try{
+    var sq = location.search, sm = /[?&]__p=([^&]*)/.exec(sq), spath = location.pathname;
+    if(sm){ var inner = decodeURIComponent(sm[1]); spath = inner.split(/[?#]/)[0]; sq = inner.indexOf('?') >= 0 ? inner.slice(inner.indexOf('?')) : ''; }
+    var sg = new URLSearchParams(sq).get('g');
+    if(sg && /^\/analyze\/?$/i.test(spath) && sg.length < 6000){
+      var raw = decodeURIComponent(escape(atob(sg.replace(/-/g, '+').replace(/_/g, '/'))));
+      var pr = raw.split('|'), mv = pr.slice(3).join('|');
+      if((pr[0] === 'w' || pr[0] === 'b') && /^[A-Za-z0-9+#=\-\s.]{3,4000}$/.test(mv)){
+        var tn = '', parts = mv.trim().split(/\s+/);
+        parts.forEach(function(san, i){ tn += (i % 2 === 0 ? (i / 2 + 1) + '. ' : '') + san + ' '; });
+        var mi = Math.max(0, Math.min(600, +pr[1] || 0)), ic = Math.max(0, Math.min(60, +pr[2] || 0));
+        SHARED = {side:pr[0], min:mi / 60, inc:ic, pgn:'[Event "Pawniac game"]\n[Result "*"]\n' + (mi > 0 ? '[TimeControl "' + mi + '+' + ic + '"]\n' : '') + '\n' + tn + '*'};
+      }
+    }
+  }catch(e){ SHARED = null; }
+  var prevRenderAnalyze = renderAnalyze;
+  renderAnalyze = function(){
+    prevRenderAnalyze();
+    if(SHARED){ var sh = SHARED; SHARED = null; try{ window.PawniacAnalyzePgn(sh.pgn, sh.side, sh.min, sh.inc); }catch(e){ console.error('shared link failed', e); } }
+  };
 })();

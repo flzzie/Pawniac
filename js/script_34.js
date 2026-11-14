@@ -175,6 +175,7 @@
   }
   function mkClock(){
     var v = tcVals(), ms = v.init * 1000;
+    if(G) G.tci = [v.init, v.inc];            // remembered for the analysis / share link
     return {w:ms, b:ms, inc:v.inc * 1000, t0:Date.now()};
   }
   function remMs(side){
@@ -572,10 +573,29 @@
     }
   };
 
+
+  // ---------- share / analyze a finished bot game (standard and Hand & Brain only: the moves are plain chess) ----------
+  function botShareable(g){ return !GUEST && g && g.over && (g.variant === 'std' || g.variant === 'hb') && g.log && g.log.length >= 2; }
+  function botPgn(g){
+    var res = '*', o = String(g.over || '');
+    if(/^You win/.test(o)) res = g.me === 'w' ? '1-0' : '0-1';
+    else if(/^Bot wins|resigned/.test(o)) res = g.me === 'w' ? '0-1' : '1-0';
+    else if(/^Draw/.test(o)) res = '1/2-1/2';
+    var mt = '';
+    g.log.forEach(function(san, i){ mt += (i % 2 === 0 ? (i / 2 + 1) + '. ' : '') + san + ' '; });
+    var ti = g.tci || [0, 0];
+    return '[Event "Pawniac bot game"]\n[White "' + (g.me === 'w' ? 'You' : 'Bot') + '"]\n[Black "' + (g.me === 'b' ? 'You' : 'Bot') + '"]\n[Result "' + res + '"]\n' + (ti[0] > 0 ? '[TimeControl "' + ti[0] + '+' + ti[1] + '"]\n' : '') + '\n' + mt + res;
+  }
+  function botShareLink(g){
+    var ti = g.tci || [0, 0], raw = [g.me, ti[0], ti[1], g.log.join(' ')].join('|');
+    var b64 = btoa(unescape(encodeURIComponent(raw))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    return PW.url('#/analyze') + '?g=' + b64;
+  }
+
   function drawPlay(){
     var g = G, c = g.chess, p = '';
     if(g.over){
-      p += '<div class="result-banner">' + g.over + '</div>' + (GUEST ? '<div class="status-msg">That was your free guest game. Log in or create a free account to play again.</div><button class="full-btn" id="gbSign3">Create a free account</button><button class="secondary full-btn" id="gbLog3">Log in</button>' : '<button class="full-btn" id="bAgain">Play again</button><button class="secondary full-btn" id="bNew">Change settings</button>');
+      p += '<div class="result-banner">' + g.over + '</div>' + (GUEST ? '<div class="status-msg">That was your free guest game. Log in or create a free account to play again.</div><button class="full-btn" id="gbSign3">Create a free account</button><button class="secondary full-btn" id="gbLog3">Log in</button>' : (botShareable(g) ? '<button class="full-btn" id="bAn">Analyze this game</button><button class="secondary full-btn" id="bShare">Copy share link</button>' : '') + '<button class="full-btn" id="bAgain">Play again</button><button class="secondary full-btn" id="bNew">Change settings</button>');
     } else {
       p += '<div class="status-msg"><b>You</b> (' + (g.me === 'w' ? 'White' : 'Black') + ') vs <b>Bot</b> (' + (GUEST ? 'about 2300' : 'skill ' + S.skill) + ')</div>';
       if(g.variant === 'double') p += '<div class="status-msg"><b>' + (g.log.length ? 'Move ' + (c.left() === 2 ? 1 : 2) + ' of 2' : 'Opening move') + '</b> ' + (c.turn() === g.me ? 'for you' : 'for the bot') + (g.log.length ? '. Capture the king to win.' : ': White plays just one move.') + '</div>';
@@ -609,6 +629,14 @@
     if(q('bResign')) q('bResign').onclick = function(){ if(confirm('Resign this game?')) finish('You resigned', 'l'); };
     if(q('bNew')) q('bNew').onclick = function(){ if(g.over || confirm('Leave this game?')){ G = null; draw(); } };
         if(q('bAgain')) q('bAgain').onclick = startNew;
+    if(q('bAn')) q('bAn').onclick = function(){
+      try{ var ti = g.tci || [0, 0]; window.PawniacAnalyzePgn(botPgn(g), g.me, ti[0] / 60, ti[1]); }catch(e){ console.error('analyze failed', e); }
+    };
+    if(q('bShare')) q('bShare').onclick = async function(){
+      var link = botShareLink(g), btn = q('bShare');
+      try{ await navigator.clipboard.writeText(link); btn.textContent = 'Link copied!'; setTimeout(function(){ btn.textContent = 'Copy share link'; }, 1800); }
+      catch(e){ prompt('Copy this link:', link); }
+    };
     if(q('gbSign3')) q('gbSign3').onclick = function(){ if(window.PawniacHome) window.PawniacHome.openAuth('signup'); };
     if(q('gbLog3')) q('gbLog3').onclick = function(){ if(window.PawniacHome) window.PawniacHome.openAuth('login'); };
     scr.querySelectorAll('[data-promo]').forEach(function(b){
