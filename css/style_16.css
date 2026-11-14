@@ -71,3 +71,9 @@
 .an-score{font-size:40px;font-weight:700;}
 .an-prbtns{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px;}
 .an-sidebtn{min-width:120px;}
+
+.an-insrow{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0 2px;}
+.an-ins{font-size:11.5px;font-weight:600;padding:3px 9px;border-radius:12px;border:1px solid #cfc9bb;color:#5b574d;background:#f4f1e8;}
+.an-ins-good{border-color:#9bd0ae;color:#17653a;background:#e5f6ea;}
+[data-theme=dark] .an-ins{border-color:#4a463d;color:#c9c4b6;background:#2d2a24;}
+[data-theme=dark] .an-ins-good{border-color:#2f6b44;color:#8fdcab;background:#1f3a2a;}
