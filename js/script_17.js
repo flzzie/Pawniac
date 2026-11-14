@@ -1524,7 +1524,8 @@
       if(om && om.found) chips += '<span class="an-ins an-ins-good">★ ' + (om.n === 1 ? 'Only move found' : 'One of only 2 good moves') + '</span>';
       if(isBadLabel(S.label)){
         var t = mistakeType(A, i);
-        chips += '<span class="an-ins">' + esc(t.t) + '</span><span class="an-ins">' + esc(PHASE_NAME[S.phase] || '') + '</span>';
+        if(t.k !== 'quiet') chips += '<span class="an-ins">' + esc(t.t) + '</span>';   // no label when nothing concrete can be proven
+        chips += '<span class="an-ins">' + esc(PHASE_NAME[S.phase] || '') + '</span>';
         if(om && !om.found) note = '<p class="an-note">' + (om.n === 1 ? 'Only one move held the position here' : 'Only two moves held the position here') + ', so missing it is understandable.</p>';
       }
       return (chips ? '<div class="an-insrow">' + chips + '</div>' : '') + note;
@@ -1532,12 +1533,12 @@
   }
   function insightSummary(A){
     try{
-      var mine = myIdx(A), out = '', onlyTot = 0, onlyFound = 0, types = {}, phases = {opening:0, middlegame:0, endgame:0}, nBad = 0;
+      var mine = myIdx(A), out = '', onlyTot = 0, onlyFound = 0, types = {}, phases = {opening:0, middlegame:0, endgame:0}, nBad = 0, nTyped = 0;
       mine.forEach(function(i){
         var om = onlyMoveInfo(A, i);
         if(om){ onlyTot++; if(om.found) onlyFound++; }
         if(isBadLabel(A.stats[i].label)){
-          nBad++; var t = mistakeType(A, i); types[t.t] = (types[t.t] || 0) + 1;
+          nBad++; var t = mistakeType(A, i); if(t.k !== 'quiet'){ types[t.t] = (types[t.t] || 0) + 1; nTyped++; }
           if(phases[A.stats[i].phase] !== undefined) phases[A.stats[i].phase]++;
         }
       });
@@ -1545,7 +1546,7 @@
       if(nBad){
         var tl = Object.keys(types).sort(function(a, b){ return types[b] - types[a]; }).map(function(k){ return k + (types[k] > 1 ? ' (' + types[k] + ')' : ''); }).join(', ');
         var pl = ['opening', 'middlegame', 'endgame'].filter(function(k){ return phases[k]; }).map(function(k){ return phases[k] + ' in the ' + k; }).join(', ');
-        out += sec('Your mistakes', ps([plural(nBad, 'mistake or blunder') + ': ' + tl + '.', 'By phase: ' + pl + '.']));
+        out += sec('Your mistakes', ps((nTyped === nBad ? [plural(nBad, 'mistake or blunder') + ': ' + tl + '.'] : nTyped ? [nTyped + ' of your ' + plural(nBad, 'mistake or blunder') + ' had a clear cause: ' + tl + '.'] : [plural(nBad, 'mistake or blunder') + '.']).concat(['By phase: ' + pl + '.'])));
       }
       return out;
     }catch(e){ console.error('insight summary failed', e); return ''; }
