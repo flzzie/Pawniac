@@ -1471,6 +1471,86 @@
     return out;
   }
 
+
+  // =====================================================================
+  //  insights: "only move" spotting, mistake type, game phase
+  //  Read-only on the engine data that is already collected. Every entry point is wrapped, so a failure only hides the extra line.
+  // =====================================================================
+  var DECIDED_CP = 750;   // past +-7.5 pawns the game is decided, so "only move" means nothing there
+  var PHASE_NAME = {opening:'Opening', middlegame:'Middlegame', endgame:'Endgame'};
+  // how many of YOUR moves in this position held the evaluation: 1 = only move, 2 = one of two, null = many / not meaningful
+  function onlyMoveInfo(A, i){
+    var m = A.moves[i], ev = A.ev[i];
+    if(m.color !== A.me || !ev || !ev.alts || !ev.alts.length || !ev.best) return null;
+    var sg = m.color === 'w' ? 1 : -1, best = sg * ev.cp;
+    if(isMate(best) || Math.abs(best) >= DECIDED_CP) return null;
+    if(new Chess(A.fens[i]).moves().length < 2) return null;     // a forced move is not "found"
+    var pv0 = i > 0 ? A.moves[i - 1] : null;
+    if(pv0 && pv0.captured && m.captured && pv0.to === m.to) return null;   // a plain recapture is not worth a badge
+    function far(a){ var c = sg * a.cp; return (best - c) >= 150 && (winPct(best) - winPct(c)) >= 12; }
+    var a1 = ev.alts[0], a2 = ev.alts[1], good;
+    if(far(a1)) good = [ev.best];
+    else if(a2 && far(a2) && (best - sg * a1.cp) <= 50) good = [ev.best, a1.best];
+    else return null;
+    return {n:good.length, good:good, found:good.indexOf(A.stats[i].uci) >= 0};
+  }
+  // what kind of mistake a mistake/blunder was. Only kinds the engine line can prove; everything else is "quiet".
+  function mistakeType(A, i){
+    var S = A.stats[i], m = A.moves[i], me = A.me, opp = A.opp, fenB = A.fens[i], fenA = A.fens[i + 1], evB = A.ev[i], evA = A.ev[i + 1];
+    if(S.cpBefore > -9000 && S.cpAfter <= -9000) return {k:'mate', t:'Allowed a forced mate'};
+    if(S.cpBefore >= 9000 && S.cpAfter < 9000) return {k:'missedmate', t:'Missed a forced mate'};
+    var gain = (m.captured ? VAL[m.captured] : 0) + (m.promotion ? VAL[m.promotion] - 1 : 0);   // what this move itself won
+    var po = (evA && evA.pv && evA.pv.length) ? pvInfo(fenA, evA.pv, 4, opp) : null;
+    if(po && po.firstCap && po.firstCap.color === opp && po.net - gain >= 2.5){
+      if(po.firstCap.ply === 0 && VAL[po.firstCap.captured] >= 3) return {k:'hung', t:'Hung a piece'};
+      return {k:'walked', t:'Walked into a tactic'};
+    }
+    var pb = (evB && evB.pv && evB.pv.length && S.uci !== evB.best) ? pvInfo(fenB, evB.pv, 4, me) : null;
+    if(pb && pb.net >= 2.5){
+      if(pb.firstCap && pb.firstCap.ply === 0 && pb.firstCap.color === me) return {k:'free', t:'Missed free material'};
+      return {k:'missed', t:'Missed a tactic'};
+    }
+    if(m.captured && evA && evA.pv && evA.pv.length){
+      var rc = tryMove(fenA, evA.pv[0]), bm = evB && evB.best ? tryMove(fenB, evB.best) : null;
+      if(rc && rc.captured && rc.to === m.to && !(bm && bm.captured)) return {k:'trade', t:'Bad trade'};
+    }
+    return {k:'quiet', t:'Quiet mistake'};
+  }
+  function isBadLabel(l){ return l === 'mistake' || l === 'blunder'; }
+  function insightHtml(A, i){
+    try{
+      if(A.moves[i].color !== A.me) return '';
+      var S = A.stats[i], om = onlyMoveInfo(A, i), chips = '', note = '';
+      if(om && om.found) chips += '<span class="an-ins an-ins-good">★ ' + (om.n === 1 ? 'Only move found' : 'One of only 2 good moves') + '</span>';
+      if(isBadLabel(S.label)){
+        var t = mistakeType(A, i);
+        chips += '<span class="an-ins">' + esc(t.t) + '</span><span class="an-ins">' + esc(PHASE_NAME[S.phase] || '') + '</span>';
+        if(om && !om.found) note = '<p class="an-note">' + (om.n === 1 ? 'Only one move held the position here' : 'Only two moves held the position here') + ', so missing it is understandable.</p>';
+      }
+      return (chips ? '<div class="an-insrow">' + chips + '</div>' : '') + note;
+    }catch(e){ console.error('insights failed', e); return ''; }
+  }
+  function insightSummary(A){
+    try{
+      var mine = myIdx(A), out = '', onlyTot = 0, onlyFound = 0, types = {}, phases = {opening:0, middlegame:0, endgame:0}, nBad = 0;
+      mine.forEach(function(i){
+        var om = onlyMoveInfo(A, i);
+        if(om){ onlyTot++; if(om.found) onlyFound++; }
+        if(isBadLabel(A.stats[i].label)){
+          nBad++; var t = mistakeType(A, i); types[t.t] = (types[t.t] || 0) + 1;
+          if(phases[A.stats[i].phase] !== undefined) phases[A.stats[i].phase]++;
+        }
+      });
+      if(onlyTot) out += sec('Only moves', ps(['In ' + plural(onlyTot, 'position') + ' only one or two moves held the game. You found ' + onlyFound + ' of them.']));
+      if(nBad){
+        var tl = Object.keys(types).sort(function(a, b){ return types[b] - types[a]; }).map(function(k){ return k + (types[k] > 1 ? ' (' + types[k] + ')' : ''); }).join(', ');
+        var pl = ['opening', 'middlegame', 'endgame'].filter(function(k){ return phases[k]; }).map(function(k){ return phases[k] + ' in the ' + k; }).join(', ');
+        out += sec('Your mistakes', ps([plural(nBad, 'mistake or blunder') + ': ' + tl + '.', 'By phase: ' + pl + '.']));
+      }
+      return out;
+    }catch(e){ console.error('insight summary failed', e); return ''; }
+  }
+
   // =====================================================================
   //  UI state
   // =====================================================================
@@ -1723,6 +1803,7 @@
     var L = LABEL[E.label];
     var h = '<div class="an-title">' + esc(E.title) + ' <span class="an-chip" style="background:' + L.c + '">' + L.t + '</span></div><div class="an-evline">' + esc(E.evalLine) + ' <span style="opacity:.6">(depth ' + (A.ev[A.sel - 1].depth || '?') + ')</span></div>';
     if(E.time) h += '<div class="an-time">\u23F1 ' + fmtSec(E.time.t) + (E.time.far ? ' <span class="an-bad">(far too long; guide: about ' + fmtSec(A.time.far) + ')</span>' : '') + '</div>';
+    h += insightHtml(A, A.sel - 1);
     if(E.mode === 'mate'){
       h += sec(E.whyTitle, E.why.map(function(w){ return '<p class="an-note">' + w + '</p>'; }).join(''));
       if(E.better) h += sec('Better was ' + esc(E.better.san), '<p class="an-note">' + esc(E.better.text) + '</p><span class="an-line">' + esc(E.better.line) + '</span>');
@@ -1825,7 +1906,7 @@
         '<div class="an-sum"><div class="hint" style="margin:0;">Your game as ' + (A.me === 'w' ? 'White' : 'Black') + '</div><div class="an-acc">' + Math.round(S.acc) + '%</div><div class="hint" style="margin:0 0 6px;">accuracy</div><div class="an-counts">' + chips + '</div>' +
         (N.pros.length ? sec('What went well', '<ul>' + N.pros.map(function(t){ return '<li>' + esc(t) + '</li>'; }).join('') + '</ul>') : '') +
         (N.cons.length ? sec('To work on', '<ul>' + N.cons.map(function(t){ return '<li>' + esc(t) + '</li>'; }).join('') + '</ul>') : '') +
-        (recur.length ? sec('Patterns', '<ul>' + recur.map(function(t){ return '<li>' + esc(t) + '</li>'; }).join('') + '</ul>') : '') + '</div>' + moments + '</div>' +
+        (recur.length ? sec('Patterns', '<ul>' + recur.map(function(t){ return '<li>' + esc(t) + '</li>'; }).join('') + '</ul>') : '') + insightSummary(A) + '</div>' + moments + '</div>' +
       bookCard +
       '<div class="card"><h2>Time per move</h2>' + timeBody + '</div>' +
       '<div class="card"><h2>Learn from your mistakes</h2><p class="desc">' + (nPr ? 'A quick round on ' + plural(nPr, 'position') + ' from your game where you made a mistake or blunder. Find the better move.' : 'You made no mistakes or blunders, so there is nothing to practise. Nice.') + '</p>' +
