@@ -1632,11 +1632,19 @@
     var W = 1200, H = 630, c = document.createElement('canvas'); c.width = W; c.height = H;
     var x = c.getContext('2d'), F = 'system-ui,-apple-system,Segoe UI,Roboto,sans-serif', S = sideSummary(A);
     x.fillStyle = '#1f1c18'; x.fillRect(0, 0, W, H);
-    x.fillStyle = '#e0532e'; x.fillRect(0, 0, 14, H);
+    x.fillStyle = '#3fa389'; x.fillRect(0, 0, 14, H);   // the site's green (dark theme), not orange
     x.textBaseline = 'alphabetic';
-    x.fillStyle = '#e0532e'; x.font = '800 36px ' + F; x.fillText('PAWNIAC', 54, 76);
+    // the same logo as the site header, drawn from the page's own inline SVG (it appears as soon as the image has loaded)
+    var lg = document.querySelector('.brand-logo'), lh = 62, lw = lh * 100 / 185, tx = lg ? 54 + lw + 16 : 54;
+    x.fillStyle = '#f4f1ea'; x.font = '800 36px ' + F; x.fillText('PAWNIAC', tx, 76);
     var tw = x.measureText('PAWNIAC').width;
-    x.fillStyle = '#a29d90'; x.font = '500 24px ' + F; x.fillText('Game analysis', 54 + tw + 18, 76);
+    x.fillStyle = '#a29d90'; x.font = '500 24px ' + F; x.fillText('Game analysis', tx + tw + 18, 76);
+    if(lg) try{
+      var cl = lg.cloneNode(true), im = new Image();
+      cl.setAttribute('width', '100'); cl.setAttribute('height', '185'); cl.removeAttribute('class');
+      im.onload = function(){ try{ x.drawImage(im, 54, 32, lw, lh); }catch(e){} };
+      im.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(new XMLSerializer().serializeToString(cl));
+    }catch(e){}
     x.fillStyle = '#f4f1ea'; x.font = '800 190px ' + F; x.fillText(Math.round(S.acc) + '%', 50, 280);
     x.fillStyle = '#a29d90'; x.font = '500 30px ' + F; x.fillText('accuracy as ' + (A.me === 'w' ? 'White' : 'Black'), 58, 328);
     var ck = ['best', 'excellent', 'good', 'inaccuracy', 'mistake', 'blunder'], cx0 = 58, cy0 = 380;
@@ -1659,7 +1667,7 @@
       var st = A.stats[sw.i], pawns = Math.max(0, Math.min(10, (st.cpBefore - st.cpAfter) / 100));
       tp = 'Turning point: ' + moveNumText(A.fens[sw.i]) + ' ' + A.moves[sw.i].san + (pawns >= 0.3 ? ' (cost about ' + pawns.toFixed(1) + ' pawns)' : '');
       var mxp = gx + (n > 1 ? (sw.i + 1) / (n - 1) : 0) * gw;
-      x.strokeStyle = '#e0532e'; x.lineWidth = 3; x.beginPath(); x.moveTo(mxp, gy); x.lineTo(mxp, gy + gh); x.stroke();
+      x.strokeStyle = '#4fb59a'; x.lineWidth = 3; x.beginPath(); x.moveTo(mxp, gy); x.lineTo(mxp, gy + gh); x.stroke();
     }
     x.fillStyle = '#f4f1ea'; x.font = '600 26px ' + F; x.fillText(tp, gx, gy + gh + 46);
     // top mistake type + only moves
