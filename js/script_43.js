@@ -179,13 +179,13 @@
     return null;
   }
   // ---------- Lichess opening list (free, ~3,500 openings): downloaded once, saved on this device ----------
-  var LSRC = ['https://raw.githubusercontent.com/lichess-org/chess-openings/master/', 'https://cdn.jsdelivr.net/gh/lichess-org/chess-openings@master/'];
+  var LSRC = ['/openings/', 'https://raw.githubusercontent.com/lichess-org/chess-openings/master/', 'https://cdn.jsdelivr.net/gh/lichess-org/chess-openings@master/'];
   var LKEY = 'pawniac-lichess-openings-v1', LI = null;
   function fetchText(u){ return fetch(u).then(function(r){ if(!r.ok) throw new Error('http ' + r.status); return r.text(); }); }
   function download(){
     var rows = [], got = 0;
     return Promise.all(['a', 'b', 'c', 'd', 'e'].map(function(f){
-      return fetchText(LSRC[0] + f + '.tsv').catch(function(){ return fetchText(LSRC[1] + f + '.tsv'); }).then(function(txt){
+      return fetchText(LSRC[0] + f + '.tsv').catch(function(){ return fetchText(LSRC[1] + f + '.tsv'); }).catch(function(){ return fetchText(LSRC[2] + f + '.tsv'); }).then(function(txt){
         var lines = txt.replace(/\r/g, '').split('\n'), h = lines[0].split('\t'), ni = h.indexOf('name'), pi = h.indexOf('pgn');
         if(ni < 0 || pi < 0){ ni = 1; pi = 2; }
         for(var i = 1; i < lines.length; i++){ var c = lines[i].split('\t'); if(c[ni] && c[pi]) rows.push(c[ni] + '\t' + c[pi]); }
