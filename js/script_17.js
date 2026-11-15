@@ -765,8 +765,8 @@
   // =====================================================================
   //  analysis build (everything from the player's side)
   // =====================================================================
-  function build(parsed, ev, side, tc){
-    var A = {moves:parsed.moves, fens:parsed.fens, hdr:parsed.hdr, clocks:parsed.clocks, ev:ev, stats:[], cache:{}, sel:0,
+  function build(parsed, ev, side, tc, thr){
+    var A = {thr:thr || {}, moves:parsed.moves, fens:parsed.fens, hdr:parsed.hdr, clocks:parsed.clocks, ev:ev, stats:[], cache:{}, sel:0,
              me:side, opp:side === 'w' ? 'b' : 'w', tc:tc, rep:{theme:{}, sq:{}, tacts:{}, state:null}};
     A.flip = (side === 'b');
     if(!parsed.hdr.FEN && parsed.fens[0].split(' ')[0] === 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR' && Math.abs(ev[0].cp) > 60) ev[0].cp = 25;
@@ -1079,6 +1079,7 @@
       why.push('This move allows a forced checkmate in ' + n2 + ': <span class="an-line">' + esc(mateLine(fenA, evA.pv, n2, true)) + '</span>');
       tc = mateMoveTactic(fenA, evA.pv);
       if(tc){ why.push('It ends with ' + tc.text + '.'); noteT(A, tc, i); }
+      try{ var tm0 = threatOf(A, i); if(tm0 && tm0.mate) why.push('This mate was already threatened before your move (' + tm0.san + '), and your move did not stop it.'); }catch(e){}
       if(bm) better = {san:bm.san, text:'It avoids the mate.', line:sanLine(fenB, evB.pv, 5)};
       lessonKey = 'mate';
     } else why.push('There is a forced mate on the board here.');
@@ -1094,6 +1095,25 @@
       lesson:(lessonKey && (label === 'mistake' || label === 'blunder')) ? LESSON[lessonKey] : null,
       time:(typeof tm === 'number') ? {t:tm, far:tm > A.time.far} : null
     };
+  }
+
+  // The opponent's threat before your move i, proven by the engine:
+  //  1) if it were their turn in that position they would gain at least 1.5 pawns (or have a forced mate), and
+  //  2) after your move their best reply is that very same move, so your move did not stop it.
+  function threatOf(A, i){
+    try{
+      var T = A.thr && A.thr[i]; if(!T || !T.best) return null;
+      var S = A.stats[i], evA = A.ev[i + 1], opp = A.opp, so = opp === 'w' ? 1 : -1;
+      var oppNow = so * T.cp, oppBefore = -S.cpBefore;
+      var mateT = isMate(T.cp) && so * T.cp > 0;
+      if(!mateT && oppNow - oppBefore < 150) return null;
+      if(!evA || evA.best !== T.best) return null;
+      var fl = flipTurn(A.fens[i], opp), mv = tryMove(fl, T.best);
+      if(!mv) return null;
+      var tc = null; try{ tc = tacticOf(fl, mv); }catch(e){}
+      var what = tc ? tc.text : (mv.captured ? 'winning your ' + NAMES[mv.captured] + ' on ' + mv.to : (mateT ? 'a forced mate' : 'a strong plan'));
+      return {san:mv.san, what:what, mate:mateT, name:tc ? tc.name : null};
+    }catch(e){ return null; }
   }
 
   function explainMine(A, i){
@@ -1311,7 +1331,11 @@
         else if(refInfo && refInfo.sans.length) plan = 'Your opponent\'s best answer is ' + refInfo.sans[0] + '.';
       }
       // a threat they already had that your move did not stop (checked on the board: same capture, still winning after your move)
-      if(!threat && !m.captured){
+      if(!threat){
+        var tinfo = threatOf(A, i);
+        if(tinfo) threat = 'Your opponent was already threatening ' + tinfo.san + ' (' + tinfo.what + ') before your move, and your move did not deal with it.';
+      }
+      if(!threat && !m.captured && !(A.thr && A.thr[i])){
         try{
           var thB = winsFor(fenB, opp).filter(function(x){ return x.free || x.net >= 2; }), thA = winsFor(fenA, opp);
           var still = thB.filter(function(x){ return x.to !== m.to && thA.some(function(y){ return y.from === x.from && y.to === x.to; }); })[0];
@@ -1379,23 +1403,12 @@
       var wt = null;
       try{ wt = window.__anPlus ? window.__anPlus.whyText(A, i, evB.best, evB.pv) : null; }catch(e){}
       better = {san:bestSan, text:wt || (cap(bd.text) + '. ' + reason), line:sanLine(fenB, evB.pv, 5)};
-      // the contrast with your move, only when the board proves it
+      // the contrast with your move: only when the engine proves the threat (see threatOf), your move cost at least 1.5 pawns,
+      // and the engine's move kept the evaluation (so it really did deal with that threat)
       try{
-        var cb = new Chess(fenB), mdone = cb.move({from:bm.from, to:bm.to, promotion:bm.promotion});
-        if(mdone){
-          var fenBest = cb.fen(), thB2 = winsFor(fenB, opp).filter(function(x){ return x.free || x.net >= 2; });
-          var thPlayed = winsFor(fenA, opp), thBest = winsFor(fenBest, opp), contrast = null;
-          var gone = thB2.filter(function(x){
-            return x.to !== bm.to && thPlayed.some(function(y){ return y.from === x.from && y.to === x.to; }) && !thBest.some(function(y){ return y.from === x.from && y.to === x.to; });
-          })[0];
-          if(gone) contrast = 'It stops the threat against your ' + NAMES[gone.piece] + ' on ' + gone.to + ' (' + gone.san + '), which your move left in place.';
-          else {
-            var left = thPlayed.filter(function(x){ return (x.free || x.net >= 2) && x.to === m.to; })[0];
-            if(left && !thBest.some(function(y){ return y.from === left.from && y.to === left.to; }) && !(bestInfo && bestInfo.net >= 1))
-              contrast = 'It does not leave a piece capturable, unlike your move, which let ' + left.san + ' win your ' + NAMES[left.piece] + ' on ' + left.to + '.';
-          }
-          if(contrast) better.text += ' ' + contrast;
-        }
+        var ti2 = threatOf(A, i), sgm = me === 'w' ? 1 : -1;
+        if(ti2 && S.cpBefore - S.cpAfter >= 150 && sgm * evB.cp >= S.cpBefore - 40)
+          better.text += ' With this move that threat (' + ti2.san + ') is no longer on, while your move left it in place.';
       }catch(e){ console.error('best move contrast failed', e); }
     }
 
@@ -1932,9 +1945,34 @@
           }catch(err){ console.warn('deep re-check failed', err); }
         }
       }
+      // "threat" pass: for each costly move of yours, ask the engine what your opponent would play if it were THEIR turn in the position before your move.
+      // The engine sees pins, overloaded defenders, checks and mates that a simple capture count cannot.
+      var thr = {};
+      if(eng.kind === 'stockfish'){
+        var sg1 = side === 'w' ? 1 : -1, cand = [], oppS = side === 'w' ? 'b' : 'w';
+        for(var q1 = 0; q1 < parsed.moves.length; q1++){
+          if(parsed.moves[q1].color !== side || isMate(ev[q1].cp)) continue;
+          var l1 = winPct(sg1 * ev[q1].cp) - winPct(sg1 * ev[q1 + 1].cp);
+          if(l1 >= 5) cand.push({i:q1, l:l1});
+        }
+        cand.sort(function(a, b){ return b.l - a.l; }); cand = cand.slice(0, 10);
+        var dl1 = Date.now() + 9000;
+        for(var z1 = 0; z1 < cand.length; z1++){
+          if(cancelFlag) throw new Error('Analysis cancelled.');
+          if(Date.now() > dl1) break;
+          var ti = cand[z1].i, tf = parsed.fens[ti];
+          try{
+            if(new Chess(tf).in_check()) continue;          // you were in check: the opponent cannot "pass"
+            setProg('Checking what your opponent was threatening (' + (z1 + 1) + ' of ' + cand.length + ')...', 94);
+            var tfen = flipTurn(tf, oppS);
+            if(new Chess(tfen).game_over()) continue;
+            thr[ti] = await evalFen(eng, tfen, 350, 1);
+          }catch(err){ if(/cancel/i.test(String(err && err.message))) throw err; console.warn('threat check failed', err); }
+        }
+      }
       setProg('Writing your report...', 99);
       try{ if(window.__anPlus && window.__anPlus.ready) await window.__anPlus.ready; }catch(e){}
-      A = build(parsed, ev, side, tc);
+      A = build(parsed, ev, side, tc, thr);
       A.engineKind = eng.kind; A.partialEngine = sfFail > 0; A.sel = 0; activeTab = 'board'; PR = null;
       setProg('', 0);
       renderInputBox(); renderResults();
