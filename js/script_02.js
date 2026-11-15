@@ -167,7 +167,12 @@ function getPending(uid){ try{ return localStorage.getItem(pendingKey(uid)); }ca
 function setPending(uid, name){ try{ localStorage.setItem(pendingKey(uid), name); }catch(e){} }
 function clearPending(uid){ try{ localStorage.removeItem(pendingKey(uid)); }catch(e){} }
 
+// Firebase can report the saved login before the later scripts (Double Move, Piece Auction, links...) have
+// finished loading. Starting the app at that point drew a half-built lobby until a reload, so wait for
+// every script on the page to run first (DOMContentLoaded fires after the last one).
+const APP_READY = document.readyState === 'loading' ? new Promise(res=>document.addEventListener('DOMContentLoaded', res, {once:true})) : Promise.resolve();
 auth.onAuthStateChanged(async (user)=>{
+  await APP_READY;
   if(signingUp) return; // doSignup drives its own flow while the account is being created
   stopPoll();
   if(user){
