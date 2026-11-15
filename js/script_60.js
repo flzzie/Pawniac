@@ -6,7 +6,7 @@
 (function(){
   var FILES = 'abcdefgh', PN = {p:'pawn', n:'knight', b:'bishop', r:'rook', q:'queen', k:'king'};
   var START = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
-  var E = {pieces:{}, turn:'w', cs:{K:1, Q:1, k:1, q:1}, flip:false, tool:null, busy:false, root:null, result:null, status:'', useTb:false};
+  var E = {pieces:{}, turn:'w', cs:{K:1, Q:1, k:1, q:1}, flip:false, tool:null, busy:false, root:null, result:null, status:''};
 
   function core(){ return window.__anCore; }
   function esc(s){ return String(s).replace(/[&<>"]/g, function(c){ return {'&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;'}[c]; }); }
@@ -137,18 +137,6 @@
     var d = Math.max(Math.abs(FILES.indexOf(ek.charAt(0)) - f), Math.abs(+ek.charAt(1) - last));
     return {pawn:sq, color:c, caught: turn === c ? d <= n : d <= n + 1};
   }
-  function pieceCount(fen){ return fen.split(' ')[0].replace(/[^a-zA-Z]/g, '').length; }
-  // Lichess' free endgame tablebase (7 pieces or fewer). Only the position is sent. Any failure just hides the line.
-  function tbLookup(fen){
-    if(pieceCount(fen) > 7 || typeof fetch !== 'function') return Promise.resolve(null);
-    var q = fen.split(' '); q[2] = '-'; q[3] = '-';
-    var ctl = (typeof AbortController === 'function') ? new AbortController() : null, to = setTimeout(function(){ if(ctl) ctl.abort(); }, 4000);
-    return fetch('https://tablebase.lichess.ovh/standard?fen=' + encodeURIComponent(q.join(' ')), ctl ? {signal:ctl.signal} : {})
-      .then(function(r){ clearTimeout(to); return r.ok ? r.json() : null; })
-      .then(function(j){ return j && j.category ? {category:j.category, dtm:(typeof j.dtm === 'number' ? j.dtm : null)} : null; })
-      .catch(function(){ clearTimeout(to); return null; });
-  }
-
   // ---------- exact king + pawn against king, computed here in the browser (no server) ----------
   // The same method chess engines use for their built-in KPK table: every position is solved once, backwards from the obvious wins and draws.
   var KPK = null;
@@ -184,6 +172,7 @@
         if(res !== UNK){ db[i] = res; changed = true; }
       }
     }
+    for(i = 0; i < N; i++) if(db[i] === UNK) db[i] = DRAW;   // neither side can force anything: a draw
     return db;
   }
   // result for the side with the pawn: 'win', 'draw', or null (not a legal position)
@@ -592,13 +581,6 @@
         }
       }catch(e){}
     }
-    if(R.tb && R.tb.category){
-      var cat = R.tb.category, who = name(turn), oth = name(op), tt = null;
-      if(cat === 'win') tt = who + ' is winning'; else if(cat === 'loss') tt = oth + ' is winning'; else if(cat === 'draw') tt = 'This is a draw with best play';
-      else if(cat === 'cursed-win') tt = who + ' wins in theory, but the 50-move rule turns it into a draw'; else if(cat === 'blessed-loss') tt = oth + ' wins in theory, but the 50-move rule saves a draw for ' + who;
-      if(tt && (cat === 'win' || cat === 'loss') && R.tb.dtm != null && R.tb.dtm !== 0) tt += ', checkmate in ' + Math.ceil(Math.abs(R.tb.dtm) / 2) + ' with best play';
-      if(tt) M.tb = tt + '.';
-    }
     return M;
   }
 
@@ -629,7 +611,6 @@
       '<div class="ps-evbar" title="' + esc(M.evalNum) + '"><div style="width:' + Math.round(M.pct) + '%"></div></div>' +
       '<div class="ps-evline">' + tag('engine') + ' <b>' + esc(M.evalText) + '</b> <span>' + (/^mate/.test(M.evalNum) ? '' : esc(M.evalNum)) + (M.depth ? (/^mate/.test(M.evalNum) ? '' : ' \u00b7 ') + 'search depth ' + M.depth : '') + '</span></div>' +
       '<p class="ps-sum">' + esc(M.summary) + '</p>';
-    if(M.tb) h += '<p class="ps-sum">' + tag('fact') + ' <b>Endgame tablebase:</b> ' + esc(M.tb) + ' <span class="ps-src">(from the free Lichess tablebase; only the position is sent to their server)</span></p>';
     if(M.keyFacts && M.keyFacts.length) h += '<h3 class="ps-h">Worth knowing</h3><ul class="ps-kf">' + M.keyFacts.map(function(x){ return '<li>' + tag(x.k) + ' ' + esc(x.t) + '</li>'; }).join('') + '</ul>';
     h += '<h3 class="ps-h">Side by side ' + tag('fact') + '</h3><div class="ps-tbl"><div class="ps-r ps-hd"><span></span><span>White</span><span>Black</span></div>' +
       M.rows.map(function(r){ return '<div class="ps-r"><span class="ps-l">' + esc(r.label) + '</span><span>' + esc(r.w) + '</span><span>' + esc(r.b) + '</span></div>' + (r.note ? '<div class="ps-note">' + esc(r.note) + '</div>' : ''); }).join('') + '</div>';
@@ -652,7 +633,6 @@
         '<div class="ps-row"><span>Castling</span>' + [['K', 'White short'], ['Q', 'White long'], ['k', 'Black short'], ['q', 'Black long']].map(function(c){ return '<label><input type="checkbox" data-cs="' + c[0] + '"' + (E.cs[c[0]] ? ' checked' : '') + '> ' + c[1] + '</label>'; }).join('') + '</div>' +
         '<div class="ps-row"><button class="secondary" id="psStart">Start position</button><button class="secondary" id="psClear">Clear board</button><button class="secondary" id="psFlip">Flip</button></div>' +
         '<div class="ps-row"><input id="psFen" type="text" spellcheck="false" placeholder="Paste a FEN here" value="' + esc(fen) + '"><button class="secondary" id="psLoad">Load</button></div>' +
-        '<div class="ps-row"><label><input type="checkbox" id="psTb"' + (E.useTb ? ' checked' : '') + '> Also check the online endgame tablebase for 7 pieces or fewer (this sends the position to Lichess)</label></div>' +
         '<div class="ps-row"><button id="psGo"' + (E.busy ? ' disabled' : '') + '>' + (E.busy ? 'Thinking...' : 'Explain this position') + '</button></div>' +
         '<div class="hint" id="psMsg">' + esc(E.status || '') + '</div>' +
       '</div></div></div>' + resultHtml(E.result);
@@ -675,7 +655,6 @@
     r.querySelector('#psFlip').onclick = function(){ E.flip = !E.flip; draw(); };
     r.querySelector('#psLoad').onclick = function(){ setFen(r.querySelector('#psFen').value); };
     r.querySelector('#psFen').onkeydown = function(e){ if(e.key === 'Enter') setFen(this.value); };
-    r.querySelector('#psTb').onchange = function(){ E.useTb = this.checked; };
     r.querySelector('#psGo').onclick = run;
   }
   function setFen(fen){
@@ -697,7 +676,6 @@
     try{
       var Z = core(), eng = await Z.getEngine(function(s){ E.status = s; var m = E.root && E.root.querySelector('#psMsg'); if(m) m.textContent = s; });
       E.status = 'Thinking about the position...'; var m2 = E.root && E.root.querySelector('#psMsg'); if(m2) m2.textContent = E.status;
-      var tbP = E.useTb ? tbLookup(fen) : Promise.resolve(null);
       var R = await Z.evalFen(eng, fen, 2500, 3);
       // what would the other side do with a free move? (only when the side to move is not in check)
       try{
@@ -706,7 +684,6 @@
           if(og.load(oppFen) && !og.game_over()){ E.status = 'Checking what the other side wants...'; var m3 = E.root && E.root.querySelector('#psMsg'); if(m3) m3.textContent = E.status; R.opp = await Z.evalFen(eng, oppFen, 1500, 1); }
         }
       }catch(e){ R.opp = null; }
-      R.tb = await tbP;
       E.result = understand(fen, R); E.status = '';
     }catch(e){
       console.error('position reading failed', e);
