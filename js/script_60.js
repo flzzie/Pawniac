@@ -6,7 +6,7 @@
 (function(){
   var FILES = 'abcdefgh', PN = {p:'pawn', n:'knight', b:'bishop', r:'rook', q:'queen', k:'king'};
   var START = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
-  var E = {pieces:{}, turn:'w', cs:{K:1, Q:1, k:1, q:1}, flip:false, tool:null, busy:false, root:null, result:null, status:''};
+  var E = {pieces:{}, turn:'w', cs:{K:1, Q:1, k:1, q:1}, flip:false, tool:null, busy:false, root:null, result:null, status:'', useTb:false};
 
   function core(){ return window.__anCore; }
   function esc(s){ return String(s).replace(/[&<>"]/g, function(c){ return {'&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;'}[c]; }); }
@@ -147,6 +147,143 @@
       .then(function(r){ clearTimeout(to); return r.ok ? r.json() : null; })
       .then(function(j){ return j && j.category ? {category:j.category, dtm:(typeof j.dtm === 'number' ? j.dtm : null)} : null; })
       .catch(function(){ clearTimeout(to); return null; });
+  }
+
+  // ---------- exact king + pawn against king, computed here in the browser (no server) ----------
+  // The same method chess engines use for their built-in KPK table: every position is solved once, backwards from the obvious wins and draws.
+  var KPK = null;
+  function kdist(a, b){ return Math.max(Math.abs((a & 7) - (b & 7)), Math.abs((a >> 3) - (b >> 3))); }
+  function kAtt(s){ var o = [], f = s & 7, r = s >> 3; for(var df = -1; df <= 1; df++) for(var dr = -1; dr <= 1; dr++){ if(!df && !dr) continue; var ff = f + df, rr = r + dr; if(ff >= 0 && ff < 8 && rr >= 0 && rr < 8) o.push(ff + 8 * rr); } return o; }
+  function pAtt(p){ var o = [], f = p & 7; if((p >> 3) < 7){ if(f > 0) o.push(p + 7); if(f < 7) o.push(p + 9); } return o; }
+  function kidx(stm, wk, bk, psq){ return wk | (bk << 6) | (stm << 12) | ((psq & 7) << 13) | ((6 - (psq >> 3)) << 15); }
+  function kpkBuild(){
+    var N = 196608, db = new Uint8Array(N), INV = 0, UNK = 1, DRAW = 2, WIN = 4, i;
+    function dec(ix){ return {wk:ix & 63, bk:(ix >> 6) & 63, stm:(ix >> 12) & 1, psq:((ix >> 13) & 3) + 8 * (6 - (ix >> 15))}; }
+    for(i = 0; i < N; i++){
+      var d = dec(i), wk = d.wk, bk = d.bk, ps = d.psq;
+      if(kdist(wk, bk) <= 1 || wk === ps || bk === ps || (d.stm === 0 && pAtt(ps).indexOf(bk) >= 0)) { db[i] = INV; continue; }
+      if(d.stm === 0 && (ps >> 3) === 6 && wk !== ps + 8 && (kdist(bk, ps + 8) > 1 || kdist(wk, ps + 8) === 1)){ db[i] = WIN; continue; }
+      if(d.stm === 1){
+        var wa = kAtt(wk), pa = pAtt(ps), free = kAtt(bk).filter(function(t){ return wa.indexOf(t) < 0 && pa.indexOf(t) < 0; });
+        if(!free.length || (kAtt(bk).indexOf(ps) >= 0 && wa.indexOf(ps) < 0)){ db[i] = DRAW; continue; }
+      }
+      db[i] = UNK;
+    }
+    var changed = true;
+    while(changed){
+      changed = false;
+      for(i = 0; i < N; i++){
+        if(db[i] !== UNK) continue;
+        var e = dec(i), r = 0, good = e.stm === 0 ? WIN : DRAW, bad = e.stm === 0 ? DRAW : WIN;
+        if(e.stm === 0){
+          kAtt(e.wk).forEach(function(t){ r |= db[kidx(1, t, e.bk, e.psq)]; });
+          if((e.psq >> 3) < 6) r |= db[kidx(1, e.wk, e.bk, e.psq + 8)];
+          if((e.psq >> 3) === 1 && e.psq + 8 !== e.wk && e.psq + 8 !== e.bk) r |= db[kidx(1, e.wk, e.bk, e.psq + 16)];
+        } else kAtt(e.bk).forEach(function(t){ r |= db[kidx(0, e.wk, t, e.psq)]; });
+        var res = (r & good) ? good : ((r & UNK) ? UNK : bad);
+        if(res !== UNK){ db[i] = res; changed = true; }
+      }
+    }
+    return db;
+  }
+  // result for the side with the pawn: 'win', 'draw', or null (not a legal position)
+  function kpkProbe(pawnColor, pawnSq, pawnKing, defKing, pawnSideToMove){
+    if(!KPK) KPK = kpkBuild();
+    function n(sq){ return FILES.indexOf(sq.charAt(0)) + 8 * (+sq.charAt(1) - 1); }
+    var ps = n(pawnSq), wk = n(pawnKing), bk = n(defKing);
+    if(pawnColor === 'b'){ ps ^= 56; wk ^= 56; bk ^= 56; }          // turn the board over so the pawn side moves up
+    if((ps & 7) > 3){ ps ^= 7; wk ^= 7; bk ^= 7; }                  // the table only stores files a to d
+    if((ps >> 3) < 1 || (ps >> 3) > 6) return null;
+    var v = KPK[kidx(pawnSideToMove ? 0 : 1, wk, bk, ps)];
+    return v === 4 ? 'win' : (v === 2 ? 'draw' : null);
+  }
+  // key squares: places where the pawn's king wins whoever moves, wherever the other king is (when it cannot simply take the pawn)
+  function kpkKeySquares(pawnColor, pawnSq){
+    var out = [], all = [], f, r;
+    for(f = 0; f < 8; f++) for(r = 1; r <= 8; r++) all.push(sqAt(f, r));
+    var pf = FILES.indexOf(pawnSq.charAt(0)), pr = +pawnSq.charAt(1);
+    all.forEach(function(s){
+      if(s === pawnSq) return;
+      var ok = true, seen = 0;
+      all.forEach(function(b){
+        if(!ok || b === s || b === pawnSq) return;
+        var bf = FILES.indexOf(b.charAt(0)), br = +b.charAt(1), sf = FILES.indexOf(s.charAt(0)), sr = +s.charAt(1);
+        if(Math.max(Math.abs(bf - sf), Math.abs(br - sr)) <= 1) return;               // kings cannot touch
+        if(Math.max(Math.abs(bf - pf), Math.abs(br - pr)) <= 1) return;               // the other king is already on the pawn: the textbook idea does not apply
+        var a = kpkProbe(pawnColor, pawnSq, s, b, true), c = kpkProbe(pawnColor, pawnSq, s, b, false);
+        if(a === null || c === null) return;
+        seen++; if(a !== 'win' || c !== 'win') ok = false;
+      });
+      if(ok && seen) out.push(s);
+    });
+    return out;
+  }
+
+  // ---------- known endgame patterns (rules of the board; the engine's number only confirms them) ----------
+  function sqColour(sq){ return (FILES.indexOf(sq.charAt(0)) + +sq.charAt(1)) % 2; }
+  function inventory(pcs){
+    var I = {w:{p:[], n:[], b:[], r:[], q:[], k:[]}, b:{p:[], n:[], b:[], r:[], q:[], k:[]}};
+    Object.keys(pcs).forEach(function(sq){ var q = pcs[sq]; I[q.color][q.type].push(sq); });
+    return I;
+  }
+  // does colour c have exactly these pieces (plus its king)?
+  function exactly(I, c, spec){ return ['p', 'n', 'b', 'r', 'q'].every(function(t){ return I[c][t].length === (spec[t] || 0); }); }
+  function endgameFacts(pcs, turn, cp, P, mateNow){
+    var out = [], I = inventory(pcs), tot = Object.keys(pcs).length, pawns = I.w.p.length + I.b.p.length;
+    function add(k, t){ out.push({k:k, t:t}); }
+    // king and pawn against king: solved exactly
+    if(tot === 3 && pawns === 1){
+      var pc = I.w.p.length ? 'w' : 'b', ps = I[pc].p[0], pk = I[pc].k[0], dk = I[other(pc)].k[0], res = kpkProbe(pc, ps, pk, dk, turn === pc);
+      if(res === 'win') add('fact', 'King and pawn against king, solved exactly: ' + name(pc) + ' wins with best play.');
+      else if(res === 'draw') add('fact', 'King and pawn against king, solved exactly: this is a draw with best play. The pawn cannot be forced through.');
+      var ks = kpkKeySquares(pc, ps);
+      if(ks.length) add('fact', 'Key squares for the pawn on ' + ps + ': ' + ks.join(', ') + '. If the ' + name(pc).toLowerCase() + ' king gets to one of them, the pawn promotes whoever is to move.' + (ks.indexOf(pk) >= 0 ? ' The king is already on one.' : ''));
+    }
+    // opposition (only kings and pawns on the board)
+    if(tot === pawns + 2){
+      var wk = I.w.k[0], bk = I.b.k[0], wf = FILES.indexOf(wk.charAt(0)), bf = FILES.indexOf(bk.charAt(0)), wr = +wk.charAt(1), br = +bk.charAt(1), df = Math.abs(wf - bf), dr = Math.abs(wr - br), kind = null, clear = true, st, j;
+      if(wf === bf && [2, 4, 6].indexOf(dr) >= 0){ kind = dr; st = Math.min(wr, br); for(j = 1; j < dr; j++) if(pcs[sqAt(wf, st + j)]) clear = false; }
+      else if(wr === br && [2, 4, 6].indexOf(df) >= 0){ kind = df; st = Math.min(wf, bf); for(j = 1; j < df; j++) if(pcs[sqAt(st + j, wr)]) clear = false; }
+      if(kind && clear) add('fact', name(other(turn)) + ' has the ' + (kind === 2 ? 'direct' : 'distant') + ' opposition: the kings face each other with an odd number of squares between them and ' + name(turn) + ' has to move, so ' + name(turn) + ' must give way.');
+    }
+    // opposite-coloured bishops
+    if(I.w.b.length === 1 && I.b.b.length === 1 && sqColour(I.w.b[0]) !== sqColour(I.b.b[0])){
+      add('fact', 'Opposite-coloured bishops: each side has one bishop and they move on different colours, so neither can ever challenge the other.');
+      if(!['n', 'r', 'q'].some(function(t){ return I.w[t].length + I.b[t].length > 0; })) add('advice', 'With only these bishops and pawns left, such endings are drawn surprisingly often, even a pawn or two down. The side that is behind should try to keep it that way.');
+    }
+    // dead draws and textbook patterns
+    ['w', 'b'].forEach(function(A){
+      var D = other(A), sgn = A === 'w' ? 1 : -1;
+      if(exactly(I, A, {n:2}) && exactly(I, D, {})) add('fact', 'Two knights cannot force checkmate against a lone king: it only happens if the defender blunders. With correct play this is a draw.');
+      if(exactly(I, A, {r:1}) && (exactly(I, D, {b:1}) || exactly(I, D, {n:1})) && Math.abs(cp) <= 60) add('advice', 'A rook against a bishop or a knight is normally a draw: the side with the minor piece should avoid being forked or trapped near the edge.');
+      if(exactly(I, A, {b:1, p:1}) && exactly(I, D, {})){
+        var bp = I[A].p[0], bf2 = bp.charAt(0), prom2 = A === 'w' ? 8 : 1;
+        if((bf2 === 'a' || bf2 === 'h') && sqColour(I[A].b[0]) !== sqColour(bf2 + prom2) && Math.abs(cp) <= 60) add('fact', 'Wrong-coloured bishop with a rook pawn: the bishop cannot cover the pawn\'s promotion square, so the defender draws by getting the king into that corner. The engine agrees that it is a draw.');
+      }
+      if(exactly(I, A, {r:1, p:1}) && exactly(I, D, {r:1})){
+        var ps2 = I[A].p[0], pf2 = FILES.indexOf(ps2.charAt(0)), pr2 = +ps2.charAt(1), ak = I[A].k[0], dk2 = I[D].k[0], ar = I[A].r[0], dr2 = I[D].r[0];
+        var seventh = A === 'w' ? 7 : 2, prom = A === 'w' ? 8 : 1, sixth = A === 'w' ? 6 : 3;
+        // Lucena: pawn on the 7th, its king on the queening square, the defending king cut off by at least a file with the rook in between
+        if(pf2 >= 1 && pf2 <= 6 && pr2 === seventh && ak === FILES.charAt(pf2) + prom){
+          var dkf = FILES.indexOf(dk2.charAt(0)), arf = FILES.indexOf(ar.charAt(0));
+          if(Math.abs(dkf - pf2) >= 2 && Math.min(pf2, dkf) < arf && arf < Math.max(pf2, dkf) && sgn * cp >= 150){
+            add('fact', 'This is a Lucena position, the most famous winning rook ending: ' + name(A) + ' has the pawn on the 7th, its king on the queening square and the defending king cut off. The engine agrees it is winning.');
+            add('advice', 'The usual winning method is to build a bridge: bring the rook to the 4th rank, walk the king out to the side, and use the rook to shield it from checks.');
+          }
+        }
+        // Philidor: defending king on the queening rank, defending rook on the 6th rank, pawn not yet on the 6th
+        var pawnBack = A === 'w' ? pr2 <= 5 : pr2 >= 4, akBack = A === 'w' ? +ak.charAt(1) <= 5 : +ak.charAt(1) >= 4;
+        if(pawnBack && akBack && +dk2.charAt(1) === prom && Math.abs(FILES.indexOf(dk2.charAt(0)) - pf2) <= 1 && +dr2.charAt(1) === sixth && Math.abs(cp) <= 60){
+          add('fact', 'This is a Philidor position, the standard drawing set-up in rook endings: ' + name(D) + ' keeps the rook on the 6th rank and the king on the back rank. The engine agrees it is a draw.');
+          add('advice', 'Keep the rook on the 6th rank until the pawn moves there, then switch to checking from behind.');
+        }
+      }
+    });
+    // material up but the engine still sees a draw: the extra material is shut out (a fortress) or the other side has compensation
+    var md = P.w.mat - P.b.mat;
+    if(!mateNow && Math.abs(md) >= 3 && Math.abs(cp) <= 50 && out.every(function(x){ return !/draw|Wrong|Philidor/.test(x.t); }))
+      add('engine', name(md > 0 ? 'w' : 'b') + ' is up ' + Math.abs(md) + ' points of material, but the engine still rates the position as roughly equal. The extra material is not getting through: look for a fortress, a blocked position or real compensation.');
+    return out;
   }
 
   // ---------- reading the position ----------
@@ -432,18 +569,19 @@
     M.depth = R.depth || 0;
     M.keyFacts = [];
     try{
-      var me0 = new Chess(fen); if(me0.in_check()) M.keyFacts.push(name(turn) + ' is in check.');
+      var me0 = new Chess(fen); if(me0.in_check()) M.keyFacts.push({k:'fact', t:name(turn) + ' is in check.'});
       var sr = squareRule(pcs, turn);
       if(sr){
         var pc = name(sr.color), dk = name(other(sr.color));
-        M.keyFacts.push(sr.caught ? 'Square rule: if the ' + pc.toLowerCase() + ' pawn on ' + sr.pawn + ' simply runs, the ' + dk.toLowerCase() + ' king is in time to catch it.' : 'Square rule: the ' + dk.toLowerCase() + ' king cannot catch the ' + pc.toLowerCase() + ' pawn on ' + sr.pawn + ', so it promotes.');
+        M.keyFacts.push({k:'fact', t:sr.caught ? 'Square rule: if the ' + pc.toLowerCase() + ' pawn on ' + sr.pawn + ' simply runs, the ' + dk.toLowerCase() + ' king is in time to catch it.' : 'Square rule: the ' + dk.toLowerCase() + ' king cannot catch the ' + pc.toLowerCase() + ' pawn on ' + sr.pawn + ', so it promotes.'});
       }
       if(sign * cp >= 200){   // the side to move is clearly ahead: a stalemate would throw it away
         var tg = new Chess(fen), traps = [];
         tg.moves({verbose:true}).forEach(function(m){ tg.move({from:m.from, to:m.to, promotion:m.promotion}); if(tg.in_stalemate()) traps.push(m.san); tg.undo(); });
-        if(traps.length) M.keyFacts.push('Careful: ' + traps.slice(0, 4).join(' or ') + ' would be stalemate, which only draws the game.');
+        if(traps.length) M.keyFacts.push({k:'fact', t:'Careful: ' + traps.slice(0, 4).join(' or ') + ' would be stalemate, which only draws the game.'});
       }
     }catch(e){}
+    try{ endgameFacts(pcs, turn, cp, P, mateNow).forEach(function(x){ M.keyFacts.push(x); }); }catch(e){ console.error('endgame facts failed', e); }
     if(R.opp && R.opp.best){
       try{
         var oppFen = Z.flipTurn(fen, op), om = Z.tryMove(oppFen, R.opp.best);
@@ -492,7 +630,7 @@
       '<div class="ps-evline">' + tag('engine') + ' <b>' + esc(M.evalText) + '</b> <span>' + (/^mate/.test(M.evalNum) ? '' : esc(M.evalNum)) + (M.depth ? (/^mate/.test(M.evalNum) ? '' : ' \u00b7 ') + 'search depth ' + M.depth : '') + '</span></div>' +
       '<p class="ps-sum">' + esc(M.summary) + '</p>';
     if(M.tb) h += '<p class="ps-sum">' + tag('fact') + ' <b>Endgame tablebase:</b> ' + esc(M.tb) + ' <span class="ps-src">(from the free Lichess tablebase; only the position is sent to their server)</span></p>';
-    if(M.keyFacts && M.keyFacts.length) h += '<h3 class="ps-h">Worth knowing ' + tag('fact') + '</h3><ul class="ps-kf">' + M.keyFacts.map(function(t){ return '<li>' + esc(t) + '</li>'; }).join('') + '</ul>';
+    if(M.keyFacts && M.keyFacts.length) h += '<h3 class="ps-h">Worth knowing</h3><ul class="ps-kf">' + M.keyFacts.map(function(x){ return '<li>' + tag(x.k) + ' ' + esc(x.t) + '</li>'; }).join('') + '</ul>';
     h += '<h3 class="ps-h">Side by side ' + tag('fact') + '</h3><div class="ps-tbl"><div class="ps-r ps-hd"><span></span><span>White</span><span>Black</span></div>' +
       M.rows.map(function(r){ return '<div class="ps-r"><span class="ps-l">' + esc(r.label) + '</span><span>' + esc(r.w) + '</span><span>' + esc(r.b) + '</span></div>' + (r.note ? '<div class="ps-note">' + esc(r.note) + '</div>' : ''); }).join('') + '</div>';
     h += '<h3 class="ps-h">Plans ' + tag('advice') + '</h3><div class="ps-plans">' + ['w', 'b'].map(function(c){ return '<div><b>' + name(c) + (c === M.turn ? ' (to move)' : '') + '</b><ul>' + M.plans[c].map(function(t){ return '<li>' + esc(t) + '</li>'; }).join('') + '</ul></div>'; }).join('') + '</div>';
@@ -514,6 +652,7 @@
         '<div class="ps-row"><span>Castling</span>' + [['K', 'White short'], ['Q', 'White long'], ['k', 'Black short'], ['q', 'Black long']].map(function(c){ return '<label><input type="checkbox" data-cs="' + c[0] + '"' + (E.cs[c[0]] ? ' checked' : '') + '> ' + c[1] + '</label>'; }).join('') + '</div>' +
         '<div class="ps-row"><button class="secondary" id="psStart">Start position</button><button class="secondary" id="psClear">Clear board</button><button class="secondary" id="psFlip">Flip</button></div>' +
         '<div class="ps-row"><input id="psFen" type="text" spellcheck="false" placeholder="Paste a FEN here" value="' + esc(fen) + '"><button class="secondary" id="psLoad">Load</button></div>' +
+        '<div class="ps-row"><label><input type="checkbox" id="psTb"' + (E.useTb ? ' checked' : '') + '> Also check the online endgame tablebase for 7 pieces or fewer (this sends the position to Lichess)</label></div>' +
         '<div class="ps-row"><button id="psGo"' + (E.busy ? ' disabled' : '') + '>' + (E.busy ? 'Thinking...' : 'Explain this position') + '</button></div>' +
         '<div class="hint" id="psMsg">' + esc(E.status || '') + '</div>' +
       '</div></div></div>' + resultHtml(E.result);
@@ -536,6 +675,7 @@
     r.querySelector('#psFlip').onclick = function(){ E.flip = !E.flip; draw(); };
     r.querySelector('#psLoad').onclick = function(){ setFen(r.querySelector('#psFen').value); };
     r.querySelector('#psFen').onkeydown = function(e){ if(e.key === 'Enter') setFen(this.value); };
+    r.querySelector('#psTb').onchange = function(){ E.useTb = this.checked; };
     r.querySelector('#psGo').onclick = run;
   }
   function setFen(fen){
@@ -557,7 +697,7 @@
     try{
       var Z = core(), eng = await Z.getEngine(function(s){ E.status = s; var m = E.root && E.root.querySelector('#psMsg'); if(m) m.textContent = s; });
       E.status = 'Thinking about the position...'; var m2 = E.root && E.root.querySelector('#psMsg'); if(m2) m2.textContent = E.status;
-      var tbP = tbLookup(fen);
+      var tbP = E.useTb ? tbLookup(fen) : Promise.resolve(null);
       var R = await Z.evalFen(eng, fen, 2500, 3);
       // what would the other side do with a free move? (only when the side to move is not in check)
       try{
