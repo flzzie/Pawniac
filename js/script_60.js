@@ -110,29 +110,22 @@
   function kingText(P, c, rights){
     var k = P[c].king, home = c === 'w' ? 1 : 8, dir = c === 'w' ? 1 : -1;
     if(P.phase === 'endgame'){
+      // in an endgame the king is judged by where it stands, not by pawn cover
       var d = Math.max(Math.abs(k.f - 3.5), Math.abs(k.r - 4.5));
-      return d <= 2 ? 'active, near the centre' : 'far from the centre (it should head there)';
+      return {text:'on ' + k.sq, risk:false, castled:false, canC:false, shield:0, openNear:[], far:d > 2};
     }
-    var shield = 0;
-    for(var df = -1; df <= 1; df++){ var ff = k.f + df; if(ff < 0 || ff > 7) continue; if(P[c].pawns.some(function(p){ return p.f === ff && (p.r - k.r) * dir >= 1 && (p.r - k.r) * dir <= 2; })) shield++; }
+    var shield = 0, nf = 0;
+    for(var df = -1; df <= 1; df++){ var ff = k.f + df; if(ff < 0 || ff > 7) continue; nf++; if(P[c].pawns.some(function(p){ return p.f === ff && (p.r - k.r) * dir >= 1 && (p.r - k.r) * dir <= 2; })) shield++; }
     var castled = k.r === home && (k.f >= 6 || k.f <= 2);
     var canC = (c === 'w' ? /[KQ]/ : /[kq]/).test(rights);
     var openNear = [k.f - 1, k.f, k.f + 1].filter(function(f){ return f >= 0 && f <= 7 && P.open.indexOf(f) >= 0; });
-    var s;
-    if(castled) s = shield >= 2 ? 'safe: castled with pawn cover' : 'castled, but the pawn cover is thin';
-    else if(canC) s = 'still in the centre, can castle';
-    else if(k.r === home) s = 'stuck in the centre and cannot castle any more';
-    else s = 'walked out from its home rank';
+    var s;   // plain facts only: where the king is, whether it can castle, how many pawns stand in front of it
+    if(castled) s = 'castled ' + (k.f >= 6 ? 'short' : 'long') + ', pawns in front on ' + shield + ' of ' + nf + ' files';
+    else if(canC) s = 'on ' + k.sq + ', can still castle';
+    else if(k.r === home) s = 'on ' + k.sq + ', cannot castle any more';
+    else s = 'off its home rank, on ' + k.sq;
     if(openNear.length) s += '; open ' + fileList(openNear) + '-file next to it';
     return {text:s, risk:(!castled && !canC && k.r === home) || (castled && shield <= 1) || openNear.length > 0, castled:castled, canC:canC, shield:shield, openNear:openNear};
-  }
-  function mobility(fen, c){
-    try{
-      var o = new Chess(); if(!o.load(core().flipTurn(fen, other(c)))) return null;
-      if(o.in_check()) return null;                  // the other side is in check: counting for the first side would be wrong
-      var t = new Chess(); if(!t.load(core().flipTurn(fen, c))) return null;
-      return t.moves().length;
-    }catch(e){ return null; }
   }
   // pieces `c` could win right now (as if it were their move), counting recaptures
   function wins(fen, c){
@@ -183,7 +176,6 @@
     var Z = core(), turn = fen.split(' ')[1], rights = fen.split(' ')[2] || '-', P = scan(fen), cp = R.cp, mv = turn, op = other(turn);
     var M = {fen:fen, turn:turn, cp:cp, evalText:evalWords(cp), evalNum:fmtEval(cp), pct:Z.winPct(cp), phase:P.phase};
     var K = {w:kingText(P, 'w', rights), b:kingText(P, 'b', rights)};
-    var mob = {w:mobility(fen, 'w'), b:mobility(fen, 'b')};
     var W = {w:wins(fen, 'w'), b:wins(fen, 'b')};
     var bp = {w:P.w.cnt.b >= 2, b:P.b.cnt.b >= 2};
 
@@ -193,7 +185,7 @@
       if(o.isolated.length) bits.push('isolated: ' + sqList(o.isolated));
       if(o.doubled.length) bits.push('doubled: ' + fileList(o.doubled) + '-file');
       if(o.passed.length) bits.push('passed: ' + sqList(o.passed));
-      return bits.length ? bits.join('; ') : (o.pawns.length ? 'healthy' : 'no pawns');
+      return bits.length ? bits.join('; ') : (o.pawns.length ? 'no isolated, doubled or passed pawns' : 'no pawns');
     }
     function rooksText(c){
       var o = P[c], s = [];
@@ -207,15 +199,14 @@
       return s.length ? s.join('; ') : (rooks.length || o.cnt.q ? 'nothing special' : '-');
     }
     M.rows = [
-      {label:'Material', w:plural(P.w.mat, 'point'), b:plural(P.b.mat, 'point'), note:materialText(P) + '.'},
-      {label:'King', w:K.w.text || K.w, b:K.b.text || K.b},
-      {label:'Pawns', w:pawnsText('w'), b:pawnsText('b')},
-      {label:'Pieces', w:rooksText('w'), b:rooksText('b')}
+      {label:'Material', kind:'fact', w:plural(P.w.mat, 'point'), b:plural(P.b.mat, 'point'), note:materialText(P) + '.'},
+      {label:'King', kind:'fact', w:K.w.text, b:K.b.text},
+      {label:'Pawns', kind:'fact', w:pawnsText('w'), b:pawnsText('b')},
+      {label:'Pieces', kind:'fact', w:rooksText('w'), b:rooksText('b')}
     ];
-    if(mob.w != null && mob.b != null) M.rows.push({label:'Activity', w:mob.w + ' legal moves', b:mob.b + ' legal moves', note:Math.max(mob.w, mob.b) >= 1.3 * Math.min(mob.w, mob.b) + 3 ? name(mob.w > mob.b ? 'w' : 'b') + ' has more room for its pieces.' : ''});
     if(P.phase === 'opening'){
-      function dev(c){ var minors = P[c].pieces.filter(function(x){ return x.type === 'n' || x.type === 'b'; }), home = c === 'w' ? 1 : 8; var back = minors.filter(function(x){ return x.r === home; }).length; return (minors.length - back) + ' of ' + minors.length + ' minor pieces developed'; }
-      M.rows.push({label:'Development', w:dev('w'), b:dev('b')});
+      function dev(c){ var minors = P[c].pieces.filter(function(x){ return x.type === 'n' || x.type === 'b'; }), home = c === 'w' ? 1 : 8; var back = minors.filter(function(x){ return x.r === home; }).length; return (minors.length - back) + ' of ' + minors.length + ' minor pieces off their starting squares'; }
+      M.rows.push({label:'Development', kind:'fact', w:dev('w'), b:dev('b')});
     }
 
     // ---- plans ----
@@ -241,7 +232,7 @@
       if(e.passed.length){ var ep = e.passed.sort(function(a, b){ return other(c) === 'w' ? b.r - a.r : a.r - b.r; })[0]; ps.push('Stop the passed pawn on ' + ep.sq + ': put a piece in front of it.'); }
       if(P.phase !== 'endgame' && ek.risk && o.cnt.q) ps.push('Go after the enemy king: it is exposed, so open lines near it.');
       if(P.phase !== 'endgame' && mk.risk) ps.push('Make your own king safer before starting anything.');
-      if(P.phase === 'endgame' && /far from/.test(mk.text)) ps.push('Bring the king towards the centre: in an endgame it is a fighting piece.');
+      if(P.phase === 'endgame' && mk.far) ps.push('Bring the king towards the centre: in an endgame it is a fighting piece.');
       if(bp[c] && !bp[other(c)]) ps.push('Open the position with pawn breaks so the two bishops can work.');
       var d = (c === 'w' ? 1 : -1) * (P.w.mat - P.b.mat);
       if(d >= 2) ps.push('You are ahead: trade pieces (not pawns) and keep things simple.');
@@ -269,30 +260,30 @@
       }
       return out.join(' ');
     }
+    // each reason says only what the rules or the engine line prove; kind is 'fact' (about the move itself) or 'engine' (from the search)
     function reason(m, pvNet, cpSelf, weak){
       var sign = turn === 'w' ? 1 : -1, home = turn === 'w' ? 1 : 8;
-      if(Math.abs(cpSelf) >= 9000 && sign * cpSelf > 0) return 'Forces checkmate.';
-      if(/#$/.test(m.san)) return 'Checkmate.';
-      if(m.promotion) return 'Promotes the pawn.';
-      if(weak) return 'This gives up much of the advantage compared with the best move.';
-      if(pvNet >= 0.8) return 'Wins material' + (m.captured ? ': it takes the ' + pieceWord(m.captured) + ' on ' + m.to : '') + '.';
-      if(/[kq]/.test(m.flags)) return 'Castles: the king gets safe and a rook joins the game.';
+      if(Math.abs(cpSelf) >= 9000 && sign * cpSelf > 0) return {t:'Forces checkmate.', k:'engine'};
+      if(/#$/.test(m.san)) return {t:'Checkmate.', k:'fact'};
+      if(m.promotion) return {t:'Promotes the pawn.', k:'fact'};
+      if(weak) return {t:'This gives up much of the advantage compared with the best move.', k:'engine'};
+      if(pvNet >= 0.8) return {t:'Wins material' + (m.captured ? ': it takes the ' + pieceWord(m.captured) + ' on ' + m.to : '') + '.', k:'engine'};
+      if(/[kq]/.test(m.flags)) return {t:'Castles.', k:'fact'};
       var fromR = +m.from.charAt(1);
-      if(m.captured) return 'Takes the ' + pieceWord(m.captured) + ' on ' + m.to + (m.captured === 'p' ? '.' : ' and keeps the balance.');
-      if(/\+$/.test(m.san)) return 'Gives check and keeps the initiative.';
-      if(P.phase === 'opening' && (m.piece === 'n' || m.piece === 'b') && fromR === home) return 'Develops the ' + pieceWord(m.piece) + '.';
-      if(m.piece === 'r' && P.open.indexOf(FILES.indexOf(m.to.charAt(0))) >= 0) return 'Puts the rook on the open ' + m.to.charAt(0) + '-file.';
-      if(m.piece === 'p' && P[turn].passed.some(function(p){ return p.sq === m.from; })) return 'Pushes the passed pawn.';
-      if(m.piece === 'p' && P.phase === 'opening' && /[de]/.test(m.to.charAt(0))) return 'Takes space in the centre.';
-      if(m.piece === 'k' && P.phase === 'endgame') return 'Activates the king.';
-      return 'A quiet move that improves the position.';
+      if(m.captured) return {t:'Takes the ' + pieceWord(m.captured) + ' on ' + m.to + '.', k:'fact'};
+      if(/\+$/.test(m.san)) return {t:'Gives check.', k:'fact'};
+      if(P.phase === 'opening' && (m.piece === 'n' || m.piece === 'b') && fromR === home) return {t:'Develops the ' + pieceWord(m.piece) + '.', k:'fact'};
+      if(m.piece === 'r' && P.open.indexOf(FILES.indexOf(m.to.charAt(0))) >= 0) return {t:'Puts the rook on the open ' + m.to.charAt(0) + '-file.', k:'fact'};
+      if(m.piece === 'p' && P[turn].passed.some(function(p){ return p.sq === m.from; })) return {t:'Pushes the passed pawn.', k:'fact'};
+      return {t:'', k:'fact'};   // nothing provable to say: show the move, its evaluation and the engine line only
     }
     var cands = [{uci:R.best, cp:R.cp, pv:R.pv}].concat((R.alts || []).map(function(a){ return {uci:a.best, cp:a.cp, pv:a.pv}; })), sign = turn === 'w' ? 1 : -1;
     M.moves = cands.map(function(cd, i){
       var m = cd.uci ? Z.tryMove(fen, cd.uci) : null;
       if(!m) return null;
       var info = null; try{ info = Z.pvInfo(fen, cd.pv && cd.pv.length ? cd.pv : [cd.uci], 4, turn); }catch(e){}
-      return {rank:i + 1, san:m.san, evalNum:fmtEval(cd.cp), reason:reason(m, info ? info.net : 0, cd.cp, i > 0 && Math.abs(R.cp) < 9000 && sign * (R.cp - cd.cp) >= 150 || i > 0 && Math.abs(R.cp) >= 9000), line:lineSans(cd.pv && cd.pv.length ? cd.pv : [cd.uci]),
+      var rs = reason(m, info ? info.net : 0, cd.cp, i > 0 && Math.abs(R.cp) < 9000 && sign * (R.cp - cd.cp) >= 150 || i > 0 && Math.abs(R.cp) >= 9000);
+      return {rank:i + 1, san:m.san, evalNum:fmtEval(cd.cp), reason:rs.t, rk:rs.k, line:lineSans(cd.pv && cd.pv.length ? cd.pv : [cd.uci]),
               worse:i === 0 ? 0 : (Math.abs(R.cp) >= 9000 || Math.abs(cd.cp) >= 9000 ? 99 : Math.max(0, sign * (R.cp - cd.cp) / 100))};
     }).filter(Boolean);
 
@@ -302,14 +293,14 @@
     if(W[mv].length && W[mv][0].gain >= 1.5) facts.push(name(mv) + ' can win the ' + pieceWord(W[mv][0].piece) + ' on ' + W[mv][0].sq + ' right away.');
     if(W[op].length && W[op][0].gain >= 1.5) facts.push(name(op) + ' is threatening to win the ' + pieceWord(W[op][0].piece) + ' on ' + W[op][0].sq + '.');
     if(P.w.mat !== P.b.mat) facts.push(materialText(P) + '.');
-    ['w', 'b'].forEach(function(c){ if(P.phase !== 'endgame' && K[c].risk && (K[c].canC === false || K[c].shield <= 1)) facts.push(name(c) + "'s king is a weak spot: " + K[c].text + '.'); });
+    ['w', 'b'].forEach(function(c){ if(P.phase !== 'endgame' && K[c].risk && (K[c].canC === false || K[c].shield <= 1)) facts.push(name(c) + "'s king: " + K[c].text + '.'); });
     ['w', 'b'].forEach(function(c){ if(P[c].passed.length) facts.push(name(c) + ' has a passed pawn on ' + P[c].passed[0].sq + '.'); });
     ['w', 'b'].forEach(function(c){ if(P[c].isolated.length) facts.push(name(c) + ' has an isolated pawn on ' + P[c].isolated[0].sq + '.'); });
     }
     if(!facts.length && !mateNow) facts.push('Neither side has a clear structural edge, so piece placement decides.');
     M.facts = facts.slice(0, 3);
     var top = M.moves[0];
-    M.summary = name(turn) + ' to move. ' + M.evalText + (Math.abs(R.cp) >= 9000 ? '. ' : ' (' + M.evalNum + '). ') + M.facts.join(' ') + (top ? ' The best move is ' + top.san + ': ' + top.reason.charAt(0).toLowerCase() + top.reason.slice(1) : '');
+    M.summary = name(turn) + ' to move. ' + M.evalText + (Math.abs(R.cp) >= 9000 ? '. ' : ' (' + M.evalNum + '). ') + M.facts.join(' ') + (top ? ' The best move is ' + top.san + (top.reason ? ': ' + top.reason.charAt(0).toLowerCase() + top.reason.slice(1) : '.') : '');
     return M;
   }
 
@@ -333,19 +324,20 @@
     return '<div class="ps-pal">' + TOOLS.map(function(t){ return '<button class="ps-tool' + (E.tool === t ? ' on' : '') + '" data-tool="' + t + '" title="' + (t.charAt(0) === 'w' ? 'White ' : 'Black ') + PN[t.charAt(1)] + '"><img alt="" src="' + pieceImgUrl(t.charAt(0), t.charAt(1)) + '"></button>'; }).join('') +
       '<button class="ps-tool' + (E.tool === 'x' ? ' on' : '') + '" data-tool="x" title="Remove a piece">&#10005;</button></div>';
   }
+  function tag(k){ return '<span class="ps-tag ps-' + k + '">' + (k === 'fact' ? 'Fact' : k === 'engine' ? 'Engine' : 'Advice') + '</span>'; }
   function resultHtml(M){
     if(!M) return '';
     var h = '<div class="card ps-res"><h2>What this position is about</h2>' +
       '<div class="ps-evbar" title="' + esc(M.evalNum) + '"><div style="width:' + Math.round(M.pct) + '%"></div></div>' +
-      '<div class="ps-evline"><b>' + esc(M.evalText) + '</b> <span>' + (/^mate/.test(M.evalNum) ? '' : esc(M.evalNum)) + '</span></div>' +
+      '<div class="ps-evline">' + tag('engine') + ' <b>' + esc(M.evalText) + '</b> <span>' + (/^mate/.test(M.evalNum) ? '' : esc(M.evalNum)) + '</span></div>' +
       '<p class="ps-sum">' + esc(M.summary) + '</p>';
-    h += '<h3 class="ps-h">Side by side</h3><div class="ps-tbl"><div class="ps-r ps-hd"><span></span><span>White</span><span>Black</span></div>' +
+    h += '<h3 class="ps-h">Side by side ' + tag('fact') + '</h3><div class="ps-tbl"><div class="ps-r ps-hd"><span></span><span>White</span><span>Black</span></div>' +
       M.rows.map(function(r){ return '<div class="ps-r"><span class="ps-l">' + esc(r.label) + '</span><span>' + esc(r.w) + '</span><span>' + esc(r.b) + '</span></div>' + (r.note ? '<div class="ps-note">' + esc(r.note) + '</div>' : ''); }).join('') + '</div>';
-    h += '<h3 class="ps-h">Plans</h3><div class="ps-plans">' + ['w', 'b'].map(function(c){ return '<div><b>' + name(c) + (c === M.turn ? ' (to move)' : '') + '</b><ul>' + M.plans[c].map(function(t){ return '<li>' + esc(t) + '</li>'; }).join('') + '</ul></div>'; }).join('') + '</div>';
-    h += '<h3 class="ps-h">Best moves</h3>' + M.moves.map(function(m){
-      return '<div class="ps-mv"><div class="ps-mvh"><b>' + m.rank + '. ' + esc(m.san) + '</b> <span>' + esc(m.evalNum) + '</span>' + (m.worse >= 0.15 && m.worse < 20 ? '<em>about ' + m.worse.toFixed(1) + ' pawns less accurate than the best</em>' : '') + '</div><div>' + esc(m.reason) + '</div><div class="ps-line">' + esc(m.line) + '</div></div>';
+    h += '<h3 class="ps-h">Plans ' + tag('advice') + '</h3><div class="ps-plans">' + ['w', 'b'].map(function(c){ return '<div><b>' + name(c) + (c === M.turn ? ' (to move)' : '') + '</b><ul>' + M.plans[c].map(function(t){ return '<li>' + esc(t) + '</li>'; }).join('') + '</ul></div>'; }).join('') + '</div>';
+    h += '<h3 class="ps-h">Best moves ' + tag('engine') + '</h3>' + M.moves.map(function(m){
+      return '<div class="ps-mv"><div class="ps-mvh"><b>' + m.rank + '. ' + esc(m.san) + '</b> <span>' + esc(m.evalNum) + '</span>' + (m.worse >= 0.15 && m.worse < 20 ? '<em>about ' + m.worse.toFixed(1) + ' pawns less accurate than the best</em>' : '') + '</div>' + (m.reason ? '<div>' + tag(m.rk || 'fact') + ' ' + esc(m.reason) + '</div>' : '') + '<div class="ps-line">' + esc(m.line) + '</div></div>';
     }).join('');
-    h += '<p class="hint" style="margin-top:12px;">The evaluation comes from Stockfish. The plans and move reasons are rule-based advice, so treat them as a starting point.</p></div>';
+    h += '<p class="hint" style="margin-top:12px;"><b>Fact</b>: counted from the board or settled by the rules, so it is certain. <b>Engine</b>: from the Stockfish search; strong, but it can change with deeper search. <b>Advice</b>: general rules of thumb, a starting point and not a proof.</p></div>';
     return h;
   }
   function draw(){

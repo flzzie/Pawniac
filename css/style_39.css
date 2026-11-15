@@ -39,3 +39,7 @@
 .ps-mvh em{font-size:12px;opacity:.75;}
 .ps-line{margin-top:4px;font-family:monospace;font-size:12px;opacity:.7;}
 @media(max-width:560px){.ps-plans{grid-template-columns:1fr;}.ps-r{grid-template-columns:70px 1fr 1fr;}}
+.ps-tag{display:inline-block;margin-left:6px;padding:1px 6px;border-radius:9px;font-size:10.5px;font-weight:700;letter-spacing:.03em;text-transform:none;vertical-align:middle;border:1px solid transparent;opacity:1;}
+.ps-tag.ps-fact{background:rgba(63,163,137,.18);color:#4fb59a;border-color:rgba(63,163,137,.45);}
+.ps-tag.ps-engine{background:rgba(120,150,210,.18);color:#8fa8dc;border-color:rgba(120,150,210,.45);}
+.ps-tag.ps-advice{background:rgba(160,150,120,.18);color:#b9b08f;border-color:rgba(160,150,120,.45);}
