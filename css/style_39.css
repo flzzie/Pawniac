@@ -43,3 +43,5 @@
 .ps-tag.ps-fact{background:rgba(63,163,137,.18);color:#4fb59a;border-color:rgba(63,163,137,.45);}
 .ps-tag.ps-engine{background:rgba(120,150,210,.18);color:#8fa8dc;border-color:rgba(120,150,210,.45);}
 .ps-tag.ps-advice{background:rgba(160,150,120,.18);color:#b9b08f;border-color:rgba(160,150,120,.45);}
+.ps-kf{margin:6px 0 0;padding-left:18px;font-size:13.5px;line-height:1.5;}
+.ps-src{opacity:.65;font-size:12px;}

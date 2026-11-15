@@ -265,7 +265,7 @@
 <p><b>On your device.</b> Your settings, theme, bot and challenge preferences, saved piece images, the opening list and the chess engine are stored in your browser (local storage and cache). Your last game is remembered so you can come back to it. This stays on your device.</p>
 
 <h3>3a. What we do not collect</h3>
-<p>We do not collect your location, contacts, phone number, real name, payment details or advertising IDs. There is no in-game chat. The PGNs you paste into the analyzer and the engine analysis run in your browser and are not uploaded. Games against the bot are not stored.</p>
+<p>We do not collect your location, contacts, phone number, real name, payment details or advertising IDs. There is no in-game chat. The PGNs you paste into the analyzer and the engine analysis run in your browser and are not uploaded. The one exception is the \"Understand a position\" tool: for an endgame with 7 pieces or fewer it asks Lichess's free tablebase (tablebase.lichess.ovh) for the exact result. Only the chess position is sent, with no name or account details, but their server sees your IP address like any website you visit. Games against the bot are not stored.</p>
 
 <h3>4. What other people can see</h3>
 <p>Other signed-in players can see: your username, any title, profile picture, bio, country, join date, ratings, records, leaderboard scores, pinned achievements, recent games, online status, and which live game you are in (and can watch it). Finished games can be opened by anyone who has their link. Your email, reports about you and fair-play information are never public. Only staff can see them.</p>

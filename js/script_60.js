@@ -71,6 +71,84 @@
     return null;
   }
 
+  // ---------- board geometry (rules only, no engine) ----------
+  var KN = [[1, 2], [2, 1], [2, -1], [1, -2], [-1, -2], [-2, -1], [-2, 1], [-1, 2]], KG = [[1, 0], [1, 1], [0, 1], [-1, 1], [-1, 0], [-1, -1], [0, -1], [1, -1]];
+  var VALS = {p:1, n:3, b:3, r:5, q:9, k:100};
+  function inb(f, r){ return f >= 0 && f <= 7 && r >= 1 && r <= 8; }
+  function sqAt(f, r){ return FILES.charAt(f) + r; }
+  // the pieces of colour c that attack square sq, by geometry (pins are handled separately)
+  function attackersOf(pcs, sq, c){
+    var f = FILES.indexOf(sq.charAt(0)), r = +sq.charAt(1), out = [], pr = c === 'w' ? r - 1 : r + 1;
+    [f - 1, f + 1].forEach(function(ff){ if(inb(ff, pr)){ var p = pcs[sqAt(ff, pr)]; if(p && p.color === c && p.type === 'p') out.push({sq:sqAt(ff, pr), type:'p'}); } });
+    KN.forEach(function(d){ var ff = f + d[0], rr = r + d[1]; if(inb(ff, rr)){ var p = pcs[sqAt(ff, rr)]; if(p && p.color === c && p.type === 'n') out.push({sq:sqAt(ff, rr), type:'n'}); } });
+    KG.forEach(function(d){ var ff = f + d[0], rr = r + d[1]; if(inb(ff, rr)){ var p = pcs[sqAt(ff, rr)]; if(p && p.color === c && p.type === 'k') out.push({sq:sqAt(ff, rr), type:'k'}); } });
+    KG.forEach(function(d){
+      var ff = f + d[0], rr = r + d[1], diag = d[0] !== 0 && d[1] !== 0;
+      while(inb(ff, rr)){
+        var p = pcs[sqAt(ff, rr)];
+        if(p){ if(p.color === c && (p.type === 'q' || (diag && p.type === 'b') || (!diag && p.type === 'r'))) out.push({sq:sqAt(ff, rr), type:p.type}); break; }
+        ff += d[0]; rr += d[1];
+      }
+    });
+    return out;
+  }
+  // pieces of colour c that are pinned to their own king
+  function pinsOf(pcs, c){
+    var ks = Object.keys(pcs).filter(function(s){ return pcs[s].color === c && pcs[s].type === 'k'; })[0], out = [];
+    if(!ks) return out;
+    var f = FILES.indexOf(ks.charAt(0)), r = +ks.charAt(1);
+    KG.forEach(function(d){
+      var ff = f + d[0], rr = r + d[1], diag = d[0] !== 0 && d[1] !== 0, cand = null;
+      while(inb(ff, rr)){
+        var sq = sqAt(ff, rr), p = pcs[sq];
+        if(p){
+          if(!cand){ if(p.color === c) cand = {sq:sq, type:p.type}; else break; }
+          else { if(p.color !== c && (p.type === 'q' || (diag && p.type === 'b') || (!diag && p.type === 'r'))) out.push({sq:cand.sq, type:cand.type, by:{sq:sq, type:p.type}, dx:d[0], dy:d[1]}); break; }
+        }
+        ff += d[0]; rr += d[1];
+      }
+    });
+    return out;
+  }
+  // a pinned piece may only move along the pin line: can the piece on `from` capture on `to`?
+  function pinOk(pins, from, to){
+    var pin = pins.filter(function(x){ return x.sq === from; })[0]; if(!pin) return true;
+    var vx = FILES.indexOf(to.charAt(0)) - FILES.indexOf(from.charAt(0)), vy = +to.charAt(1) - +from.charAt(1);
+    return vx * pin.dy - vy * pin.dx === 0;
+  }
+  // pieces of colour c that are attacked and have no defender
+  function loosePieces(pcs, c){
+    var e = other(c), pe = pinsOf(pcs, e), out = [];
+    Object.keys(pcs).forEach(function(sq){
+      var p = pcs[sq]; if(p.color !== c || p.type === 'k') return;
+      var att = attackersOf(pcs, sq, e).filter(function(a){ return pinOk(pe, a.sq, sq); });
+      if(att.length && !attackersOf(pcs, sq, c).length) out.push({sq:sq, type:p.type, by:att.sort(function(a, b){ return VALS[a.type] - VALS[b.type]; })[0]});
+    });
+    return out.sort(function(a, b){ return VALS[b.type] - VALS[a.type]; });
+  }
+  // king and pawn against king: can the lone king catch the pawn if the pawn simply runs? (the "square" rule)
+  function squareRule(pcs, turn){
+    var keys = Object.keys(pcs); if(keys.length !== 3) return null;
+    var ps = keys.filter(function(s){ return pcs[s].type === 'p'; }); if(ps.length !== 1) return null;
+    var sq = ps[0], c = pcs[sq].color, f = FILES.indexOf(sq.charAt(0)), r = +sq.charAt(1), dir = c === 'w' ? 1 : -1, last = c === 'w' ? 8 : 1;
+    for(var rr = r + dir; rr !== last + dir; rr += dir) if(pcs[sqAt(f, rr)]) return null;   // something stands in its way
+    var n = Math.abs(last - r) - (r === (c === 'w' ? 2 : 7) ? 1 : 0);                       // moves the pawn needs (a pawn on its start rank can jump two)
+    var ek = keys.filter(function(s){ return pcs[s].type === 'k' && pcs[s].color !== c; })[0];
+    var d = Math.max(Math.abs(FILES.indexOf(ek.charAt(0)) - f), Math.abs(+ek.charAt(1) - last));
+    return {pawn:sq, color:c, caught: turn === c ? d <= n : d <= n + 1};
+  }
+  function pieceCount(fen){ return fen.split(' ')[0].replace(/[^a-zA-Z]/g, '').length; }
+  // Lichess' free endgame tablebase (7 pieces or fewer). Only the position is sent. Any failure just hides the line.
+  function tbLookup(fen){
+    if(pieceCount(fen) > 7 || typeof fetch !== 'function') return Promise.resolve(null);
+    var q = fen.split(' '); q[2] = '-'; q[3] = '-';
+    var ctl = (typeof AbortController === 'function') ? new AbortController() : null, to = setTimeout(function(){ if(ctl) ctl.abort(); }, 4000);
+    return fetch('https://tablebase.lichess.ovh/standard?fen=' + encodeURIComponent(q.join(' ')), ctl ? {signal:ctl.signal} : {})
+      .then(function(r){ clearTimeout(to); return r.ok ? r.json() : null; })
+      .then(function(j){ return j && j.category ? {category:j.category, dtm:(typeof j.dtm === 'number' ? j.dtm : null)} : null; })
+      .catch(function(){ clearTimeout(to); return null; });
+  }
+
   // ---------- reading the position ----------
   function scan(fen){
     var pcs = parseFen(fen).pieces, P = {w:{pawns:[], pieces:[], cnt:{p:0, n:0, b:0, r:0, q:0}, king:null}, b:{pawns:[], pieces:[], cnt:{p:0, n:0, b:0, r:0, q:0}, king:null}};
@@ -90,6 +168,21 @@
         if(!blocked) o.passed.push(p);
       });
       Object.keys(pf).forEach(function(f){ if(pf[f] > 1) o.doubled.push(+f); });
+      var dir = c === 'w' ? 1 : -1;
+      o.backward = []; o.protectedPassed = []; o.connectedPassed = []; o.blockaded = {};
+      o.pawns.forEach(function(p){
+        var side = o.pawns.some(function(q){ return Math.abs(q.f - p.f) === 1; });
+        var behind = o.pawns.some(function(q){ return Math.abs(q.f - p.f) === 1 && (c === 'w' ? q.r <= p.r : q.r >= p.r); });
+        var stopAtt = opp.pawns.some(function(q){ return Math.abs(q.f - p.f) === 1 && q.r === p.r + 2 * dir; });
+        if(side && !behind && stopAtt) o.backward.push(p);     // cannot be defended by a pawn and cannot step forward safely
+      });
+      o.passed.forEach(function(p){
+        if(o.pawns.some(function(q){ return Math.abs(q.f - p.f) === 1 && q.r === p.r - dir; })) o.protectedPassed.push(p.sq);
+        if(o.passed.some(function(q){ return Math.abs(q.f - p.f) === 1; })) o.connectedPassed.push(p.sq);
+        var stop = pcs[sqAt(p.f, p.r + dir)]; if(stop && stop.color !== c && stop.type !== 'p') o.blockaded[p.sq] = stop;
+      });
+      var fl = Object.keys(pf).map(Number).sort(function(a, b){ return a - b; }); o.islands = 0;
+      fl.forEach(function(f, i){ if(i === 0 || f !== fl[i - 1] + 1) o.islands++; });
       o.mat = o.cnt.p + 3 * o.cnt.n + 3 * o.cnt.b + 5 * o.cnt.r + 9 * o.cnt.q;
       o.nonPawn = o.mat - o.cnt.p;
     });
@@ -178,14 +271,35 @@
     var K = {w:kingText(P, 'w', rights), b:kingText(P, 'b', rights)};
     var W = {w:wins(fen, 'w'), b:wins(fen, 'b')};
     var bp = {w:P.w.cnt.b >= 2, b:P.b.cnt.b >= 2};
+    var pcs = parseFen(fen).pieces;
+    // the position as if it were colour col's move (null when that would be illegal)
+    function asTurn(col){
+      var g = new Chess(); if(!g.load(Z.flipTurn(fen, col))) return null;
+      var h = new Chess(); if(!h.load(Z.flipTurn(fen, other(col))) || h.in_check()) return null;
+      return g;
+    }
+    // king facts: how many squares it can step to, and how many checks the other side has
+    ['w', 'b'].forEach(function(c){
+      try{
+        var bits = [], g = asTurn(c), h = asTurn(other(c));
+        if(g){ var esc0 = g.moves({verbose:true}).filter(function(m){ return m.piece === 'k' && !/[kq]/.test(m.flags); }).length; bits.push(esc0 ? plural(esc0, 'escape square') : 'no escape squares'); }
+        if(h){ var ch = h.moves().filter(function(x){ return /[+#]/.test(x); }).length; bits.push(ch ? 'the opponent could give ' + plural(ch, 'check') : 'no checks for the opponent'); }
+        if(bits.length) K[c].text += '; ' + bits.join('; ');
+      }catch(e){}
+    });
+    var LP = {w:loosePieces(pcs, 'w'), b:loosePieces(pcs, 'b')}, PINS = {w:pinsOf(pcs, 'w'), b:pinsOf(pcs, 'b')};
 
     // ---- feature rows ----
     function pawnsText(c){
       var o = P[c], bits = [];
       if(o.isolated.length) bits.push('isolated: ' + sqList(o.isolated));
       if(o.doubled.length) bits.push('doubled: ' + fileList(o.doubled) + '-file');
-      if(o.passed.length) bits.push('passed: ' + sqList(o.passed));
-      return bits.length ? bits.join('; ') : (o.pawns.length ? 'no isolated, doubled or passed pawns' : 'no pawns');
+      if(o.backward.length) bits.push('backward: ' + sqList(o.backward));
+      if(o.passed.length) bits.push('passed: ' + o.passed.map(function(p){
+        var q = []; if(o.protectedPassed.indexOf(p.sq) >= 0) q.push('protected'); if(o.connectedPassed.indexOf(p.sq) >= 0) q.push('connected'); if(o.blockaded[p.sq]) q.push('blockaded by the ' + pieceWord(o.blockaded[p.sq].type));
+        return p.sq + (q.length ? ' (' + q.join(', ') + ')' : ''); }).join(', '));
+      if(o.islands > 1) bits.push(o.islands + ' pawn islands');
+      return bits.length ? bits.join('; ') : (o.pawns.length ? 'no isolated, doubled, backward or passed pawns' : 'no pawns');
     }
     function rooksText(c){
       var o = P[c], s = [];
@@ -204,6 +318,10 @@
       {label:'Pawns', kind:'fact', w:pawnsText('w'), b:pawnsText('b')},
       {label:'Pieces', kind:'fact', w:rooksText('w'), b:rooksText('b')}
     ];
+    function looseText(c){ return LP[c].length ? LP[c].slice(0, 3).map(function(x){ return pieceWord(x.type) + ' on ' + x.sq + ' (attacked by the ' + pieceWord(x.by.type) + ' on ' + x.by.sq + ')'; }).join('; ') : 'none'; }
+    function pinText(c){ return PINS[c].length ? PINS[c].map(function(x){ return pieceWord(x.type) + ' on ' + x.sq + ' (pinned by the ' + pieceWord(x.by.type) + ' on ' + x.by.sq + ')'; }).join('; ') : 'none'; }
+    M.rows.push({label:'Loose pieces', kind:'fact', w:looseText('w'), b:looseText('b'), note:'Loose = attacked and not defended by anything.'});
+    M.rows.push({label:'Pinned', kind:'fact', w:pinText('w'), b:pinText('b')});
     if(P.phase === 'opening'){
       function dev(c){ var minors = P[c].pieces.filter(function(x){ return x.type === 'n' || x.type === 'b'; }), home = c === 'w' ? 1 : 8; var back = minors.filter(function(x){ return x.r === home; }).length; return (minors.length - back) + ' of ' + minors.length + ' minor pieces off their starting squares'; }
       M.rows.push({label:'Development', kind:'fact', w:dev('w'), b:dev('b')});
@@ -248,8 +366,8 @@
     }
 
     // ---- moves ----
-    function lineSans(pv){
-      var c = new Chess(); c.load(fen); var out = [], n = fen.split(' '), full = parseInt(n[5], 10) || 1, t = n[1];
+    function lineSans(pv, f0){
+      var f1 = f0 || fen, c = new Chess(); c.load(f1); var out = [], n = f1.split(' '), full = parseInt(n[5], 10) || 1, t = n[1];
       for(var i = 0; i < Math.min(pv.length, 6); i++){
         var m = c.move({from:pv[i].slice(0, 2), to:pv[i].slice(2, 4), promotion:pv[i].slice(4, 5) || undefined});
         if(!m) break;
@@ -277,6 +395,14 @@
       if(m.piece === 'p' && P[turn].passed.some(function(p){ return p.sq === m.from; })) return {t:'Pushes the passed pawn.', k:'fact'};
       return {t:'', k:'fact'};   // nothing provable to say: show the move, its evaluation and the engine line only
     }
+    function drawWarn(m){
+      try{
+        var g = new Chess(fen); g.move({from:m.from, to:m.to, promotion:m.promotion});
+        if(g.in_stalemate()) return 'This move is stalemate: the game is drawn.';
+        if(g.insufficient_material()) return 'After this move neither side has enough material to win: the game is drawn.';
+      }catch(e){}
+      return '';
+    }
     var cands = [{uci:R.best, cp:R.cp, pv:R.pv}].concat((R.alts || []).map(function(a){ return {uci:a.best, cp:a.cp, pv:a.pv}; })), sign = turn === 'w' ? 1 : -1;
     M.moves = cands.map(function(cd, i){
       var m = cd.uci ? Z.tryMove(fen, cd.uci) : null;
@@ -284,6 +410,7 @@
       var info = null; try{ info = Z.pvInfo(fen, cd.pv && cd.pv.length ? cd.pv : [cd.uci], 4, turn); }catch(e){}
       var rs = reason(m, info ? info.net : 0, cd.cp, i > 0 && Math.abs(R.cp) < 9000 && sign * (R.cp - cd.cp) >= 150 || i > 0 && Math.abs(R.cp) >= 9000);
       return {rank:i + 1, san:m.san, evalNum:fmtEval(cd.cp), reason:rs.t, rk:rs.k, line:lineSans(cd.pv && cd.pv.length ? cd.pv : [cd.uci]),
+              warn:drawWarn(m),
               worse:i === 0 ? 0 : (Math.abs(R.cp) >= 9000 || Math.abs(cd.cp) >= 9000 ? 99 : Math.max(0, sign * (R.cp - cd.cp) / 100))};
     }).filter(Boolean);
 
@@ -301,6 +428,39 @@
     M.facts = facts.slice(0, 3);
     var top = M.moves[0];
     M.summary = name(turn) + ' to move. ' + M.evalText + (Math.abs(R.cp) >= 9000 ? '. ' : ' (' + M.evalNum + '). ') + M.facts.join(' ') + (top ? ' The best move is ' + top.san + (top.reason ? ': ' + top.reason.charAt(0).toLowerCase() + top.reason.slice(1) : '.') : '');
+    // ---- extra facts and engine lines
+    M.depth = R.depth || 0;
+    M.keyFacts = [];
+    try{
+      var me0 = new Chess(fen); if(me0.in_check()) M.keyFacts.push(name(turn) + ' is in check.');
+      var sr = squareRule(pcs, turn);
+      if(sr){
+        var pc = name(sr.color), dk = name(other(sr.color));
+        M.keyFacts.push(sr.caught ? 'Square rule: if the ' + pc.toLowerCase() + ' pawn on ' + sr.pawn + ' simply runs, the ' + dk.toLowerCase() + ' king is in time to catch it.' : 'Square rule: the ' + dk.toLowerCase() + ' king cannot catch the ' + pc.toLowerCase() + ' pawn on ' + sr.pawn + ', so it promotes.');
+      }
+      if(sign * cp >= 200){   // the side to move is clearly ahead: a stalemate would throw it away
+        var tg = new Chess(fen), traps = [];
+        tg.moves({verbose:true}).forEach(function(m){ tg.move({from:m.from, to:m.to, promotion:m.promotion}); if(tg.in_stalemate()) traps.push(m.san); tg.undo(); });
+        if(traps.length) M.keyFacts.push('Careful: ' + traps.slice(0, 4).join(' or ') + ' would be stalemate, which only draws the game.');
+      }
+    }catch(e){}
+    if(R.opp && R.opp.best){
+      try{
+        var oppFen = Z.flipTurn(fen, op), om = Z.tryMove(oppFen, R.opp.best);
+        if(om){
+          var osg = op === 'w' ? 1 : -1, sw = osg * (R.opp.cp - R.cp) / 100, omate = Math.abs(R.opp.cp) >= 9000 && osg * R.opp.cp > 0 ? Math.max(1, Math.round((10000 - Math.abs(R.opp.cp)) / 10)) : 0;
+          M.opp = {name:name(op), san:om.san, evalNum:fmtEval(R.opp.cp), line:lineSans(R.opp.pv && R.opp.pv.length ? R.opp.pv : [R.opp.best], oppFen),
+                   text: omate ? name(op) + ' would threaten checkmate in ' + omate + '.' : (sw >= 0.5 ? 'This is the threat to watch: it would gain ' + name(op) + ' about ' + sw.toFixed(1) + ' pawns.' : name(op) + ' has no big threat here: the gain would be under half a pawn.')};
+        }
+      }catch(e){}
+    }
+    if(R.tb && R.tb.category){
+      var cat = R.tb.category, who = name(turn), oth = name(op), tt = null;
+      if(cat === 'win') tt = who + ' is winning'; else if(cat === 'loss') tt = oth + ' is winning'; else if(cat === 'draw') tt = 'This is a draw with best play';
+      else if(cat === 'cursed-win') tt = who + ' wins in theory, but the 50-move rule turns it into a draw'; else if(cat === 'blessed-loss') tt = oth + ' wins in theory, but the 50-move rule saves a draw for ' + who;
+      if(tt && (cat === 'win' || cat === 'loss') && R.tb.dtm != null && R.tb.dtm !== 0) tt += ', checkmate in ' + Math.ceil(Math.abs(R.tb.dtm) / 2) + ' with best play';
+      if(tt) M.tb = tt + '.';
+    }
     return M;
   }
 
@@ -329,14 +489,17 @@
     if(!M) return '';
     var h = '<div class="card ps-res"><h2>What this position is about</h2>' +
       '<div class="ps-evbar" title="' + esc(M.evalNum) + '"><div style="width:' + Math.round(M.pct) + '%"></div></div>' +
-      '<div class="ps-evline">' + tag('engine') + ' <b>' + esc(M.evalText) + '</b> <span>' + (/^mate/.test(M.evalNum) ? '' : esc(M.evalNum)) + '</span></div>' +
+      '<div class="ps-evline">' + tag('engine') + ' <b>' + esc(M.evalText) + '</b> <span>' + (/^mate/.test(M.evalNum) ? '' : esc(M.evalNum)) + (M.depth ? (/^mate/.test(M.evalNum) ? '' : ' \u00b7 ') + 'search depth ' + M.depth : '') + '</span></div>' +
       '<p class="ps-sum">' + esc(M.summary) + '</p>';
+    if(M.tb) h += '<p class="ps-sum">' + tag('fact') + ' <b>Endgame tablebase:</b> ' + esc(M.tb) + ' <span class="ps-src">(from the free Lichess tablebase; only the position is sent to their server)</span></p>';
+    if(M.keyFacts && M.keyFacts.length) h += '<h3 class="ps-h">Worth knowing ' + tag('fact') + '</h3><ul class="ps-kf">' + M.keyFacts.map(function(t){ return '<li>' + esc(t) + '</li>'; }).join('') + '</ul>';
     h += '<h3 class="ps-h">Side by side ' + tag('fact') + '</h3><div class="ps-tbl"><div class="ps-r ps-hd"><span></span><span>White</span><span>Black</span></div>' +
       M.rows.map(function(r){ return '<div class="ps-r"><span class="ps-l">' + esc(r.label) + '</span><span>' + esc(r.w) + '</span><span>' + esc(r.b) + '</span></div>' + (r.note ? '<div class="ps-note">' + esc(r.note) + '</div>' : ''); }).join('') + '</div>';
     h += '<h3 class="ps-h">Plans ' + tag('advice') + '</h3><div class="ps-plans">' + ['w', 'b'].map(function(c){ return '<div><b>' + name(c) + (c === M.turn ? ' (to move)' : '') + '</b><ul>' + M.plans[c].map(function(t){ return '<li>' + esc(t) + '</li>'; }).join('') + '</ul></div>'; }).join('') + '</div>';
     h += '<h3 class="ps-h">Best moves ' + tag('engine') + '</h3>' + M.moves.map(function(m){
-      return '<div class="ps-mv"><div class="ps-mvh"><b>' + m.rank + '. ' + esc(m.san) + '</b> <span>' + esc(m.evalNum) + '</span>' + (m.worse >= 0.15 && m.worse < 20 ? '<em>about ' + m.worse.toFixed(1) + ' pawns less accurate than the best</em>' : '') + '</div>' + (m.reason ? '<div>' + tag(m.rk || 'fact') + ' ' + esc(m.reason) + '</div>' : '') + '<div class="ps-line">' + esc(m.line) + '</div></div>';
+      return '<div class="ps-mv"><div class="ps-mvh"><b>' + m.rank + '. ' + esc(m.san) + '</b> <span>' + esc(m.evalNum) + '</span>' + (m.worse >= 0.15 && m.worse < 20 ? '<em>about ' + m.worse.toFixed(1) + ' pawns less accurate than the best</em>' : '') + '</div>' + (m.reason ? '<div>' + tag(m.rk || 'fact') + ' ' + esc(m.reason) + '</div>' : '') + (m.warn ? '<div>' + tag('fact') + ' ' + esc(m.warn) + '</div>' : '') + '<div class="ps-line">' + esc(m.line) + '</div></div>';
     }).join('');
+    if(M.opp) h += '<h3 class="ps-h">If it were ' + esc(M.opp.name) + "'s move " + tag('engine') + '</h3><div class="ps-mv"><div class="ps-mvh"><b>' + esc(M.opp.san) + '</b> <span>' + esc(M.opp.evalNum) + '</span></div><div>' + esc(M.opp.text) + '</div><div class="ps-line">' + esc(M.opp.line) + '</div></div>';
     h += '<p class="hint" style="margin-top:12px;"><b>Fact</b>: counted from the board or settled by the rules, so it is certain. <b>Engine</b>: from the Stockfish search; strong, but it can change with deeper search. <b>Advice</b>: general rules of thumb, a starting point and not a proof.</p></div>';
     return h;
   }
@@ -394,7 +557,16 @@
     try{
       var Z = core(), eng = await Z.getEngine(function(s){ E.status = s; var m = E.root && E.root.querySelector('#psMsg'); if(m) m.textContent = s; });
       E.status = 'Thinking about the position...'; var m2 = E.root && E.root.querySelector('#psMsg'); if(m2) m2.textContent = E.status;
+      var tbP = tbLookup(fen);
       var R = await Z.evalFen(eng, fen, 2500, 3);
+      // what would the other side do with a free move? (only when the side to move is not in check)
+      try{
+        if(!new Chess(fen).in_check()){
+          var oppFen = Z.flipTurn(fen, other(mover)), og = new Chess();
+          if(og.load(oppFen) && !og.game_over()){ E.status = 'Checking what the other side wants...'; var m3 = E.root && E.root.querySelector('#psMsg'); if(m3) m3.textContent = E.status; R.opp = await Z.evalFen(eng, oppFen, 1500, 1); }
+        }
+      }catch(e){ R.opp = null; }
+      R.tb = await tbP;
       E.result = understand(fen, R); E.status = '';
     }catch(e){
       console.error('position reading failed', e);
