@@ -767,8 +767,8 @@
   // =====================================================================
   //  analysis build (everything from the player's side)
   // =====================================================================
-  function build(parsed, ev, side, tc){
-    var A = {moves:parsed.moves, fens:parsed.fens, hdr:parsed.hdr, clocks:parsed.clocks, ev:ev, stats:[], cache:{}, sel:0,
+  function build(parsed, ev, side, tc, thr){
+    var A = {thr:thr || {}, moves:parsed.moves, fens:parsed.fens, hdr:parsed.hdr, clocks:parsed.clocks, ev:ev, stats:[], cache:{}, sel:0,
              me:side, opp:side === 'w' ? 'b' : 'w', tc:tc, rep:{theme:{}, sq:{}, tacts:{}, state:null}};
     A.flip = (side === 'b');
     if(!parsed.hdr.FEN && parsed.fens[0].split(' ')[0] === 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR' && Math.abs(ev[0].cp) > 60) ev[0].cp = 25;
@@ -1081,6 +1081,7 @@
       why.push('This move allows a forced checkmate in ' + n2 + ': <span class="an-line">' + esc(mateLine(fenA, evA.pv, n2, true)) + '</span>');
       tc = mateMoveTactic(fenA, evA.pv);
       if(tc){ why.push('It ends with ' + tc.text + '.'); noteT(A, tc, i); }
+      try{ var tm0 = threatOf(A, i); if(tm0 && tm0.mate) why.push('This mate was already threatened before your move (' + tm0.san + '), and your move did not stop it.'); }catch(e){}
       if(bm) better = {san:bm.san, text:'It avoids the mate.', line:sanLine(fenB, evB.pv, 5)};
       lessonKey = 'mate';
     } else why.push('There is a forced mate on the board here.');
@@ -1096,6 +1097,25 @@
       lesson:(lessonKey && (label === 'mistake' || label === 'blunder')) ? LESSON[lessonKey] : null,
       time:(typeof tm === 'number') ? {t:tm, far:tm > A.time.far} : null
     };
+  }
+
+  // The opponent's threat before your move i, proven by the engine:
+  //  1) if it were their turn in that position they would gain at least 1.5 pawns (or have a forced mate), and
+  //  2) after your move their best reply is that very same move, so your move did not stop it.
+  function threatOf(A, i){
+    try{
+      var T = A.thr && A.thr[i]; if(!T || !T.best) return null;
+      var S = A.stats[i], evA = A.ev[i + 1], opp = A.opp, so = opp === 'w' ? 1 : -1;
+      var oppNow = so * T.cp, oppBefore = -S.cpBefore;
+      var mateT = isMate(T.cp) && so * T.cp > 0;
+      if(!mateT && oppNow - oppBefore < 150) return null;
+      if(!evA || evA.best !== T.best) return null;
+      var fl = flipTurn(A.fens[i], opp), mv = tryMove(fl, T.best);
+      if(!mv) return null;
+      var tc = null; try{ tc = tacticOf(fl, mv); }catch(e){}
+      var what = tc ? tc.text : (mv.captured ? 'winning your ' + NAMES[mv.captured] + ' on ' + mv.to : (mateT ? 'a forced mate' : 'a strong plan'));
+      return {san:mv.san, what:what, mate:mateT, name:tc ? tc.name : null};
+    }catch(e){ return null; }
   }
 
   function explainMine(A, i){
@@ -1312,6 +1332,18 @@
           plan = 'Your opponent wants ' + refInfo.sans[0] + ', then ' + refInfo.sans[2] + '. Their pieces are heading somewhere useful while yours are not.';
         else if(refInfo && refInfo.sans.length) plan = 'Your opponent\'s best answer is ' + refInfo.sans[0] + '.';
       }
+      // a threat they already had that your move did not stop (checked on the board: same capture, still winning after your move)
+      if(!threat){
+        var tinfo = threatOf(A, i);
+        if(tinfo) threat = 'Your opponent was already threatening ' + tinfo.san + ' (' + tinfo.what + ') before your move, and your move did not deal with it.';
+      }
+      if(!threat && !m.captured && !(A.thr && A.thr[i])){
+        try{
+          var thB = winsFor(fenB, opp).filter(function(x){ return x.free || x.net >= 2; }), thA = winsFor(fenA, opp);
+          var still = thB.filter(function(x){ return x.to !== m.to && thA.some(function(y){ return y.from === x.from && y.to === x.to; }); })[0];
+          if(still) threat = 'Your opponent was already threatening ' + still.san + ' (winning your ' + NAMES[still.piece] + ' on ' + still.to + (still.free ? ' for free' : '') + ') before your move, and your move did not deal with it.';
+        }catch(e){}
+      }
       var prev = i >= 2 ? A.moves[i - 2] : null;
       if(i < 24 && d.tags.indexOf('capture') < 0){
         if(d.tags.indexOf('earlyqueen') >= 0){ why.push('Bringing the queen out this early invites attacks that gain them developing moves for free.'); cons.push('Early queen sortie: loses time.'); lessonKey = lessonKey || 'opening'; }
@@ -1373,6 +1405,13 @@
       var wt = null;
       try{ wt = window.__anPlus ? window.__anPlus.whyText(A, i, evB.best, evB.pv) : null; }catch(e){}
       better = {san:bestSan, text:wt || (cap(bd.text) + '. ' + reason), line:sanLine(fenB, evB.pv, 5)};
+      // the contrast with your move: only when the engine proves the threat (see threatOf), your move cost at least 1.5 pawns,
+      // and the engine's move kept the evaluation (so it really did deal with that threat)
+      try{
+        var ti2 = threatOf(A, i), sgm = me === 'w' ? 1 : -1;
+        if(ti2 && S.cpBefore - S.cpAfter >= 150 && sgm * evB.cp >= S.cpBefore - 40)
+          better.text += ' With this move that threat (' + ti2.san + ') is no longer on, while your move left it in place.';
+      }catch(e){ console.error('best move contrast failed', e); }
     }
 
     // ----- several equally good moves (only when the engine really rates them the same)
@@ -1590,7 +1629,7 @@
     return String(h);
   }
   function gameSummary(A){
-    var mine = myIdx(A), S = sideSummary(A), types = {}, phases = {opening:0, middlegame:0, endgame:0}, nBad = 0, onlyTot = 0, onlyFound = 0;
+    var mine = myIdx(A), S = sideSummary(A), types = {}, phases = {opening:0, middlegame:0, endgame:0}, nBad = 0, onlyTot = 0, onlyFound = 0, rng = [0, 0, 0, 0];
     mine.forEach(function(i){
       var om = onlyMoveInfo(A, i);
       if(om){ onlyTot++; if(om.found) onlyFound++; }
@@ -1598,6 +1637,7 @@
       if(isBadLabel(st.label)){
         nBad++;
         if(phases[st.phase] !== undefined) phases[st.phase]++;
+        try{ var mn = fenParts(A.fens[i]).full; rng[mn <= 10 ? 0 : mn <= 20 ? 1 : mn <= 30 ? 2 : 3]++; }catch(e){}
         var t = mistakeType(A, i);
         if(t.k !== 'quiet'){
           var cost = Math.max(0, Math.min(10, (st.cpBefore - st.cpAfter) / 100));
@@ -1606,7 +1646,9 @@
         }
       }
     });
-    return {k:habitKey(A), t:Date.now(), me:A.me, acc:Math.round(S.acc), moves:mine.length, bad:nBad, types:types, phases:phases, only:[onlyFound, onlyTot]};
+    var rs = (A.hdr && A.hdr.Result) || '', score = null;
+    if(rs === '1-0') score = A.me === 'w' ? 1 : 0; else if(rs === '0-1') score = A.me === 'b' ? 1 : 0; else if(rs === '1/2-1/2') score = 0.5;
+    return {k:habitKey(A), t:Date.now(), me:A.me, acc:Math.round(S.acc), moves:mine.length, bad:nBad, types:types, phases:phases, only:[onlyFound, onlyTot], rng:rng, score:score};
   }
   function saveHabit(A){
     try{
@@ -1653,6 +1695,40 @@
         trend = d === 0 ? ' Your recent games are about the same as your earlier ones.' : ' Your recent games are ' + Math.abs(d) + ' points ' + (d > 0 ? 'better' : 'worse') + ' than your earlier ones.';
       }
       out += sec('Accuracy', ps(['Average accuracy: ' + avg + '%.' + trend]) + '<div class="an-hspark">' + g.map(function(x){ return '<i title="' + x.acc + '%" style="height:' + Math.max(6, Math.min(100, (x.acc - 30) / 70 * 100)) + '%"></i>'; }).join('') + '</div>');
+      // ---- trend, colour and move-range notes (only said when the saved games really show it)
+      try{
+        var more = [], hh = Math.floor(g.length / 2);
+        if(g.length >= 6){
+          var e1 = g.slice(0, hh), e2 = g.slice(hh), per = function(arr, f){ var t = 0; arr.forEach(function(x){ t += f(x); }); return t / arr.length; };
+          var b1 = per(e1, function(x){ return x.bad; }), b2 = per(e2, function(x){ return x.bad; });
+          if(Math.abs(b2 - b1) >= 0.5) more.push('Mistakes and blunders per game: ' + b1.toFixed(1) + ' in your earlier games, ' + b2.toFixed(1) + ' in your recent ones (' + (b2 < b1 ? 'improving' : 'getting worse') + ').');
+          var bestPh = null;
+          ['opening', 'middlegame', 'endgame'].forEach(function(k){
+            var d1 = per(e2, function(x){ return x.phases[k] || 0; }) - per(e1, function(x){ return x.phases[k] || 0; });
+            if(!bestPh || Math.abs(d1) > Math.abs(bestPh.d)) bestPh = {k:k, d:d1, a:per(e1, function(x){ return x.phases[k] || 0; }), b:per(e2, function(x){ return x.phases[k] || 0; })};
+          });
+          if(bestPh && Math.abs(bestPh.d) >= 0.5) more.push('The biggest change is in the ' + bestPh.k + ': ' + bestPh.a.toFixed(1) + ' mistakes per game before, ' + bestPh.b.toFixed(1) + ' now.');
+        }
+        if(more.length) out += sec('Your trend', ps(more));
+        var gw = g.filter(function(x){ return x.me === 'w'; }), gb = g.filter(function(x){ return x.me === 'b'; });
+        if(gw.length >= 3 && gb.length >= 3){
+          var aw = gw.reduce(function(t, x){ return t + x.acc; }, 0) / gw.length, ab = gb.reduce(function(t, x){ return t + x.acc; }, 0) / gb.length;
+          var mw = gw.reduce(function(t, x){ return t + x.bad; }, 0) / gw.length, mb = gb.reduce(function(t, x){ return t + x.bad; }, 0) / gb.length;
+          var line = 'As White (' + gw.length + ' games): ' + Math.round(aw) + '% accuracy, ' + mw.toFixed(1) + ' mistakes per game. As Black (' + gb.length + ' games): ' + Math.round(ab) + '%, ' + mb.toFixed(1) + ' per game.';
+          var sw = gw.filter(function(x){ return x.score != null; }), sb = gb.filter(function(x){ return x.score != null; });
+          if(sw.length >= 3 && sb.length >= 3) line += ' Score: ' + Math.round(sw.reduce(function(t, x){ return t + x.score; }, 0) / sw.length * 100) + '% as White, ' + Math.round(sb.reduce(function(t, x){ return t + x.score; }, 0) / sb.length * 100) + '% as Black.';
+          line += Math.abs(aw - ab) >= 3 ? ' You play noticeably better as ' + (aw > ab ? 'White' : 'Black') + '.' : ' Not much difference between the colours.';
+          out += sec('White or Black', ps([line]));
+        }
+        var rg = [0, 0, 0, 0], rn = 0; g.forEach(function(x){ if(x.rng){ rn++; for(var q = 0; q < 4; q++) rg[q] += x.rng[q]; } });
+        var rt = rg[0] + rg[1] + rg[2] + rg[3];
+        if(rn >= 4 && rt >= 6 && rg.filter(function(v){ return v === Math.max.apply(null, rg); }).length === 1){
+          var RL = ['moves 1 to 10', 'moves 11 to 20', 'moves 21 to 30', 'move 31 and later'], mx = rg.indexOf(Math.max.apply(null, rg));
+          out += sec('When in the game', ps(['Most of your mistakes (' + rg[mx] + ' of ' + rt + ') come in ' + RL[mx] + '.']) + RL.map(function(l, q){
+            return '<div class="an-hrow"><span>' + l + '</span><span>' + rg[q] + '</span></div>' + bar(rg[q] / (rg[mx] || 1) * 100, '#c08a2e');
+          }).join(''));
+        }
+      }catch(e){ console.error('habit extras failed', e); }
       out += '<div style="margin-top:14px;"><button class="secondary" id="anHabClear">Clear habits history</button></div></div>';
       return out;
     }catch(e){ console.error('habits failed', e); return '<div class="card"><h2>Your habits</h2><p class="desc">I could not build the habits report.</p></div>'; }
@@ -1871,9 +1947,34 @@
           }catch(err){ console.warn('deep re-check failed', err); }
         }
       }
+      // "threat" pass: for each costly move of yours, ask the engine what your opponent would play if it were THEIR turn in the position before your move.
+      // The engine sees pins, overloaded defenders, checks and mates that a simple capture count cannot.
+      var thr = {};
+      if(eng.kind === 'stockfish'){
+        var sg1 = side === 'w' ? 1 : -1, cand = [], oppS = side === 'w' ? 'b' : 'w';
+        for(var q1 = 0; q1 < parsed.moves.length; q1++){
+          if(parsed.moves[q1].color !== side || isMate(ev[q1].cp)) continue;
+          var l1 = winPct(sg1 * ev[q1].cp) - winPct(sg1 * ev[q1 + 1].cp);
+          if(l1 >= 5) cand.push({i:q1, l:l1});
+        }
+        cand.sort(function(a, b){ return b.l - a.l; }); cand = cand.slice(0, 10);
+        var dl1 = Date.now() + 9000;
+        for(var z1 = 0; z1 < cand.length; z1++){
+          if(cancelFlag) throw new Error('Analysis cancelled.');
+          if(Date.now() > dl1) break;
+          var ti = cand[z1].i, tf = parsed.fens[ti];
+          try{
+            if(new Chess(tf).in_check()) continue;          // you were in check: the opponent cannot "pass"
+            setProg('Checking what your opponent was threatening (' + (z1 + 1) + ' of ' + cand.length + ')...', 94);
+            var tfen = flipTurn(tf, oppS);
+            if(new Chess(tfen).game_over()) continue;
+            thr[ti] = await evalFen(eng, tfen, 350, 1);
+          }catch(err){ if(/cancel/i.test(String(err && err.message))) throw err; console.warn('threat check failed', err); }
+        }
+      }
       setProg('Writing your report...', 99);
       try{ if(window.__anPlus && window.__anPlus.ready) await window.__anPlus.ready; }catch(e){}
-      A = build(parsed, ev, side, tc);
+      A = build(parsed, ev, side, tc, thr);
       A.engineKind = eng.kind; A.partialEngine = sfFail > 0; A.sel = 0; activeTab = 'board'; PR = null;
       setProg('', 0);
       renderInputBox(); renderResults();
