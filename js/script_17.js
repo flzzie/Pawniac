@@ -92,6 +92,7 @@
   // the time cap only stops positions that are very slow to search
   // time per position: Fast 0.35 s, Balanced 0.5 s, Deep 0.7 s (the engine searches as deep as it can in that time)
   function sfLimits(ms){
+    if(ms >= 2000) return {depth:60, cap:ms};
     if(ms <= 300) return {depth:40, cap:350};
     if(ms <= 800) return {depth:40, cap:500};
     return {depth:40, cap:700};
@@ -2099,6 +2100,8 @@
     document.getElementById('anNext').onclick = function(){ goto(A.sel + 1); };
     document.getElementById('anLast').onclick = function(){ goto(A.moves.length); };
     document.getElementById('anFlip').onclick = function(){ A.flip = !A.flip; paintSel(); };
+    var xp = document.getElementById('anExplainPos');
+    if(xp) xp.onclick = function(){ window.PawniacExplainFen(A.fens[A.sel]); };
     paintSel();
     if(activeTab === 'practice') renderPractice();
   }
@@ -2317,7 +2320,7 @@
 
   // ---------- open the analysis for a given PGN (used by the bot page and by shared links) ----------
   window.PawniacAnalyzePgn = function(pgn, side, min, inc){
-    stopPoll(); A = null; PR = null; activeTab = 'board';
+    stopPoll(); A = null; PR = null; activeTab = 'board'; AN_MODE = 'game';
     sideManual = false; tcManual = false;
     formSide = (side === 'w' || side === 'b') ? side : null;
     if(min > 0){ formMin = min; formInc = inc || 0; tcFilled = true; } else { formMin = 0; formInc = 0; tcFilled = false; }
@@ -2347,5 +2350,41 @@
   renderAnalyze = function(){
     prevRenderAnalyze();
     if(SHARED){ var sh = SHARED; SHARED = null; try{ window.PawniacAnalyzePgn(sh.pgn, sh.side, sh.min, sh.inc); }catch(e){ console.error('shared link failed', e); } }
+    mountModeBar();
+  };
+
+  // ---------- "Understand a position" mode ----------
+  window.__anCore = {features:features, capsFor:capsFor, seeGain:seeGain, flipTurn:flipTurn, pvInfo:pvInfo, evalFen:evalFen, getEngine:getEngine, winPct:winPct, tryMove:tryMove, VAL:VAL, fenParts:fenParts, isMate:isMate};
+  var AN_MODE = 'game';
+  function applyMode(){
+    var iw = document.getElementById('anInputWrap'), rs = document.getElementById('anRes'), pw = document.getElementById('anPosWrap');
+    if(!iw || !rs || !pw) return;
+    iw.style.display = rs.style.display = (AN_MODE === 'game') ? '' : 'none';
+    pw.style.display = (AN_MODE === 'pos') ? '' : 'none';
+    document.querySelectorAll('#anModeBar .an-modebtn').forEach(function(b){ b.classList.toggle('active', b.dataset.mode === AN_MODE); });
+  }
+  function mountModeBar(){
+    var scr = document.getElementById('anInputWrap') && document.getElementById('anInputWrap').parentNode;
+    if(!scr) return;
+    if(!document.getElementById('anModeBar')){
+      var bar = document.createElement('div'); bar.id = 'anModeBar'; bar.className = 'an-modebar';
+      bar.innerHTML = '<button class="an-modebtn" data-mode="game">Analyze a game</button><button class="an-modebtn" data-mode="pos">Understand a position</button>';
+      scr.insertBefore(bar, scr.firstChild);
+      var pw = document.createElement('div'); pw.id = 'anPosWrap'; pw.style.display = 'none';
+      scr.insertBefore(pw, document.getElementById('anInputWrap'));
+      bar.querySelectorAll('.an-modebtn').forEach(function(b){ b.onclick = function(){
+        AN_MODE = b.dataset.mode;
+        if(AN_MODE === 'pos' && window.PawniacPosition) window.PawniacPosition.mount(document.getElementById('anPosWrap'), {});
+        applyMode();
+      }; });
+    }
+    applyMode();
+  }
+  window.PawniacExplainFen = function(fen){
+    AN_MODE = 'pos'; mountModeBar();
+    var pw = document.getElementById('anPosWrap');
+    if(pw && window.PawniacPosition) window.PawniacPosition.mount(pw, {fen:fen, auto:true});
+    applyMode();
+    try{ window.scrollTo({top:0, behavior:'smooth'}); }catch(e){}
   };
 })();
