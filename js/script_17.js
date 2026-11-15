@@ -1310,6 +1310,14 @@
           plan = 'Your opponent wants ' + refInfo.sans[0] + ', then ' + refInfo.sans[2] + '. Their pieces are heading somewhere useful while yours are not.';
         else if(refInfo && refInfo.sans.length) plan = 'Your opponent\'s best answer is ' + refInfo.sans[0] + '.';
       }
+      // a threat they already had that your move did not stop (checked on the board: same capture, still winning after your move)
+      if(!threat && !m.captured){
+        try{
+          var thB = winsFor(fenB, opp).filter(function(x){ return x.free || x.net >= 2; }), thA = winsFor(fenA, opp);
+          var still = thB.filter(function(x){ return x.to !== m.to && thA.some(function(y){ return y.from === x.from && y.to === x.to; }); })[0];
+          if(still) threat = 'Your opponent was already threatening ' + still.san + ' (winning your ' + NAMES[still.piece] + ' on ' + still.to + (still.free ? ' for free' : '') + ') before your move, and your move did not deal with it.';
+        }catch(e){}
+      }
       var prev = i >= 2 ? A.moves[i - 2] : null;
       if(i < 24 && d.tags.indexOf('capture') < 0){
         if(d.tags.indexOf('earlyqueen') >= 0){ why.push('Bringing the queen out this early invites attacks that gain them developing moves for free.'); cons.push('Early queen sortie: loses time.'); lessonKey = lessonKey || 'opening'; }
@@ -1371,6 +1379,24 @@
       var wt = null;
       try{ wt = window.__anPlus ? window.__anPlus.whyText(A, i, evB.best, evB.pv) : null; }catch(e){}
       better = {san:bestSan, text:wt || (cap(bd.text) + '. ' + reason), line:sanLine(fenB, evB.pv, 5)};
+      // the contrast with your move, only when the board proves it
+      try{
+        var cb = new Chess(fenB), mdone = cb.move({from:bm.from, to:bm.to, promotion:bm.promotion});
+        if(mdone){
+          var fenBest = cb.fen(), thB2 = winsFor(fenB, opp).filter(function(x){ return x.free || x.net >= 2; });
+          var thPlayed = winsFor(fenA, opp), thBest = winsFor(fenBest, opp), contrast = null;
+          var gone = thB2.filter(function(x){
+            return x.to !== bm.to && thPlayed.some(function(y){ return y.from === x.from && y.to === x.to; }) && !thBest.some(function(y){ return y.from === x.from && y.to === x.to; });
+          })[0];
+          if(gone) contrast = 'It stops the threat against your ' + NAMES[gone.piece] + ' on ' + gone.to + ' (' + gone.san + '), which your move left in place.';
+          else {
+            var left = thPlayed.filter(function(x){ return (x.free || x.net >= 2) && x.to === m.to; })[0];
+            if(left && !thBest.some(function(y){ return y.from === left.from && y.to === left.to; }) && !(bestInfo && bestInfo.net >= 1))
+              contrast = 'It does not leave a piece capturable, unlike your move, which let ' + left.san + ' win your ' + NAMES[left.piece] + ' on ' + left.to + '.';
+          }
+          if(contrast) better.text += ' ' + contrast;
+        }
+      }catch(e){ console.error('best move contrast failed', e); }
     }
 
     // ----- several equally good moves (only when the engine really rates them the same)
@@ -1588,7 +1614,7 @@
     return String(h);
   }
   function gameSummary(A){
-    var mine = myIdx(A), S = sideSummary(A), types = {}, phases = {opening:0, middlegame:0, endgame:0}, nBad = 0, onlyTot = 0, onlyFound = 0;
+    var mine = myIdx(A), S = sideSummary(A), types = {}, phases = {opening:0, middlegame:0, endgame:0}, nBad = 0, onlyTot = 0, onlyFound = 0, rng = [0, 0, 0, 0];
     mine.forEach(function(i){
       var om = onlyMoveInfo(A, i);
       if(om){ onlyTot++; if(om.found) onlyFound++; }
@@ -1596,6 +1622,7 @@
       if(isBadLabel(st.label)){
         nBad++;
         if(phases[st.phase] !== undefined) phases[st.phase]++;
+        try{ var mn = fenParts(A.fens[i]).full; rng[mn <= 10 ? 0 : mn <= 20 ? 1 : mn <= 30 ? 2 : 3]++; }catch(e){}
         var t = mistakeType(A, i);
         if(t.k !== 'quiet'){
           var cost = Math.max(0, Math.min(10, (st.cpBefore - st.cpAfter) / 100));
@@ -1604,7 +1631,9 @@
         }
       }
     });
-    return {k:habitKey(A), t:Date.now(), me:A.me, acc:Math.round(S.acc), moves:mine.length, bad:nBad, types:types, phases:phases, only:[onlyFound, onlyTot]};
+    var rs = (A.hdr && A.hdr.Result) || '', score = null;
+    if(rs === '1-0') score = A.me === 'w' ? 1 : 0; else if(rs === '0-1') score = A.me === 'b' ? 1 : 0; else if(rs === '1/2-1/2') score = 0.5;
+    return {k:habitKey(A), t:Date.now(), me:A.me, acc:Math.round(S.acc), moves:mine.length, bad:nBad, types:types, phases:phases, only:[onlyFound, onlyTot], rng:rng, score:score};
   }
   function saveHabit(A){
     try{
@@ -1651,6 +1680,40 @@
         trend = d === 0 ? ' Your recent games are about the same as your earlier ones.' : ' Your recent games are ' + Math.abs(d) + ' points ' + (d > 0 ? 'better' : 'worse') + ' than your earlier ones.';
       }
       out += sec('Accuracy', ps(['Average accuracy: ' + avg + '%.' + trend]) + '<div class="an-hspark">' + g.map(function(x){ return '<i title="' + x.acc + '%" style="height:' + Math.max(6, Math.min(100, (x.acc - 30) / 70 * 100)) + '%"></i>'; }).join('') + '</div>');
+      // ---- trend, colour and move-range notes (only said when the saved games really show it)
+      try{
+        var more = [], hh = Math.floor(g.length / 2);
+        if(g.length >= 6){
+          var e1 = g.slice(0, hh), e2 = g.slice(hh), per = function(arr, f){ var t = 0; arr.forEach(function(x){ t += f(x); }); return t / arr.length; };
+          var b1 = per(e1, function(x){ return x.bad; }), b2 = per(e2, function(x){ return x.bad; });
+          if(Math.abs(b2 - b1) >= 0.5) more.push('Mistakes and blunders per game: ' + b1.toFixed(1) + ' in your earlier games, ' + b2.toFixed(1) + ' in your recent ones (' + (b2 < b1 ? 'improving' : 'getting worse') + ').');
+          var bestPh = null;
+          ['opening', 'middlegame', 'endgame'].forEach(function(k){
+            var d1 = per(e2, function(x){ return x.phases[k] || 0; }) - per(e1, function(x){ return x.phases[k] || 0; });
+            if(!bestPh || Math.abs(d1) > Math.abs(bestPh.d)) bestPh = {k:k, d:d1, a:per(e1, function(x){ return x.phases[k] || 0; }), b:per(e2, function(x){ return x.phases[k] || 0; })};
+          });
+          if(bestPh && Math.abs(bestPh.d) >= 0.5) more.push('The biggest change is in the ' + bestPh.k + ': ' + bestPh.a.toFixed(1) + ' mistakes per game before, ' + bestPh.b.toFixed(1) + ' now.');
+        }
+        if(more.length) out += sec('Your trend', ps(more));
+        var gw = g.filter(function(x){ return x.me === 'w'; }), gb = g.filter(function(x){ return x.me === 'b'; });
+        if(gw.length >= 3 && gb.length >= 3){
+          var aw = gw.reduce(function(t, x){ return t + x.acc; }, 0) / gw.length, ab = gb.reduce(function(t, x){ return t + x.acc; }, 0) / gb.length;
+          var mw = gw.reduce(function(t, x){ return t + x.bad; }, 0) / gw.length, mb = gb.reduce(function(t, x){ return t + x.bad; }, 0) / gb.length;
+          var line = 'As White (' + gw.length + ' games): ' + Math.round(aw) + '% accuracy, ' + mw.toFixed(1) + ' mistakes per game. As Black (' + gb.length + ' games): ' + Math.round(ab) + '%, ' + mb.toFixed(1) + ' per game.';
+          var sw = gw.filter(function(x){ return x.score != null; }), sb = gb.filter(function(x){ return x.score != null; });
+          if(sw.length >= 3 && sb.length >= 3) line += ' Score: ' + Math.round(sw.reduce(function(t, x){ return t + x.score; }, 0) / sw.length * 100) + '% as White, ' + Math.round(sb.reduce(function(t, x){ return t + x.score; }, 0) / sb.length * 100) + '% as Black.';
+          line += Math.abs(aw - ab) >= 3 ? ' You play noticeably better as ' + (aw > ab ? 'White' : 'Black') + '.' : ' Not much difference between the colours.';
+          out += sec('White or Black', ps([line]));
+        }
+        var rg = [0, 0, 0, 0], rn = 0; g.forEach(function(x){ if(x.rng){ rn++; for(var q = 0; q < 4; q++) rg[q] += x.rng[q]; } });
+        var rt = rg[0] + rg[1] + rg[2] + rg[3];
+        if(rn >= 4 && rt >= 6 && rg.filter(function(v){ return v === Math.max.apply(null, rg); }).length === 1){
+          var RL = ['moves 1 to 10', 'moves 11 to 20', 'moves 21 to 30', 'move 31 and later'], mx = rg.indexOf(Math.max.apply(null, rg));
+          out += sec('When in the game', ps(['Most of your mistakes (' + rg[mx] + ' of ' + rt + ') come in ' + RL[mx] + '.']) + RL.map(function(l, q){
+            return '<div class="an-hrow"><span>' + l + '</span><span>' + rg[q] + '</span></div>' + bar(rg[q] / (rg[mx] || 1) * 100, '#c08a2e');
+          }).join(''));
+        }
+      }catch(e){ console.error('habit extras failed', e); }
       out += '<div style="margin-top:14px;"><button class="secondary" id="anHabClear">Clear habits history</button></div></div>';
       return out;
     }catch(e){ console.error('habits failed', e); return '<div class="card"><h2>Your habits</h2><p class="desc">I could not build the habits report.</p></div>'; }
