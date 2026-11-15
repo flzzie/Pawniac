@@ -106,26 +106,43 @@
     if(window.PawniacSF && window.PawniacSF.queue) return window.PawniacSF.queue(function(){ return sfEval0(w, fen, ms, multi); });
     return sfEval0(w, fen, ms, multi);
   }
+  var curAbort = null;            // lets the Cancel button stop a search that is running right now
+  var sfFail = 0;                 // how many positions this analysis the engine could not answer
   function sfEval0(w, fen, ms, multi){
     multi = multi || 1;
     return new Promise(function(resolve, reject){
-      var lines = {};
-      var guard = setTimeout(function(){ w.removeEventListener('message', h); reject(new Error('engine timed out')); }, 90000);
+      var lines = {}, settled = false, lim = sfLimits(ms);
+      // the engine answers within the cap; if it says nothing for much longer it is stuck on this position
+      var guard = setTimeout(function(){ fail(new Error('engine timed out')); }, Math.max(5000, lim.cap * 8));
+      function finish(){ clearTimeout(guard); if(curAbort === abort) curAbort = null; }
+      function fail(err){
+        if(settled) return; settled = true; finish();
+        w.removeEventListener('message', h);
+        try{ w.postMessage('stop'); }catch(e){}
+        // wait for the stopped search to say "bestmove", so that late answer cannot be taken for the next position's
+        var t2 = setTimeout(function(){ w.removeEventListener('message', drain); reject(err); }, 1500);
+        function drain(e){ if(String(e.data).indexOf('bestmove') === 0){ clearTimeout(t2); w.removeEventListener('message', drain); reject(err); } }
+        w.addEventListener('message', drain);
+      }
+      function abort(){ fail(new Error('Analysis cancelled.')); }
+      curAbort = abort;
       function h(e){
+        if(settled) return;
         var line = String(e.data);
         if(line.indexOf('info') === 0 && line.indexOf(' score ') > 0 && line.indexOf(' pv ') > 0 && !/lowerbound|upperbound/.test(line)){
           var m = /score (cp|mate) (-?\d+)/.exec(line), p = / pv (.+)$/.exec(line), d = / depth (\d+)/.exec(line), mp = / multipv (\d+)/.exec(line);
           if(m && p) lines[mp ? parseInt(mp[1], 10) : 1] = {type:m[1], val:(window.PawniacSF ? window.PawniacSF.cp(line, m[1], parseInt(m[2], 10)) : parseInt(m[2], 10)), pv:p[1].trim().split(/\s+/), depth:d ? parseInt(d[1], 10) : 0};
         } else if(line.indexOf('bestmove') === 0){
-          clearTimeout(guard); w.removeEventListener('message', h);
+          settled = true; finish(); w.removeEventListener('message', h);
           var bm = line.split(' ')[1], main = lines[1] || null, alts = [];
+          if(!bm || bm === '(none)'){ reject(new Error('engine could not read this position')); return; }   // the caller only asks about positions that have moves
           if(multi > 1 && main){
             for(var k = 2; k <= multi; k++){
               var L = lines[k];
               if(L && L.pv.length && L.depth >= main.depth - 1) alts.push({cp:scoreToCp(L), best:L.pv[0], pv:L.pv});
             }
           }
-          resolve({cp:scoreToCp(main), best:(bm && bm !== '(none)') ? bm : null, pv:main ? main.pv : [], depth:main ? main.depth : 0, alts:alts});
+          resolve({cp:scoreToCp(main), best:bm, pv:main ? main.pv : [], depth:main ? main.depth : 0, alts:alts});
         }
       }
       w.addEventListener('message', h);
@@ -133,7 +150,6 @@
       w.postMessage('setoption name Contempt value 0');
       w.postMessage('setoption name MultiPV value ' + multi);
       w.postMessage('position fen ' + fen);
-      var lim = sfLimits(ms);
       w.postMessage('go depth ' + lim.depth + ' movetime ' + lim.cap);
     });
   }
@@ -220,7 +236,18 @@
       if(c.in_checkmate()) cp0 = turn === 'w' ? -10000 : 10000;
       return {cp:cp0, best:null, pv:[], depth:0, alts:[]};
     }
-    var r = eng.kind === 'stockfish' ? await sfEval(eng.w, fen, ms, multi) : basicEval(fen, ms);
+    var r;
+    if(eng.kind === 'stockfish' && sfFail < 2){
+      try{ r = await sfEval(eng.w, fen, ms, multi); }
+      catch(err){
+        if(/cancel/i.test(String(err && err.message))) throw err;
+        // Stockfish cannot read some unusual positions (for example a Piece Auction start with many queens): use the small built-in engine for those
+        sfFail++;
+        console.warn('Stockfish could not analyse a position, using the basic engine', err);
+        if(sfFail >= 2){ try{ if(window.PawniacSF && window.PawniacSF.reset) window.PawniacSF.reset(); }catch(e){} ENGINE = null; }   // next analysis starts a fresh engine
+        r = basicEval(fen, ms);
+      }
+    } else r = basicEval(fen, ms);
     var sign = turn === 'w' ? 1 : -1;
     return {cp:sign * r.cp, best:r.best, pv:r.pv, depth:r.depth,
             alts:(r.alts || []).map(function(a){ return {cp:sign * a.cp, best:a.best, pv:a.pv}; })};
@@ -1802,7 +1829,8 @@
   }
 
   async function start(text){
-    if(running){ cancelFlag = true; return; }
+    if(running){ cancelFlag = true; if(curAbort) curAbort(); var gc = document.getElementById('anGo'); if(gc) gc.textContent = 'Cancelling...'; return; }
+    sfFail = 0;
     try{
       if(!formSide) throw new Error('Pick which side you played ("White" or "Black") first.');
       var parsed = parsePgn(text), side = formSide, tc = {min:formMin, inc:formInc};
@@ -1843,7 +1871,7 @@
       setProg('Writing your report...', 99);
       try{ if(window.__anPlus && window.__anPlus.ready) await window.__anPlus.ready; }catch(e){}
       A = build(parsed, ev, side, tc);
-      A.engineKind = eng.kind; A.sel = 0; activeTab = 'board'; PR = null;
+      A.engineKind = eng.kind; A.partialEngine = sfFail > 0; A.sel = 0; activeTab = 'board'; PR = null;
       setProg('', 0);
       renderInputBox(); renderResults();
     }catch(e){
@@ -2054,7 +2082,7 @@
     else timeBody = '<p class="an-note">There are no clock tags in this PGN, so I cannot check time per move. Games from Lichess or Chess.com include them. (Games played on Pawniac do not record per-move times yet.)</p>' + (sug ? '<p class="an-note">' + esc(sug) + '</p>' : '');
     var ds = A.ev.map(function(e){ return e.depth || 0; }).filter(function(d){ return d > 0; });
     var avgD = ds.length ? Math.round(ds.reduce(function(a, b){ return a + b; }, 0) / ds.length) : 0;
-    var eng = A.engineKind === 'stockfish' ? 'Analysed with Stockfish running in your browser (average search depth ' + avgD + ').' : 'Stockfish could not be loaded, so this used a small built-in engine. Explanations are less reliable.';
+    var eng = A.engineKind === 'stockfish' ? 'Analysed with Stockfish running in your browser (average search depth ' + avgD + ').' + (A.partialEngine ? ' Stockfish could not read some of the positions in this game (an unusual setup), so those were checked with a small built-in engine and are less reliable.' : '') : 'Stockfish could not be loaded, so this used a small built-in engine. Explanations are less reliable.';
     var title = esc((A.hdr.White || 'White') + ' vs ' + (A.hdr.Black || 'Black')) + (A.hdr.Result ? ' &middot; ' + esc(A.hdr.Result) : '');
     var nPr = practiceItems().length;
     return '<div class="card"><h2>' + title + '</h2><p class="desc" style="margin-bottom:12px;">' + eng + '</p>' +
