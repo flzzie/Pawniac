@@ -291,7 +291,8 @@
       var k = o.king;
       if(k){
         var homeR = col === 'w' ? 7 : 0, dir = col === 'w' ? -1 : 1;
-        o.castled = (k.r === homeR) && (k.f >= 6 || k.f <= 2);
+        o.castled = Math.abs(k.r - homeR) <= 1 && (k.f >= 6 || k.f <= 2);   // tucked into a corner (also after Kh2 / Kb1)
+        o.kingCentre = Math.abs(k.r - homeR) <= 2 && k.f >= 3 && k.f <= 5;
         for(var df = -1; df <= 1; df++){
           var kf = k.f + df; if(kf < 0 || kf > 7) continue;
           for(var dr = 1; dr <= 2; dr++){
@@ -543,7 +544,7 @@
     if(F.phase !== 'endgame'){
       var dd = M.dev - O.dev;
       add(dd, dd > 0 ? 'you have developed ' + plural(dd, 'more minor piece') : 'your opponent has developed ' + plural(-dd, 'more minor piece'));
-      if(M.castled !== O.castled && F.total >= 30) add(M.castled ? 1 : -1, M.castled ? 'you have castled while their king is still in the centre' : 'they have castled while your king is still in the centre');
+      if(M.castled !== O.castled && F.total >= 30 && (M.castled ? O.kingCentre : M.kingCentre)) add(M.castled ? 1 : -1, M.castled ? 'you have castled while their king is still in the centre' : 'they have castled while your king is still in the centre');
       else if(M.castled && O.castled && M.shield !== O.shield) add(M.shield - O.shield, M.shield > O.shield ? 'your king has the sturdier pawn shield' : 'their king has the sturdier pawn shield');
     }
     if(M.bishops >= 2 && O.bishops < 2) add(1, 'you have the bishop pair');
@@ -581,12 +582,13 @@
       if(mv.piece === 'p' && ['d4', 'e4', 'd5', 'e5'].indexOf(mv.to) >= 0 && !mv.captured){ bits.push('stakes a claim in the centre'); tags.push('centre'); }
       if(mv.piece === 'k'){ bits.push('moves the king to ' + mv.to); tags.push('kingmove'); }
       if(mv.piece === 'q' && ply < 12 && !mv.captured) tags.push('earlyqueen');
-      if(!bits.length) bits.push(mv.piece === 'p' ? 'pushes the pawn to ' + mv.to : 'moves the ' + pname + ' from ' + mv.from + ' to ' + mv.to);
+      var generic = false;
+      if(!bits.length){ generic = true; bits.push(mv.piece === 'p' ? 'pushes the pawn to ' + mv.to : 'moves the ' + pname + ' from ' + mv.from + ' to ' + mv.to); }
     }
     var last = mv.san.charAt(mv.san.length - 1);
     if(last === '#'){ bits.push('delivers checkmate'); tags.push('mate'); }
     else if(last === '+'){ bits.push('gives check'); tags.push('check'); }
-    return {text:bits.join(', '), tags:tags};
+    return {text:bits.join(', '), tags:tags, generic:generic};
   }
   function pvInfo(fen, ucis, plies, side){
     var c = new Chess(fen), net = 0, firstCap = null, sans = [], last = null;
@@ -1184,7 +1186,7 @@
       var nw1 = newWeak(fenB, fenA, me); if(nw1) notes.push('Structure: ' + nw1 + '.');
       if(fA[me].shield < fB[me].shield && fA.total >= 25) notes.push('It thins the pawn shield in front of your king.');
       var relRank = me === 'w' ? r0 : 9 - r0;
-      if(relRank >= 4 && f0 >= 2 && f0 <= 5 && !hits.length) notes.push('It gains space in the centre.');
+      if(relRank >= 4 && relRank <= 5 && (f0 === 3 || f0 === 4) && !hits.length) notes.push('It gains space in the centre.');
       if(hangNow.some(function(h){ return h.to === m.to; })) notes.push('Careful: the pawn on ' + m.to + ' can be picked off.');
     }
     // ----- weak pawns of theirs that you now target
@@ -1331,7 +1333,7 @@
           lessonKey = 'structure';
         } else {
           why.push('Nothing concrete goes wrong here: no piece is lost and no tactic appears. The engine just rates ' + (bestSan ? bestSan : 'another move') + ' a little higher (' + fw(S.cpBefore, me) + ' before your move, ' + fw(S.cpAfter, me) + ' after).');
-          if(bm){ var bd3 = describeMove(bm, i); notes.push('The idea behind ' + bestSan + ': it ' + bd3.text + '.'); }
+          if(bm){ var bd3 = describeMove(bm, i); if(!bd3.generic) notes.push('The idea behind ' + bestSan + ': it ' + bd3.text + '.'); }
           cons.push('A slightly less precise choice than ' + (bestSan || 'the engine move') + ', but not a real error.');
           lessonKey = 'quiet';
         }
