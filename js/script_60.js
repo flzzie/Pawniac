@@ -576,8 +576,8 @@
         var oppFen = Z.flipTurn(fen, op), om = Z.tryMove(oppFen, R.opp.best);
         if(om){
           var osg = op === 'w' ? 1 : -1, sw = osg * (R.opp.cp - R.cp) / 100, omate = Math.abs(R.opp.cp) >= 9000 && osg * R.opp.cp > 0 ? Math.max(1, Math.round((10000 - Math.abs(R.opp.cp)) / 10)) : 0;
-          M.opp = {name:name(op), san:om.san, evalNum:fmtEval(R.opp.cp), line:lineSans(R.opp.pv && R.opp.pv.length ? R.opp.pv : [R.opp.best], oppFen),
-                   text: omate ? name(op) + ' would threaten checkmate in ' + omate + '.' : (sw >= 0.5 ? 'This is the threat to watch: it would gain ' + name(op) + ' about ' + sw.toFixed(1) + ' pawns.' : name(op) + ' has no big threat here: the gain would be under half a pawn.')};
+          M.opp = {name:name(op), san:om.san, evalNum:(Math.abs(R.opp.cp) >= 9000 ? (R.opp.cp > 0 ? 'White' : 'Black') + ' mates in ' + Math.max(1, Math.round((10000 - Math.abs(R.opp.cp)) / 10)) : fmtEval(R.opp.cp)), line:lineSans(R.opp.pv && R.opp.pv.length ? R.opp.pv : [R.opp.best], oppFen),
+                   text: omate ? name(op) + ' would threaten checkmate in ' + omate + '.' : (sw >= 0.5 ? 'This is the threat to watch: it would gain ' + name(op) + ' about ' + sw.toFixed(1) + ' pawns.' : (Math.abs(R.opp.cp) >= 9000 && osg * R.opp.cp < 0 ? 'If it were ' + name(op) + "'s move, " + name(other(op)) + ' would still have a forced checkmate, so there is no threat to worry about.' : name(op) + ' has no big threat here: the gain would be under half a pawn.'))};
         }
       }catch(e){}
     }
