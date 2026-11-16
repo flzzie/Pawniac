@@ -424,7 +424,7 @@
       if(o.passed.length) bits.push('passed: ' + o.passed.map(function(p){
         var q = []; if(o.protectedPassed.indexOf(p.sq) >= 0) q.push('protected'); if(o.connectedPassed.indexOf(p.sq) >= 0) q.push('connected'); if(o.blockaded[p.sq]) q.push('blockaded by the ' + pieceWord(o.blockaded[p.sq].type));
         return p.sq + (q.length ? ' (' + q.join(', ') + ')' : ''); }).join(', '));
-      if(o.islands > 1) bits.push(o.islands + ' pawn islands');
+      if(o.islands > 1 && (P.w.islands !== P.b.islands || o.islands >= 3)) bits.push(o.islands + ' pawn islands');   // equal and small: not worth saying
       return bits.length ? bits.join('; ') : (o.pawns.length ? 'no isolated, doubled, backward or passed pawns' : 'no pawns');
     }
     function rooksText(c){
@@ -457,7 +457,8 @@
     function plans(c){
       var o = P[c], e = P[other(c)], ps = [], ek = K[other(c)], mk = K[c], my = c === turn;
       var wn = W[c].filter(function(x){ return true; });
-      if(wn.length){ var t = wn[0]; ps.push((my ? 'Win the ' : 'Look out: the ') + pieceWord(t.piece) + ' on ' + t.sq + (my ? ' (' + t.san + ')' : ' can be won by ' + name(c)) + '.'); }
+      if(wn.length){ var t = wn[0]; var bestSan = null; try{ var bm0 = R && R.best ? Z.tryMove(fen, R.best) : null; bestSan = bm0 && bm0.san; }catch(e){}
+        ps.push((my ? (bestSan === t.san ? 'Win the ' : 'The loose ') : 'Look out: the ') + pieceWord(t.piece) + ' on ' + t.sq + (my ? ' (' + t.san + ')' + (bestSan === t.san ? '' : ' can be taken, but check it is safe first and compare it with the engine moves below') : ' can be won by ' + name(c)) + '.'); }
       if(W[other(c)].length && my){ var th = W[other(c)][0]; ps.push('Deal with the threat to your ' + pieceWord(th.piece) + ' on ' + th.sq + '.'); }
       if(P.phase === 'opening'){
         var minors = o.pieces.filter(function(x){ return x.type === 'n' || x.type === 'b'; }), home = c === 'w' ? 1 : 8;
@@ -529,7 +530,11 @@
       }catch(e){}
       return '';
     }
-    var cands = [{uci:R.best, cp:R.cp, pv:R.pv}].concat((R.alts || []).map(function(a){ return {uci:a.best, cp:a.cp, pv:a.pv}; })), sign = turn === 'w' ? 1 : -1;
+    var seenU = {}, cands = [{uci:R.best, cp:R.cp, pv:R.pv}].concat((R.alts || []).map(function(a){ return {uci:a.best, cp:a.cp, pv:a.pv}; })).filter(function(cd){
+      if(!cd.uci || seenU[cd.uci]) return false; seenU[cd.uci] = 1;
+      if(!cd.pv || cd.pv[0] !== cd.uci) cd.pv = [cd.uci];      // a line that does not start with this move belongs to another move
+      return true;
+    }), sign = turn === 'w' ? 1 : -1;
     M.moves = cands.map(function(cd, i){
       var m = cd.uci ? Z.tryMove(fen, cd.uci) : null;
       if(!m) return null;
@@ -577,7 +582,7 @@
         if(om){
           var osg = op === 'w' ? 1 : -1, sw = osg * (R.opp.cp - R.cp) / 100, omate = Math.abs(R.opp.cp) >= 9000 && osg * R.opp.cp > 0 ? Math.max(1, Math.round((10000 - Math.abs(R.opp.cp)) / 10)) : 0;
           M.opp = {name:name(op), san:om.san, evalNum:(Math.abs(R.opp.cp) >= 9000 ? (R.opp.cp > 0 ? 'White' : 'Black') + ' mates in ' + Math.max(1, Math.round((10000 - Math.abs(R.opp.cp)) / 10)) : fmtEval(R.opp.cp)), line:lineSans(R.opp.pv && R.opp.pv.length ? R.opp.pv : [R.opp.best], oppFen),
-                   text: omate ? name(op) + ' would threaten checkmate in ' + omate + '.' : (sw >= 0.5 ? 'This is the threat to watch: it would gain ' + name(op) + ' about ' + sw.toFixed(1) + ' pawns.' : (Math.abs(R.opp.cp) >= 9000 && osg * R.opp.cp < 0 ? 'If it were ' + name(op) + "'s move, " + name(other(op)) + ' would still have a forced checkmate, so there is no threat to worry about.' : name(op) + ' has no big threat here: the gain would be under half a pawn.'))};
+                   text: omate ? name(op) + ' would threaten checkmate in ' + omate + '.' : (sw >= 1.5 ? 'This is the threat to watch: it would gain ' + name(op) + ' about ' + sw.toFixed(1) + ' pawns.' : (Math.abs(R.opp.cp) >= 9000 && osg * R.opp.cp < 0 ? 'If it were ' + name(op) + "'s move, " + name(other(op)) + ' would still have a forced checkmate, so there is no threat to worry about.' : name(op) + ' has no real threat here: even with the move, ' + name(op) + ' would not gain anything concrete.')), threat:!!omate || sw >= 1.5};
         }
       }catch(e){}
     }
@@ -618,7 +623,8 @@
     h += '<h3 class="ps-h">Best moves ' + tag('engine') + '</h3>' + M.moves.map(function(m){
       return '<div class="ps-mv"><div class="ps-mvh"><b>' + m.rank + '. ' + esc(m.san) + '</b> <span>' + esc(m.evalNum) + '</span>' + (m.worse >= 0.15 && m.worse < 20 ? '<em>about ' + m.worse.toFixed(1) + ' pawns less accurate than the best</em>' : '') + '</div>' + (m.reason ? '<div>' + tag(m.rk || 'fact') + ' ' + esc(m.reason) + '</div>' : '') + (m.warn ? '<div>' + tag('fact') + ' ' + esc(m.warn) + '</div>' : '') + '<div class="ps-line">' + esc(m.line) + '</div></div>';
     }).join('');
-    if(M.opp) h += '<h3 class="ps-h">If it were ' + esc(M.opp.name) + "'s move " + tag('engine') + '</h3><div class="ps-mv"><div class="ps-mvh"><b>' + esc(M.opp.san) + '</b> <span>' + esc(M.opp.evalNum) + '</span></div><div>' + esc(M.opp.text) + '</div><div class="ps-line">' + esc(M.opp.line) + '</div></div>';
+    if(M.opp && !M.opp.threat) h += '<h3 class="ps-h">Threats ' + tag('engine') + '</h3><div class="ps-mv"><div>' + esc(M.opp.text) + '</div></div>';
+    else if(M.opp) h += '<h3 class="ps-h">If it were ' + esc(M.opp.name) + "'s move " + tag('engine') + '</h3><div class="ps-mv"><div class="ps-mvh"><b>' + esc(M.opp.san) + '</b> <span>' + esc(M.opp.evalNum) + '</span></div><div>' + esc(M.opp.text) + '</div><div class="ps-line">' + esc(M.opp.line) + '</div></div>';
     h += '<p class="hint" style="margin-top:12px;"><b>Fact</b>: counted from the board or settled by the rules, so it is certain. <b>Engine</b>: from the Stockfish search; strong, but it can change with deeper search. <b>Advice</b>: general rules of thumb, a starting point and not a proof.</p></div>';
     return h;
   }

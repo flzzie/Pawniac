@@ -140,10 +140,10 @@
           if(multi > 1 && main){
             for(var k = 2; k <= multi; k++){
               var L = lines[k];
-              if(L && L.pv.length && L.depth >= main.depth - 1) alts.push({cp:scoreToCp(L), best:L.pv[0], pv:L.pv});
+              if(L && L.pv.length && L.depth >= main.depth - 1 && L.pv[0] !== bm && !alts.some(function(x){ return x.best === L.pv[0]; })) alts.push({cp:scoreToCp(L), best:L.pv[0], pv:L.pv});
             }
           }
-          resolve({cp:scoreToCp(main), best:bm, pv:main ? main.pv : [], depth:main ? main.depth : 0, alts:alts});
+          resolve({cp:scoreToCp(main), best:bm, pv:main ? (main.pv[0] === bm ? main.pv : [bm]) : [], depth:main ? main.depth : 0, alts:alts});
         }
       }
       w.addEventListener('message', h);
