@@ -140,11 +140,11 @@
     if(G && G.clock) ms = Math.min(ms, Math.max(50, remMs(side) / 30));    // think faster when short on time
     return Math.round(ms);
   }
-  function run(fen, ms){
-    if(window.PawniacSF && window.PawniacSF.queue) return window.PawniacSF.queue(function(){ return run0(fen, ms); });
-    return run0(fen, ms);
+  function run(fen, ms, only){
+    if(window.PawniacSF && window.PawniacSF.queue) return window.PawniacSF.queue(function(){ return run0(fen, ms, only); });
+    return run0(fen, ms, only);
   }
-  function run0(fen, ms){
+  function run0(fen, ms, only){
     return loadSF().then(function(w){
       if(!w) return randomMove(fen);
       return new Promise(function(res){
@@ -161,11 +161,11 @@
         w.postMessage('setoption name MultiPV value 1');
         w.postMessage('setoption name Skill Level value ' + S.skill);
         w.postMessage('position fen ' + fen);
-        w.postMessage('go movetime ' + ms);
+        w.postMessage('go movetime ' + ms + (only && only.length ? ' searchmoves ' + only.join(' ') : ''));   // only: the bot's hand may move just this piece
       });
     });
   }
-  function best(fen, ms){ var p = chain.then(function(){ return run(fen, ms); }); chain = p.catch(function(){}); return p; }
+  function best(fen, ms, only){ var p = chain.then(function(){ return run(fen, ms, only); }); chain = p.catch(function(){}); return p; }
 
   // ---------- clock ----------
   function tcVals(){
@@ -286,15 +286,25 @@
   function botMove(){
     var g = G, t0 = Date.now();
     g.busy = true; g.msg = 'Bot is thinking...'; draw();
-    (g.variant === 'double' ? window.PawniacDoubleBot.pick(g.chess, thinkMs(g.bot), S.skill) : best(g.chess.fen(), thinkMs(g.bot))).then(function(u){
+    // Hand & Brain with "Random pieces": the bot gets a random piece too (rolled the same way as yours), and its hand may move only that piece
+    var rolled = null, only = null;
+    if(g.variant === 'hb' && g.hbMode === 'random'){
+      var legal = g.chess.moves({verbose:true});
+      if(legal.length){
+        rolled = legal[Math.floor(Math.random() * legal.length)].piece;
+        only = legal.filter(function(m){ return m.piece === rolled; }).map(function(m){ return m.from + m.to + (m.promotion || ''); });
+      }
+    }
+    (g.variant === 'double' ? window.PawniacDoubleBot.pick(g.chess, thinkMs(g.bot), S.skill) : best(g.chess.fen(), thinkMs(g.bot), only)).then(function(u){
+      if(only && only.length && only.indexOf(u) < 0) u = only[Math.floor(Math.random() * only.length)];   // the engine could not honour it: still obey the rolled piece
       setTimeout(function(){
         if(G !== g || g.over) return;
         var mv = u ? play(u.slice(0, 2), u.slice(2, 4), u.slice(4, 5) || 'q') : null;
         if(g.over) return;
-        if(!mv){ var r = randomMove(g.chess.fen()); if(r) mv = play(r.slice(0, 2), r.slice(2, 4), r.slice(4, 5) || 'q'); }
+        if(!mv){ var r = only && only.length ? only[Math.floor(Math.random() * only.length)] : randomMove(g.chess.fen()); if(r) mv = play(r.slice(0, 2), r.slice(2, 4), r.slice(4, 5) || 'q'); }
         if(g.over) return;
         g.busy = false; g.msg = '';
-        if(mv) g.said = g.variant === 'hb' ? 'Bot (Brain) named the ' + NM[mv.piece].toLowerCase() + ' and played ' + mv.san + '.' : 'Bot played ' + mv.san + '.';
+        if(mv) g.said = g.variant === 'hb' ? (rolled ? 'Bot rolled the ' + NM[mv.piece].toLowerCase() + ' and played ' + mv.san + '.' : 'Bot (Brain) named the ' + NM[mv.piece].toLowerCase() + ' and played ' + mv.san + '.') : 'Bot played ' + mv.san + '.';
         nextTurn();
       }, Math.max(0, 300 - (Date.now() - t0)));
     });
@@ -490,12 +500,12 @@
 
   function drawSetup(){
     if(GUEST) return drawGuestSetup();
-    var vs = [['std','Standard Chess','Normal chess against the bot'], ['hb','Hand &amp; Brain','Bot names the piece, and yours is picked for you'], ['auction','Piece Auction','Bid coins, build an army, then play'], ['double','Double Move','Two moves every turn']];
+    var vs = [['std','Standard Chess','Normal chess against the bot'], ['hb','Hand &amp; Brain','A piece is named for each side, and the hand must move it'], ['auction','Piece Auction','Bid coins, build an army, then play'], ['double','Double Move','Two moves every turn']];
     function tb(attr, key, label, on){ return '<div class="tcbtn' + (on ? ' active' : '') + '" data-' + attr + '="' + key + '">' + label + '</div>'; }
     var near = PRESETS[0];
     PRESETS.forEach(function(p){ if(Math.abs(p.s - S.skill) < Math.abs(near.s - S.skill)) near = p; });
     S.skill = near.s;
-    var hb = S.variant === 'hb' ? '<div class="bt-h">Who names your piece</div><div class="tc-row">' + tb('hm', 'brain', 'Bot is my Brain', S.hbMode === 'brain') + tb('hm', 'random', 'Random button', S.hbMode === 'random') + '</div>' : '';
+    var hb = S.variant === 'hb' ? '<div class="bt-h">Who names the pieces (for both sides)</div><div class="tc-row">' + tb('hm', 'brain', 'Stockfish is the Brain (both sides)', S.hbMode === 'brain') + tb('hm', 'random', 'Random pieces (both sides)', S.hbMode === 'random') + '</div>' : '';
     var h = '<div class="card"><h2>Play a bot</h2><p class="desc">You play against Stockfish on your device. Games are timed, not rated, and nothing is saved.</p>' +
       '<div class="modes">' + vs.map(function(v){
         return '<div class="modebtn' + (S.variant === v[0] ? ' active' : '') + '" data-v="' + v[0] + '">' + v[1] + '<div class="hint">' + v[2] + '</div></div>';
