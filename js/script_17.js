@@ -809,10 +809,13 @@
       else if(label === 'inaccuracy' && i < 20 && loss < 8) label = 'good';   // opening evals are noisy: small differences are just choices
       if((label === 'inaccuracy' || label === 'mistake' || label === 'blunder') && !isMate(cpB)){
         var winning = (cpB >= 400 && cpA >= 250), lost = (cpB <= -400 && cpA <= -250), equalish = (Math.abs(cpB) <= 60 && Math.abs(cpA) <= 120);
-        if(winning || lost) label = (label === 'blunder') ? 'inaccuracy' : 'good';   // already decided: nothing here changes the result
+        // already decided: a small slip changes nothing. But a move that throws away a lot (a queen, a rook) is still a real mistake.
+        if((winning || lost) && cpB - cpA < 250) label = (label === 'blunder') ? 'inaccuracy' : 'good';
         else if(equalish && label === 'inaccuracy') label = 'good';
         else if(i < 20 && label === 'mistake' && loss < 12) label = 'inaccuracy';
       }
+      // the win-chance scale flattens when a game is already lopsided: five or more pawns thrown away is a blunder whatever the percentages say
+      if(!isMate(cpB) && !isMate(cpA) && cpB - cpA >= 500 && (label === 'inaccuracy' || label === 'mistake' || label === 'good' || label === 'excellent')) label = 'blunder';
       var plus = null;
       try{ plus = window.__anPlus ? window.__anPlus.adjust(A, i, label, loss) : null; }catch(e){ console.error(e); }
       if(plus){ label = plus.label; loss = plus.loss; }
@@ -1011,7 +1014,7 @@
           : d > 15 ? 'This move improved your position by about ' + (d / 100).toFixed(1) + ' pawns.'
           : 'Your position stayed about the same.';
     }
-    return 'Eval: ' + fw(S.cpBefore, me) + '  ->  ' + fw(S.cpAfter, me) + (txt ? '. ' + txt : '');
+    return 'Eval' + (me === 'b' ? ' (from White\'s side, + means White is better)' : '') + ': ' + fw(S.cpBefore, me) + '  ->  ' + fw(S.cpAfter, me) + (txt ? '. ' + txt : '');
   }
 
   // ---- positional comments on your good moves ----
