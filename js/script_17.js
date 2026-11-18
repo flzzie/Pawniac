@@ -1652,7 +1652,7 @@
   }
   function saveHabit(A){
     try{
-      if(A.habitSaved) return; A.habitSaved = true;
+      if(A.habitSaved || A.notMine) return; A.habitSaved = true;
       if(myIdx(A).length < 8) return;
       var g = gameSummary(A), arr = loadHabits().filter(function(x){ return x.k !== g.k; });
       arr.push(g);
@@ -1664,7 +1664,7 @@
   var PKEY = 'pawniac-puzzles-v1', PMAX = 60;
   function collectPuzzles(A){
     try{
-      if(A.puzzSaved) return; A.puzzSaved = true;
+      if(A.puzzSaved || A.notMine) return; A.puzzSaved = true;
       if(!ENGINE || ENGINE.kind !== 'stockfish') return;          // puzzles need the real engine's answers
       var cand = [];
       myIdx(A).forEach(function(i){
@@ -1852,6 +1852,7 @@
   // =====================================================================
   var A = null, running = false, cancelFlag = false, activeTab = 'board', PR = null;
   var formSide = null, formMin = 5, formInc = 3, sideManual = false, tcManual = false, tcFilled = false;
+  var formNotMine = false;   // 'this is not my game': analysed, but not counted in habits or puzzles
   var screen = document.createElement('div');
   screen.id = 'screen-analyze'; screen.style.display = 'none';
   document.querySelector('.wrap').appendChild(screen);
@@ -1911,6 +1912,8 @@
         '<p class="desc">Paste a PGN or upload a .pgn file. A chess engine runs in your browser (free, nothing is uploaded). The whole report is written for you, as a coach would: your mistakes, your missed chances, your clock use, then a short practice round on your errors.</p>' +
         '<textarea id="anPgn" placeholder="1. e4 e5 2. Nf3 Nc6 3. Bb5 a6 ..."></textarea>' +
         '<div class="an-row"><span class="hint" style="min-width:92px;">You played:</span><div class="tcbtn an-sidebtn" id="anSideW">White</div><div class="tcbtn an-sidebtn" id="anSideB">Black</div></div>' +
+        '<label class="an-row" style="cursor:pointer;"><input type="checkbox" id="anNotMine"' + (formNotMine ? ' checked' : '') + '><span class="hint">This is not my game (do not count it in my habits or puzzles)</span></label>' +
+        '<div id="anNotMineNote" class="hint" style="margin:0 0 6px;' + (formNotMine ? '' : 'display:none;') + '">Got it: this game will not count towards your habits or puzzles. If you know the player, you could tell them about Pawniac so they can analyse their own games (totally optional). <button class="secondary" id="anCopySite" type="button" style="margin-left:6px;">Copy the Pawniac link</button></div>' +
         '<div class="an-row"><span class="hint" style="min-width:92px;">Time control:</span><input type="number" id="anTcMin" min="0" max="180" step="any"><span class="hint">min +</span><input type="number" id="anTcInc" min="0" max="60"><span class="hint">sec per move</span><span class="hint" id="anTcNote"></span></div>' +
         '<div class="hint" style="margin-top:4px;">0 min means unknown or no clock. Time per move is read from the [%clk] tags in the PGN (Lichess and Chess.com exports have them).</div>' +
         '<div class="an-row">' +
@@ -1924,6 +1927,12 @@
     document.getElementById('anTcMin').oninput = function(){ formMin = Math.max(0, parseFloat(this.value) || 0); tcManual = true; tcFilled = false; refreshForm(); };
     document.getElementById('anTcInc').oninput = function(){ formInc = Math.max(0, parseInt(this.value, 10) || 0); tcManual = true; tcFilled = false; refreshForm(); };
     document.getElementById('anPgn').oninput = function(){ autoFill(this.value); };
+    document.getElementById('anNotMine').onchange = function(){ formNotMine = this.checked; var nn = document.getElementById('anNotMineNote'); if(nn) nn.style.display = formNotMine ? '' : 'none'; };
+    document.getElementById('anCopySite').onclick = function(){
+      var b = this, url = 'https://pawniac.fun';
+      function ok(){ b.textContent = 'Copied!'; setTimeout(function(){ b.textContent = 'Copy the Pawniac link'; }, 1800); }
+      try{ navigator.clipboard.writeText(url).then(ok, function(){ window.prompt('Copy this link:', url); }); }catch(e){ window.prompt('Copy this link:', url); }
+    };
     document.getElementById('anGo').onclick = function(){ start(document.getElementById('anPgn').value); };
     var fb = document.getElementById('anFileBtn'), fi = document.getElementById('anFile');
     fb.onclick = function(){ fi.click(); };
@@ -2010,6 +2019,7 @@
       setProg('Writing your report...', 99);
       try{ if(window.__anPlus && window.__anPlus.ready) await window.__anPlus.ready; }catch(e){}
       A = build(parsed, ev, side, tc, thr);
+      A.notMine = formNotMine;
       A.engineKind = eng.kind; A.partialEngine = sfFail > 0; A.sel = 0; activeTab = 'board'; PR = null;
       setProg('', 0);
       renderInputBox(); renderResults();
@@ -2256,7 +2266,7 @@
     if(!res || !A) return;
     var tabs = [['board', 'Board'], ['report', 'Report'], ['habits', 'Habits'], ['practice', 'Practice']];
     saveHabit(A); collectPuzzles(A);
-    res.innerHTML =
+    res.innerHTML = (A.notMine ? '<div class="hint" style="margin-bottom:8px;">You marked this as not your game, so it is not counted in your habits or puzzles.</div>' : '') +
       '<div class="an-tabs">' + tabs.map(function(t){ return '<button class="an-tabbtn' + (activeTab === t[0] ? ' active' : '') + '" data-tab="' + t[0] + '">' + t[1] + '</button>'; }).join('') + '</div>' +
       '<div id="anBoardTab" style="display:' + (activeTab === 'board' ? 'block' : 'none') + '">' + boardTabHtml() + '</div>' +
       '<div id="anReportTab" style="display:' + (activeTab === 'report' ? 'block' : 'none') + '"><div class="an-sharerow"><button class="secondary" id="anShare">Share card</button></div>' + reportHtml() + '</div>' +
@@ -2267,7 +2277,13 @@
       el.onclick = function(){ activeTab = 'board'; renderResults(); goto(+el.dataset.ply); window.scrollTo({top:res.offsetTop, behavior:'smooth'}); };
     });
     var shb = document.getElementById('anShare'); if(shb) shb.onclick = openShare;
-    var hc = document.getElementById('anHabClear'); if(hc) hc.onclick = function(){ try{ localStorage.removeItem(HKEY); }catch(e){} renderResults(); };
+    var hc = document.getElementById('anHabClear');
+    if(hc) hc.onclick = function(){
+      var box = hc.parentNode;
+      box.innerHTML = '<p class="desc" style="margin:0 0 8px;">Delete your whole habits history? This cannot be undone.</p><button id="anHabYes">Yes, delete it</button> <button class="secondary" id="anHabNo">Cancel</button>';
+      document.getElementById('anHabYes').onclick = function(){ try{ localStorage.removeItem(HKEY); }catch(e){} renderResults(); };
+      document.getElementById('anHabNo').onclick = function(){ renderResults(); };
+    };
     var tp = document.getElementById('anToPractice');
     if(tp) tp.onclick = function(){ activeTab = 'practice'; renderResults(); };
     document.getElementById('anFirst').onclick = function(){ goto(0); };
@@ -2495,7 +2511,7 @@
 
   // ---------- open the analysis for a given PGN (used by the bot page and by shared links) ----------
   window.PawniacAnalyzePgn = function(pgn, side, min, inc){
-    stopPoll(); A = null; PR = null; activeTab = 'board'; AN_MODE = 'game';
+    stopPoll(); A = null; PR = null; activeTab = 'board'; AN_MODE = 'game'; formNotMine = false;
     sideManual = false; tcManual = false;
     formSide = (side === 'w' || side === 'b') ? side : null;
     if(min > 0){ formMin = min; formInc = inc || 0; tcFilled = true; } else { formMin = 0; formInc = 0; tcFilled = false; }
