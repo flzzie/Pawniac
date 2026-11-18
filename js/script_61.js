@@ -49,7 +49,12 @@
       root.innerHTML = '<div class="card"><h2>Round complete</h2><div class="an-score">' + ST.done + ' / ' + ST.items.length + '</div><p class="desc">solved this round without showing the answer. In total ' + solved + ' of ' + all.length + ' puzzles from your games are solved.</p>' +
         '<div class="an-prbtns"><button id="pzAgain">Go again</button><button class="secondary" id="pzClear">Delete all puzzles</button></div></div>';
       document.getElementById('pzAgain').onclick = start;
-      document.getElementById('pzClear').onclick = function(){ save([]); ST = null; draw(); };
+      document.getElementById('pzClear').onclick = function(){
+        var bx = this.parentNode;
+        bx.innerHTML = '<p class="desc" style="margin:0 0 8px;width:100%;">Delete all your saved puzzles? This cannot be undone.</p><button id="pzYes">Yes, delete them</button> <button class="secondary" id="pzNo">Cancel</button>';
+        document.getElementById('pzYes').onclick = function(){ save([]); ST = null; draw(); };
+        document.getElementById('pzNo').onclick = function(){ draw(); };
+      };
       return;
     }
     var it = ST.items[ST.k], flip = it.me === 'b', dests = [], C = Z();
