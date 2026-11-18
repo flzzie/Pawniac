@@ -1660,6 +1660,41 @@
       localStorage.setItem(HKEY, JSON.stringify(arr.slice(-HMAX)));
     }catch(e){ console.error('habit save failed', e); }
   }
+  // ---- puzzle bank: your mistakes from every analysed game, kept on this device only (Understand / Puzzles tab)
+  var PKEY = 'pawniac-puzzles-v1', PMAX = 60;
+  function collectPuzzles(A){
+    try{
+      if(A.puzzSaved) return; A.puzzSaved = true;
+      if(!ENGINE || ENGINE.kind !== 'stockfish') return;          // puzzles need the real engine's answers
+      var cand = [];
+      myIdx(A).forEach(function(i){
+        var st = A.stats[i];
+        if(st.label !== 'mistake' && st.label !== 'blunder') return;
+        if(!A.ev[i].best || st.cpBefore < -400 || (isMate(st.cpBefore) && st.cpBefore < 0)) return;     // already lost: nothing to find
+        cand.push({i:i, loss:st.loss});
+      });
+      cand.sort(function(a, b){ return b.loss - a.loss; });
+      var items = [];
+      cand.slice(0, 5).forEach(function(x){
+        var i = x.i, fen = A.fens[i], bm = tryMove(fen, A.ev[i].best); if(!bm) return;
+        var E = null; try{ E = explain(A, i); }catch(e){}
+        var ok = [A.ev[i].best], bw = winPct(pov(A, A.ev[i].cp));
+        (A.ev[i].alts || []).forEach(function(a){ if(a && a.best && bw - winPct(pov(A, a.cp)) <= 3) ok.push(a.best); });
+        items.push({id:habitKey(A) + ':' + i, fen:fen, me:A.me, best:A.ev[i].best, ok:ok, cp:pov(A, A.ev[i].cp), bestSan:bm.san,
+          line:E && E.better ? E.better.line : '', better:E && E.better ? E.better.text : '',
+          why:E && E.why ? E.why.map(function(w){ return String(w).replace(/<[^>]+>/g, ''); }).join(' ') : '',
+          played:A.moves[i].san, playedUci:A.stats[i].uci, label:A.stats[i].label, no:mvNo(A, i), t:Date.now(), solved:0, fails:0});
+      });
+      if(!items.length) return;
+      var old = []; try{ old = JSON.parse(localStorage.getItem(PKEY) || '[]'); }catch(e){}
+      var ids = {}; items.forEach(function(it){ ids[it.id] = 1; });
+      var keep = old.filter(function(o){ return !ids[o.id]; });
+      items.forEach(function(it){ var prev = old.filter(function(o){ return o.id === it.id; })[0]; if(prev){ it.solved = prev.solved; it.fails = prev.fails; } });
+      var all = keep.concat(items);
+      while(all.length > PMAX){ var k = all.findIndex(function(o){ return o.solved > 0; }); all.splice(k >= 0 ? k : 0, 1); }
+      localStorage.setItem(PKEY, JSON.stringify(all));
+    }catch(e){ console.error('puzzle save failed', e); }
+  }
   function bar(pct, color){ return '<div class="an-hbar"><div style="width:' + Math.max(2, Math.round(pct)) + '%;background:' + color + '"></div></div>'; }
   function habitsHtml(){
     try{
@@ -2149,6 +2184,15 @@
     var moments = swings.length ? '<p class="desc" style="margin:14px 0 0;">Your turning points: ' + swings.map(function(x){
       return '<span class="an-moment" data-ply="' + (x.i + 1) + '">' + esc(moveNumText(A.fens[x.i]) + ' ' + A.moves[x.i].san) + ' (' + LABEL[A.stats[x.i].label].t.toLowerCase() + ')</span>';
     }).join(', ') + '. Click one to jump to it.</p>' : '<p class="desc" style="margin:14px 0 0;">No big turning points against you. A clean game.</p>';
+    // the biggest swings of the whole game, whoever played them (win-chance change caused by the move, from the mover's side)
+    try{
+      var allSw = A.moves.map(function(m, i){ return {i:i, loss:A.stats[i] && typeof A.stats[i].loss === 'number' ? A.stats[i].loss : 0}; })
+        .filter(function(x){ return x.loss >= 12; }).sort(function(a, b){ return b.loss - a.loss; }).slice(0, 3).sort(function(a, b){ return a.i - b.i; });
+      if(allSw.length) moments += '<p class="desc" style="margin:8px 0 0;">The biggest swings in the game: ' + allSw.map(function(x){
+        var mine = A.moves[x.i].color === A.me;
+        return '<span class="an-moment" data-ply="' + (x.i + 1) + '">' + esc(moveNumText(A.fens[x.i]) + ' ' + A.moves[x.i].san) + '</span> (' + (mine ? 'you' : 'your opponent') + ', ' + LABEL[A.stats[x.i].label].t.toLowerCase() + ')';
+      }).join(', ') + '.</p>';
+    }catch(e){ console.error('swings failed', e); }
 
     // ---- real patterns ----
     var recur = [], sqHit = false;
@@ -2211,7 +2255,7 @@
     var res = document.getElementById('anRes');
     if(!res || !A) return;
     var tabs = [['board', 'Board'], ['report', 'Report'], ['habits', 'Habits'], ['practice', 'Practice']];
-    saveHabit(A);
+    saveHabit(A); collectPuzzles(A);
     res.innerHTML =
       '<div class="an-tabs">' + tabs.map(function(t){ return '<button class="an-tabbtn' + (activeTab === t[0] ? ' active' : '') + '" data-tab="' + t[0] + '">' + t[1] + '</button>'; }).join('') + '</div>' +
       '<div id="anBoardTab" style="display:' + (activeTab === 'board' ? 'block' : 'none') + '">' + boardTabHtml() + '</div>' +
@@ -2485,11 +2529,12 @@
   };
 
   // ---------- "Understand a position" mode ----------
-  window.__anCore = {features:features, capsFor:capsFor, seeGain:seeGain, flipTurn:flipTurn, pvInfo:pvInfo, evalFen:evalFen, getEngine:getEngine, winPct:winPct, tryMove:tryMove, VAL:VAL, fenParts:fenParts, isMate:isMate};
+  window.__anCore = {boardHtml:boardHtml, tacticOf:tacticOf, features:features, capsFor:capsFor, seeGain:seeGain, flipTurn:flipTurn, pvInfo:pvInfo, evalFen:evalFen, getEngine:getEngine, winPct:winPct, tryMove:tryMove, VAL:VAL, fenParts:fenParts, isMate:isMate};
   var AN_MODE = 'game';
   function applyMode(){
-    var iw = document.getElementById('anInputWrap'), rs = document.getElementById('anRes'), pw = document.getElementById('anPosWrap');
-    if(!iw || !rs || !pw) return;
+    var iw = document.getElementById('anInputWrap'), rs = document.getElementById('anRes'), pw = document.getElementById('anPosWrap'), zw = document.getElementById('anPuzWrap');
+    if(!iw || !rs || !pw || !zw) return;
+    zw.style.display = (AN_MODE === 'puz') ? '' : 'none';
     iw.style.display = rs.style.display = (AN_MODE === 'game') ? '' : 'none';
     pw.style.display = (AN_MODE === 'pos') ? '' : 'none';
     document.querySelectorAll('#anModeBar .an-modebtn').forEach(function(b){ b.classList.toggle('active', b.dataset.mode === AN_MODE); });
@@ -2499,13 +2544,16 @@
     if(!scr) return;
     if(!document.getElementById('anModeBar')){
       var bar = document.createElement('div'); bar.id = 'anModeBar'; bar.className = 'an-modebar';
-      bar.innerHTML = '<button class="an-modebtn" data-mode="game">Analyze a game</button><button class="an-modebtn" data-mode="pos">Understand a position</button>';
+      bar.innerHTML = '<button class="an-modebtn" data-mode="game">Analyze a game</button><button class="an-modebtn" data-mode="pos">Understand a position</button><button class="an-modebtn" data-mode="puz">Puzzles from my games</button>';
       scr.insertBefore(bar, scr.firstChild);
       var pw = document.createElement('div'); pw.id = 'anPosWrap'; pw.style.display = 'none';
       scr.insertBefore(pw, document.getElementById('anInputWrap'));
+      var zw = document.createElement('div'); zw.id = 'anPuzWrap'; zw.style.display = 'none';
+      scr.insertBefore(zw, document.getElementById('anInputWrap'));
       bar.querySelectorAll('.an-modebtn').forEach(function(b){ b.onclick = function(){
         AN_MODE = b.dataset.mode;
         if(AN_MODE === 'pos' && window.PawniacPosition) window.PawniacPosition.mount(document.getElementById('anPosWrap'), {});
+        if(AN_MODE === 'puz' && window.PawniacPuzzles) window.PawniacPuzzles.mount(document.getElementById('anPuzWrap'));
         applyMode();
       }; });
     }

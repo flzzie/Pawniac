@@ -391,6 +391,34 @@
   }
   function pieceWord(t){ return PN[t]; }
 
+  // A knight on an outpost: protected by one of its own pawns, and no enemy pawn can ever attack the square
+  // (no enemy pawn on a neighbouring file that is still behind that square from its own point of view).
+  function outpostFacts(P){
+    var out = [];
+    ['w', 'b'].forEach(function(c){
+      var o = P[c], e = P[other(c)], dir = c === 'w' ? 1 : -1;
+      o.pieces.forEach(function(p){
+        if(p.type !== 'n') return;
+        var rel = c === 'w' ? p.r : 9 - p.r;
+        if(rel < 4 || rel > 6) return;
+        var prot = o.pawns.some(function(q){ return Math.abs(q.f - p.f) === 1 && q.r === p.r - dir; });
+        var attackable = e.pawns.some(function(q){ return Math.abs(q.f - p.f) === 1 && (c === 'w' ? q.r > p.r : q.r < p.r); });
+        if(prot && !attackable) out.push(name(c) + ' has a knight on ' + p.sq + ' that sits on an outpost: a pawn protects it and no enemy pawn can ever attack it.');
+      });
+    });
+    return out;
+  }
+  // Zugzwang-type positions, only in small endgames (10 pieces or fewer, no check). It is read from the engine: the side to move is
+  // clearly worse with the move, but the very same position would be fine for it if it were the other side's turn.
+  function zugzwangFact(fen, R, P, turn, mateNow){
+    if(mateNow || !R.opp || Math.abs(R.cp) >= 9000 || Math.abs(R.opp.cp) >= 9000) return null;
+    var count = Object.keys(parseFen(fen).pieces).length;
+    if(count > 10 || new Chess(fen).in_check()) return null;
+    var sg = turn === 'w' ? 1 : -1, withMove = sg * R.cp, ifPass = sg * R.opp.cp;    // both from the side to move's point of view
+    if(withMove <= -100 && ifPass >= 100) return 'Mutual zugzwang: whoever has to move here loses ground. ' + name(turn) + ' is to move, so ' + name(turn) + ' is the one in trouble.';
+    if(withMove <= -100 && ifPass >= -50) return 'Having to move is the problem for ' + name(turn) + ' here. With ' + name(turn) + ' to move the engine says ' + fmtEval(R.cp) + ', but if it were ' + name(other(turn)) + "'s turn the position would be about equal or better for " + name(turn) + '. That is a zugzwang-type position: the obligation to move is what hurts.';
+    return null;
+  }
   function understand(fen, R){
     var Z = core(), turn = fen.split(' ')[1], rights = fen.split(' ')[2] || '-', P = scan(fen), cp = R.cp, mv = turn, op = other(turn);
     var M = {fen:fen, turn:turn, cp:cp, evalText:evalWords(cp), evalNum:fmtEval(cp), pct:Z.winPct(cp), phase:P.phase};
@@ -576,6 +604,8 @@
       }
     }catch(e){}
     try{ endgameFacts(pcs, turn, cp, P, mateNow).forEach(function(x){ M.keyFacts.push(x); }); }catch(e){ console.error('endgame facts failed', e); }
+    try{ outpostFacts(P).forEach(function(t){ M.keyFacts.push({k:'fact', t:t}); }); }catch(e){ console.error('outposts failed', e); }
+    try{ var zz = zugzwangFact(fen, R, P, turn, mateNow); if(zz) M.keyFacts.push({k:'engine', t:zz}); }catch(e){ console.error('zugzwang check failed', e); }
     if(R.opp && R.opp.best){
       try{
         var oppFen = Z.flipTurn(fen, op), om = Z.tryMove(oppFen, R.opp.best);
@@ -623,6 +653,9 @@
     h += '<h3 class="ps-h">Best moves ' + tag('engine') + '</h3>' + M.moves.map(function(m){
       return '<div class="ps-mv"><div class="ps-mvh"><b>' + m.rank + '. ' + esc(m.san) + '</b> <span>' + esc(m.evalNum) + '</span>' + (m.worse >= 0.15 && m.worse < 20 ? '<em>about ' + m.worse.toFixed(1) + ' pawns less accurate than the best</em>' : '') + '</div>' + (m.reason ? '<div>' + tag(m.rk || 'fact') + ' ' + esc(m.reason) + '</div>' : '') + (m.warn ? '<div>' + tag('fact') + ' ' + esc(m.warn) + '</div>' : '') + '<div class="ps-line">' + esc(m.line) + '</div></div>';
     }).join('');
+    h += '<h3 class="ps-h">Test a move ' + tag('engine') + '</h3><p class="hint" style="margin:0 0 8px;">Wondering why not a different move? Type it (like Nxd5, or e2e4) and the engine checks it against its best move.</p>' +
+      '<div class="ps-row"><input id="psTest" type="text" spellcheck="false" autocomplete="off" placeholder="e.g. Nxd5 or e2e4" value="' + esc(E.testTxt || '') + '"><button class="secondary" id="psTestGo">Test this move</button></div>' +
+      '<div id="psTestOut">' + (E.testKey === M.fen ? (E.testOut || '') : '') + '</div>';
     if(M.opp && !M.opp.threat) h += '<h3 class="ps-h">Threats ' + tag('engine') + '</h3><div class="ps-mv"><div>' + esc(M.opp.text) + '</div></div>';
     else if(M.opp) h += '<h3 class="ps-h">If it were ' + esc(M.opp.name) + "'s move " + tag('engine') + '</h3><div class="ps-mv"><div class="ps-mvh"><b>' + esc(M.opp.san) + '</b> <span>' + esc(M.opp.evalNum) + '</span></div><div>' + esc(M.opp.text) + '</div><div class="ps-line">' + esc(M.opp.line) + '</div></div>';
     h += '<p class="hint" style="margin-top:12px;"><b>Fact</b>: counted from the board or settled by the rules, so it is certain. <b>Engine</b>: from the Stockfish search; strong, but it can change with deeper search. <b>Advice</b>: general rules of thumb, a starting point and not a proof.</p></div>';
@@ -662,11 +695,69 @@
     r.querySelector('#psLoad').onclick = function(){ setFen(r.querySelector('#psFen').value); };
     r.querySelector('#psFen').onkeydown = function(e){ if(e.key === 'Enter') setFen(this.value); };
     r.querySelector('#psGo').onclick = run;
+    var tg = r.querySelector('#psTestGo'), ti = r.querySelector('#psTest');
+    if(tg){ tg.onclick = testMove; ti.onkeydown = function(e){ if(e.key === 'Enter') testMove(); }; }
   }
   function setFen(fen){
     var p = parseFen(fen);
     if(!p){ E.status = 'That is not a valid FEN.'; draw(); return; }
     E.pieces = p.pieces; E.turn = p.turn; E.cs = p.cs; E.result = null; E.status = ''; draw();
+  }
+  // "Why not this move?": the engine plays your move, then answers it. Only things we can show are stated: the score, the main line,
+  // material lost in that line, and a tactic by the reply when there really is one. A quiet move gets the score and line, no invented reason.
+  async function testMove(){
+    var M = E.result, r0 = E.root, inp = r0 && r0.querySelector('#psTest'), out = r0 && r0.querySelector('#psTestOut');
+    if(!M || !inp || !out || E.busy) return;
+    var txt = inp.value.trim(); E.testTxt = txt; E.testKey = M.fen;
+    function show(h){ E.testOut = h; out.innerHTML = h; }
+    if(!txt){ show('<p class="hint">Type a move first.</p>'); return; }
+    var c = new Chess(); c.load(M.fen), mv = null;
+    try{ mv = c.move(txt, {sloppy:true}); }catch(e){}
+    if(!mv){ var m2 = /^([a-h][1-8])[- ]?([a-h][1-8])([qrbn])?$/i.exec(txt); if(m2) try{ mv = c.move({from:m2[1].toLowerCase(), to:m2[2].toLowerCase(), promotion:(m2[3] || 'q').toLowerCase()}); }catch(e){} }
+    if(!mv){ show('<p class="hint">"' + esc(txt) + '" is not a legal move in this position. Use a move like Nxd5 or from-to like e2e4.</p>'); return; }
+    var Z = core(), sg = M.turn === 'w' ? 1 : -1, uci = mv.from + mv.to + (mv.promotion || '');
+    if(c.in_checkmate()){ show('<div class="ps-mv"><div class="ps-mvh"><b>' + esc(mv.san) + '</b></div><div>That is checkmate. It wins the game.</div></div>'); return; }
+    if(c.game_over()){ show('<div class="ps-mv"><div class="ps-mvh"><b>' + esc(mv.san) + '</b></div><div>That ends the game in a draw. ' + (M.cp * sg > 100 ? 'Be careful: the engine thinks you are better, so this throws the win away.' : '') + '</div></div>'); return; }
+    show('<p class="hint">Checking ' + esc(mv.san) + '...</p>');
+    E.busy = true;
+    try{
+      var eng = await Z.getEngine(function(){});
+      var r = await Z.evalFen(eng, c.fen(), 1500, 1);
+      var played = sg * r.cp, bestEv = sg * M.cp, mated = Math.abs(r.cp) >= 9000 && played < 0;
+      var drop = (Math.abs(M.cp) >= 9000 || Math.abs(r.cp) >= 9000) ? (mated ? 99 : Math.max(0, bestEv - played) / 100) : Math.max(0, bestEv - played) / 100;
+      var isBest = M.moves[0] && M.moves[0].san === mv.san;
+      var verdict = isBest ? 'This is the engine\'s first choice.' : drop < 0.15 ? 'This is just as good as the best move.' : drop < 0.5 ? 'A fine move, only slightly less accurate than the best (about ' + drop.toFixed(1) + ' pawns).' : drop < 1.5 ? 'This is an inaccuracy: it gives up about ' + drop.toFixed(1) + ' pawns compared with the best move.' : mated ? 'This allows a forced checkmate.' : drop < 3 ? 'This is a mistake: it gives up about ' + drop.toFixed(1) + ' pawns compared with the best move.' : 'This is a blunder: it gives up ' + (drop >= 20 ? 'the game' : 'about ' + drop.toFixed(1) + ' pawns') + ' compared with the best move.';
+      var why = [], pv = [uci].concat(r.pv || []);
+      if(drop >= 0.5){
+        try{
+          var inf = Z.pvInfo(M.fen, pv, 4, M.turn);
+          if(inf && inf.net <= -1.5) why.push('In the main line you end up about ' + Math.abs(Math.round(inf.net)) + ' points down in material.');
+          var rep = r.best ? Z.tryMove(c.fen(), r.best) : null, tc = rep ? Z.tacticOf(c.fen(), rep) : null;
+          if(rep && /#$/.test(rep.san)) why.push('The reply ' + rep.san + ' is checkmate.');
+          else if(tc) why.push('The reply ' + rep.san + ' is ' + tc.text + '.');
+          else if(rep && rep.captured && inf && inf.net <= -1) why.push('The reply ' + rep.san + ' takes your ' + PN[rep.captured] + ' and you do not get enough back.');
+        }catch(e){}
+        if(!why.length) why.push('There is no immediate tactic against it: the engine simply prefers other moves here, for positional reasons it does not spell out.');
+      }
+      var line = lineFrom(M.fen, pv);
+      show('<div class="ps-mv"><div class="ps-mvh"><b>' + esc(mv.san) + '</b> <span>' + esc(mated ? 'mate against you' : fmtEval(r.cp)) + '</span></div><div>' + esc(verdict) + '</div>' +
+        (why.length ? '<div>' + why.map(esc).join(' ') + '</div>' : '') +
+        (!isBest && M.moves[0] ? '<div>Better: <b>' + esc(M.moves[0].san) + '</b> (' + esc(M.moves[0].evalNum) + ').</div>' : '') +
+        '<div class="ps-line">' + esc(line) + '</div></div>');
+    }catch(e){ console.error('move test failed', e); show('<p class="hint">Sorry, that check failed. Try again.</p>'); }
+    E.busy = false;
+  }
+  function lineFrom(f1, pv){
+    var c = new Chess(); c.load(f1); var out = [], n = f1.split(' '), full = parseInt(n[5], 10) || 1, t = n[1];
+    for(var i = 0; i < Math.min(pv.length, 6); i++){
+      var m = c.move({from:pv[i].slice(0, 2), to:pv[i].slice(2, 4), promotion:pv[i].slice(4, 5) || undefined});
+      if(!m) break;
+      var num = (t === 'w' || i === 0) ? (full + (t === 'w' ? '.' : '...')) : '';
+      out.push((num ? num + ' ' : '') + m.san);
+      if(t === 'b') full++;
+      t = other(t);
+    }
+    return out.join(' ');
   }
   async function run(){
     if(E.busy) return;
@@ -707,6 +798,6 @@
       draw();
       if(opts.fen && opts.auto) run();
     },
-    _test: {parseFen:parseFen, understand:understand, scan:scan, validate:validate}
+    _test: {zug:zugzwangFact, outpost:outpostFacts, parseFen:parseFen, understand:understand, scan:scan, validate:validate}
   };
 })();
