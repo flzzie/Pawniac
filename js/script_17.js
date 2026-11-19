@@ -1878,7 +1878,6 @@
     prevShow(n);
     screen.style.display = (n === 'analyze') ? 'block' : 'none';
     if(n === 'analyze') nav.querySelectorAll('[data-nav]').forEach(function(a){ a.classList.toggle('active', a.dataset.nav === 'analyze'); });
-    else if(running) cancelFlag = true;
   };
   function speedMs(){ var v = 800; try{ v = parseInt(localStorage.getItem('pawniac-analyze-ms'), 10) || 800; }catch(e){} return v; }
 
@@ -1886,6 +1885,7 @@
     showScreen('analyze');
     if(!document.getElementById('anInputWrap')) screen.innerHTML = '<div id="anInputWrap"></div><div id="anRes"></div>';
     renderInputBox();
+    if(running){ var gr = document.getElementById('anGo'); if(gr) gr.textContent = 'Cancel'; }
     if(A) renderResults(); else document.getElementById('anRes').innerHTML = '';
   }
 
@@ -2077,6 +2077,14 @@
     }finally{
       running = false;
       var g2 = document.getElementById('anGo'); if(g2) g2.textContent = 'Analyze';
+      try{
+        if(screen.style.display === 'none' && A && !cancelFlag && !document.querySelector('#anProg .an-err')){
+          var tt = document.createElement('div'); tt.textContent = 'Your game analysis is ready. Tap to open it.';
+          tt.style.cssText = 'position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:2000;background:#1f9d55;color:#fff;padding:12px 18px;border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.35);cursor:pointer;font-size:.95rem;';
+          tt.onclick = function(){ if(tt.parentNode) tt.parentNode.removeChild(tt); renderAnalyze(); };
+          document.body.appendChild(tt); setTimeout(function(){ if(tt.parentNode) tt.parentNode.removeChild(tt); }, 12000);
+        }
+      }catch(e){}
     }
   }
 
