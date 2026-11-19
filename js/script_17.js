@@ -767,8 +767,8 @@
   // =====================================================================
   //  analysis build (everything from the player's side)
   // =====================================================================
-  function build(parsed, ev, side, tc, thr){
-    var A = {thr:thr || {}, moves:parsed.moves, fens:parsed.fens, hdr:parsed.hdr, clocks:parsed.clocks, ev:ev, stats:[], cache:{}, sel:0,
+  function build(parsed, ev, side, tc, thr, capv){
+    var A = {thr:thr || {}, capv:capv || null, moves:parsed.moves, fens:parsed.fens, hdr:parsed.hdr, clocks:parsed.clocks, ev:ev, stats:[], cache:{}, sel:0,
              me:side, opp:side === 'w' ? 'b' : 'w', tc:tc, rep:{theme:{}, sq:{}, tacts:{}, state:null}};
     A.flip = (side === 'b');
     if(!parsed.hdr.FEN && parsed.fens[0].split(' ')[0] === 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR' && Math.abs(ev[0].cp) > 60) ev[0].cp = 25;
@@ -1168,6 +1168,10 @@
     // ----- missed free material
     try{
       var wins = winsFor(fenB, me).filter(function(w){ return w.free || w.net >= 2; });
+      if(A.capv){          // engine-checked: only say it when the position after the capture is not worse for you than before
+        var cvs = A.capv[i] || [], sgc = me === 'w' ? 1 : -1;
+        wins = wins.filter(function(w){ var e = cvs.filter(function(x){ return x.from === w.from && x.to === w.to; })[0]; return e && sgc * e.cp >= S.cpBefore - 50; });
+      }
       if(wins.length && !wins.some(function(w){ return w.from === m.from && w.to === m.to; }) && label !== 'best' && S.loss >= 3){
         var w0 = wins[0], thing = (w0.free && w0.piece === 'p') ? 'a free pawn' : (w0.free ? 'a free ' + NAMES[w0.piece] : 'material (a ' + NAMES[w0.piece] + ')');
         missed = 'You could have won ' + thing + ' on ' + w0.to + ' with ' + w0.san + '.';
@@ -2016,9 +2020,40 @@
           }catch(err){ if(/cancel/i.test(String(err && err.message))) throw err; console.warn('threat check failed', err); }
         }
       }
+      // "free material" check: a capture that only looks free by counting pieces may hide a discovered check, a pin or a mate.
+      // Before telling you that you missed a free piece, let the engine look at the position after that capture.
+      var capv = null;
+      if(eng.kind === 'stockfish'){
+        capv = {};
+        var sg2 = side === 'w' ? 1 : -1, cand2 = [];
+        for(var q2 = 0; q2 < parsed.moves.length; q2++){
+          if(parsed.moves[q2].color !== side || isMate(ev[q2].cp)) continue;
+          if(winPct(sg2 * ev[q2].cp) - winPct(sg2 * ev[q2 + 1].cp) >= 2.5) cand2.push(q2);
+        }
+        var dl2 = Date.now() + 9000;
+        for(var z2 = 0; z2 < cand2.length; z2++){
+          if(cancelFlag) throw new Error('Analysis cancelled.');
+          if(Date.now() > dl2) break;
+          var qi = cand2[z2], pm = parsed.moves[qi];
+          try{
+            var ws = winsFor(parsed.fens[qi], side).filter(function(w){ return w.free || w.net >= 2; }).filter(function(w){ return !(w.from === pm.from && w.to === pm.to); }).slice(0, 2);
+            if(!ws.length) continue;
+            setProg('Double-checking possible missed captures (' + (z2 + 1) + ' of ' + cand2.length + ')...', 96);
+            capv[qi] = [];
+            for(var wk = 0; wk < ws.length; wk++){
+              var cc = new Chess(parsed.fens[qi]), mm = cc.move({from:ws[wk].from, to:ws[wk].to, promotion:'q'});
+              if(!mm) continue;
+              if(cc.in_checkmate()){ capv[qi].push({from:ws[wk].from, to:ws[wk].to, cp:sg2 * 9990}); continue; }
+              if(cc.game_over()) continue;
+              var rr = await evalFen(eng, cc.fen(), 350, 1);
+              capv[qi].push({from:ws[wk].from, to:ws[wk].to, cp:rr.cp});
+            }
+          }catch(err){ if(/cancel/i.test(String(err && err.message))) throw err; console.warn('capture check failed', err); }
+        }
+      }
       setProg('Writing your report...', 99);
       try{ if(window.__anPlus && window.__anPlus.ready) await window.__anPlus.ready; }catch(e){}
-      A = build(parsed, ev, side, tc, thr);
+      A = build(parsed, ev, side, tc, thr, capv);
       A.notMine = formNotMine;
       A.engineKind = eng.kind; A.partialEngine = sfFail > 0; A.sel = 0; activeTab = 'board'; PR = null;
       setProg('', 0);
