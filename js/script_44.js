@@ -103,7 +103,9 @@
     var att = vcol === 'w' ? 'b' : 'w', res = [];
     C.winsFor(fen, att).forEach(function(w){
       if(w.piece === 'p' || w.piece === 'k' || VAL[w.piece] < 3) return;
-      var mv = new Chess(C.flipTurn(fen, vcol)).moves({square:w.to, verbose:true}), safe = false;
+      var cv = new Chess(C.flipTurn(fen, vcol)), mv = cv.moves({square:w.to, verbose:true}), safe = false;
+      if(cv.in_check()) return;   // a check has to be answered first, so the piece is not trapped by it
+      if(cv.moves({verbose:true}).some(function(x){ return x.to === w.from; })) return;   // the attacker can simply be taken, so nothing is trapped
       mv.forEach(function(x){
         if(safe) return;
         var c2 = new Chess(C.flipTurn(fen, vcol)); c2.move({from:x.from, to:x.to, promotion:x.promotion});
@@ -260,7 +262,7 @@
     T(function(){
       var nx = A.moves[i + 1];
       if((m.piece === 'n' || m.piece === 'b') && m.captured === 'r') good('Wins the exchange: a rook for a minor piece.', 'They win the exchange: a rook for a minor piece.');
-      else if(m.piece === 'r' && (m.captured === 'n' || m.captured === 'b') && nx && nx.captured === 'r' && nx.to === m.to) bad('Loses the exchange: you give a rook for a minor piece.', 'They lose the exchange: a rook for a minor piece.');
+      else if(m.piece === 'r' && (m.captured === 'n' || m.captured === 'b') && nx && nx.captured === 'r' && nx.to === m.to && S.label !== 'best' && S.label !== 'excellent') bad('Loses the exchange: you give a rook for a minor piece.', 'They lose the exchange: a rook for a minor piece.');
     });
     // ---- passive piece activated
     T(function(){
@@ -579,7 +581,7 @@
     try{
       var i = k - 1, m = A.moves[i], mine = m.color === A.me, o = gen(A, i);
       var pros = o.pros.slice(), cons = o.cons.slice();
-      if(/creates a passed pawn/i.test(txt)) pros = pros.filter(function(t){ return !/^Creates a passed pawn/.test(t); });
+      if(/passed pawn/i.test(txt)) pros = pros.filter(function(t){ return !/^Creates a passed pawn/.test(t); });
       var notes = o.notes.filter(function(t){ return !(/^This (defends|stops|removes)/.test(t) && /Saves your/.test(txt)); });
       var h = '';
       if(notes.length) h += notes.map(function(t){ return '<p class="an-note">' + esc(t) + '</p>'; }).join('');
@@ -611,7 +613,7 @@
       if(o.chip){ var ch = p.querySelector('.an-title .an-chip'); if(ch){ ch.textContent = o.chip.t; ch.style.background = o.chip.c; } }
     }
     var txt = p.textContent, pros = o.pros.slice(), cons = o.cons.slice();
-    if(/creates a passed pawn/i.test(txt)) pros = pros.filter(function(t){ return !/^Creates a passed pawn/.test(t); });
+    if(/passed pawn/i.test(txt)) pros = pros.filter(function(t){ return !/^Creates a passed pawn/.test(t); });
     var notes = o.notes.filter(function(t){ return !(/^This (defends|stops|removes)/.test(t) && /Saves your/.test(txt)); });
     var h = '';
     if(notes.length) h += notes.map(function(t){ return '<p class="an-note">' + esc(t) + '</p>'; }).join('');
