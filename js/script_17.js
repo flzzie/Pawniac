@@ -849,7 +849,7 @@
       R.last = prev; R.has = R.mine.length > 0;
     }
     var est = init > 0 ? init + 40 * inc : 0;
-    R.est = est; R.base = est / 40; R.far = Math.max(R.base * 3, 8);
+    R.est = est; R.base = est / 40; R.far = Math.max(R.base * 4.5, 12);
     return R;
   }
   // do your mistakes come when the clock is low?
