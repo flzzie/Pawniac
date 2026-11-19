@@ -1014,7 +1014,7 @@
           : d > 15 ? 'This move improved your position by about ' + (d / 100).toFixed(1) + ' pawns.'
           : 'Your position stayed about the same.';
     }
-    return 'Eval' + (me === 'b' ? ' (from White\'s side, + means White is better)' : '') + ': ' + fw(S.cpBefore, me) + '  ->  ' + fw(S.cpAfter, me) + (txt ? '. ' + txt : '');
+    return 'Eval: ' + fw(S.cpBefore, me) + '  ->  ' + fw(S.cpAfter, me) + (txt ? '. ' + txt : '');
   }
 
   // ---- positional comments on your good moves ----
