@@ -2039,15 +2039,15 @@
         var sg2 = side === 'w' ? 1 : -1, cand2 = [];
         for(var q2 = 0; q2 < parsed.moves.length; q2++){
           if(parsed.moves[q2].color !== side || isMate(ev[q2].cp)) continue;
-          if(winPct(sg2 * ev[q2].cp) - winPct(sg2 * ev[q2 + 1].cp) >= 2.5) cand2.push(q2);
+          if(winPct(sg2 * ev[q2].cp) - winPct(sg2 * ev[q2 + 1].cp) >= 3) cand2.push(q2);
         }
-        var dl2 = Date.now() + 9000;
+        var dl2 = Date.now() + 5000;
         for(var z2 = 0; z2 < cand2.length; z2++){
           if(cancelFlag) throw new Error('Analysis cancelled.');
           if(Date.now() > dl2) break;
           var qi = cand2[z2], pm = parsed.moves[qi];
           try{
-            var ws = winsFor(parsed.fens[qi], side).filter(function(w){ return w.free || w.net >= 2; }).filter(function(w){ return !(w.from === pm.from && w.to === pm.to); }).slice(0, 2);
+            var ws = winsFor(parsed.fens[qi], side).filter(function(w){ return w.free || w.net >= 2; }).filter(function(w){ return !(w.from === pm.from && w.to === pm.to); }).slice(0, 1);
             if(!ws.length) continue;
             setProg('Double-checking possible missed captures (' + (z2 + 1) + ' of ' + cand2.length + ')...', 96);
             capv[qi] = [];
@@ -2056,7 +2056,7 @@
               if(!mm) continue;
               if(cc.in_checkmate()){ capv[qi].push({from:ws[wk].from, to:ws[wk].to, cp:sg2 * 9990}); continue; }
               if(cc.game_over()) continue;
-              var rr = await evalFen(eng, cc.fen(), 350, 1);
+              var rr = await evalFen(eng, cc.fen(), 250, 1);
               capv[qi].push({from:ws[wk].from, to:ws[wk].to, cp:rr.cp});
             }
           }catch(err){ if(/cancel/i.test(String(err && err.message))) throw err; console.warn('capture check failed', err); }
