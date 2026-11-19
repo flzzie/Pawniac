@@ -325,7 +325,7 @@
   function seeGain(c, sq, depth){
     depth = depth || 0;
     if(depth > 7) return 0;
-    var caps = c.moves({verbose:true}).filter(function(x){ return x.to === sq && x.captured; });
+    var caps = c.moves({verbose:true}).filter(function(x){ return x.to === sq && x.captured && x.captured !== 'k'; });
     if(!caps.length) return 0;
     caps.sort(function(p, q){ return (p.piece === 'k' ? 100 : VAL[p.piece]) - (q.piece === 'k' ? 100 : VAL[q.piece]); });
     var x = caps[0];
@@ -341,7 +341,7 @@
       if(!m.captured || m.captured === 'k') return;
       var c2 = new Chess(flipTurn(fen, color));
       c2.move({from:m.from, to:m.to, promotion:m.promotion});
-      var recap = c2.moves({verbose:true}).filter(function(x){ return x.to === m.to && x.captured; });
+      var recap = c2.moves({verbose:true}).filter(function(x){ return x.to === m.to && x.captured && x.captured !== 'k'; });
       var net = VAL[m.captured] - seeGain(c2, m.to);
       if(net >= 1) res.push({from:m.from, to:m.to, piece:m.captured, san:m.san, net:net, free:!recap.length});
     });
@@ -373,7 +373,7 @@
         c4.move({from:x.from, to:x.to, promotion:x.promotion});
         if(VAL[x.captured] - seeGain(c4, x.to) >= 1){ seen[x.to] = 1; t.push('the ' + NAMES[x.captured] + ' on ' + x.to); }
       });
-      var check = /[+#]/.test(made.san);
+      var check = /[+#]/.test(made.san) && capsFor(after, color).some(function(x){ return x.from === mv.to && x.captured === 'k'; });   // the moved piece itself must attack the king (not a discovered check)
       if(check && t.length >= 1){ t.push('the king'); return t.slice(0, 3).join(' and '); }
       return t.length >= 2 ? t.slice(0, 3).join(' and ') : null;
     }catch(e){ return null; }
@@ -407,7 +407,7 @@
         var ek = kingSq(c, enemy);
         if(!ek) return null;
         if((made.piece === 'r' || made.piece === 'q') && ek.charAt(1) === (enemy === 'w' ? '1' : '8') && made.to.charAt(1) === ek.charAt(1))
-          return {name:'back-rank mate', text:'a back-rank mate: the king is boxed in by its own pawns'};
+          return {name:'back-rank mate', text:'a back-rank mate: the king is boxed in by its own pieces and pawns'};
         if(made.piece === 'n'){
           var kf = 'abcdefgh'.indexOf(ek.charAt(0)), kr = parseInt(ek.charAt(1), 10) - 1, blocked = true;
           for(var df = -1; df <= 1; df++) for(var dr = -1; dr <= 1; dr++){
@@ -815,10 +815,11 @@
         else if(i < 20 && label === 'mistake' && loss < 12) label = 'inaccuracy';
       }
       // the win-chance scale flattens when a game is already lopsided: five or more pawns thrown away is a blunder whatever the percentages say
-      if(!isMate(cpB) && !isMate(cpA) && cpB - cpA >= 500 && (label === 'inaccuracy' || label === 'mistake' || label === 'good' || label === 'excellent')) label = 'blunder';
+      if(!isMate(cpB) && !isMate(cpA) && cpB - cpA >= 500 && cpA < 600 && (label === 'inaccuracy' || label === 'mistake' || label === 'good' || label === 'excellent')) label = 'blunder';
       var plus = null;
       try{ plus = window.__anPlus ? window.__anPlus.adjust(A, i, label, loss) : null; }catch(e){ console.error(e); }
       if(plus){ label = plus.label; loss = plus.loss; }
+      if(/#$/.test(m.san)) label = 'best';
       A.stats.push({uci:uci, cpBefore:cpB, cpAfter:cpA, loss:loss, label:label, phase:features(A.fens[i]).phase});
     });
     A.time = timeReport(A);
@@ -1062,7 +1063,7 @@
     } else if(mB >= 9000 && mA >= 9000){
       if(S.uci === evB.best) why.push('You found the fastest forced mate (mate in ' + nB + '): <span class="an-line">' + esc(mateLine(fenB, evB.pv, nB, true)) + '</span>');
       else if(nA <= nB - 1) why.push('A different way to keep the forced mate, and just as fast (mate in ' + nB + ').');
-      else why.push('You still have a forced mate, but this move makes it slower: mate in ' + nA + ' after it, instead of ' + nB + '.');
+      else why.push('You still have a forced mate, but this move makes it slower: mate in ' + nA + ' after it, instead of ' + Math.max(1, nB - 1) + '.');
       if(bm && nA > nB - 1) better = {san:bm.san, text:'It keeps the fastest mate (in ' + nB + ').', line:mateLine(fenB, evB.pv, nB, true)};
     } else if(mB >= 9000){
       why.push('You had a forced checkmate in ' + nB + ' and this move throws it away: <span class="an-line">' + esc(mateLine(fenB, evB.pv, nB, true)) + '</span>');
@@ -1150,13 +1151,13 @@
           var tot = cnet - VAL[prv0.captured];
           if(tot === 0) notes.push('Recapture: you take back on ' + m.to + ', so the trade is even. Nobody wins material.');
           else if(tot > 0) pros.push('Recapture that comes out ahead: about ' + plural(tot, 'point') + ' net over the exchange.');
-          else cons.push('You take back, but the exchange still costs you about ' + plural(-tot, 'point') + ' net.');
+          else (S.label === 'best' || S.label === 'excellent' ? notes : cons).push(S.label === 'best' || S.label === 'excellent' ? 'Material dips for a moment here (about ' + plural(-tot, 'point') + '), but this is still the engine\'s best way forward.' : 'You take back, but the exchange still costs you about ' + plural(-tot, 'point') + ' net.');
         }
         else if(m.captured === 'p' && m.piece === 'p' && !back) pros.push('Wins a pawn.');
         else if(!back) pros.push('Wins a free ' + NAMES[m.captured] + ' (' + plural(VAL[m.captured], 'point') + ').');
         else if(cnet >= 1) pros.push('Wins material: you take a ' + NAMES[m.captured] + ' and, even if they take back, you stay about ' + plural(cnet, 'point') + ' ahead.');
         else if(cnet === 0) notes.push('An even trade: your ' + NAMES[m.piece] + ' for their ' + NAMES[m.captured] + '. Nobody wins material here, so judge it by what it does to the position.');
-        else cons.push('You take a ' + NAMES[m.captured] + ', but they win material back: about ' + plural(Math.abs(cnet), 'point') + ' net.');
+        else (S.label === 'best' || S.label === 'excellent' ? notes : cons).push(S.label === 'best' || S.label === 'excellent' ? 'Material dips for a moment here (about ' + plural(Math.abs(cnet), 'point') + '), but this is still the engine\'s best way forward.' : 'You take a ' + NAMES[m.captured] + ', but they win material back: about ' + plural(Math.abs(cnet), 'point') + ' net.');
       }catch(e){ pros.push('Takes a ' + NAMES[m.captured] + '.'); }
     }
     if(d.tags.indexOf('promo') >= 0) pros.push('Promotes: a huge material gain.');
@@ -1229,7 +1230,7 @@
     }catch(e){}
     // ----- king safety
     var __wasChk = false; try{ __wasChk = new Chess(fenB).in_check(); }catch(e){}
-    if(d.tags.indexOf('kingmove') >= 0 && fB.total >= 25 && !__wasChk) cons.push('Moving the king around before the endgame costs safety.');
+    if(d.tags.indexOf('kingmove') >= 0 && fB.total >= 25 && !__wasChk && S.loss >= 3) cons.push('Moving the king around before the endgame costs safety.');
     if(m.piece !== 'p' && fA[me].shield < fB[me].shield && fA.total >= 25) cons.push('Loosens the pawns around your king.');
 
     // ----- more coaching points (each one is computed from the position, never guessed)
@@ -1390,7 +1391,7 @@
       else if(S.cpAfter >= 250) why.push('You are clearly better here, so the job is to keep control and avoid tricks.');
       else if(S.cpAfter <= -150) why.push('The position is difficult, but this is a resilient defence.');
       else if(Math.abs(S.cpAfter) < 60) why.push('The game stays balanced.');
-      if(m.captured && VAL[m.captured] === VAL[m.piece] && S.cpAfter >= 150) pros.push('An even trade when ahead: simplifying makes the advantage easier to convert.');
+      if(m.captured && VAL[m.captured] === VAL[m.piece] && S.cpAfter >= 150 && !pros.some(function(t){ return /^Wins a free/.test(t); })) pros.push('An even trade when ahead: simplifying makes the advantage easier to convert.');
       if(!pros.length && !notes.length){
         var wl = null;
         try{ wl = window.__anPlus ? window.__anPlus.whyList(A, i, S.uci, [S.uci].concat(evA.pv || [])) : null; }catch(e){}
