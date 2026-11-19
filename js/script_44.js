@@ -231,7 +231,7 @@
       var thr = C.winsFor(fenB, oc).filter(function(w){ return w.to === m.from && VAL[w.piece] >= 3; });
       if(!thr.length) return;
       var still = function(sq){ return C.winsFor(fenA, oc).some(function(w){ return w.to === sq; }); };
-      if(m.captured && still(m.to)) good('The ' + NAMES[m.piece] + ' was lost anyway, so taking a ' + NAMES[m.captured] + ' with it first was smart.', 'Their ' + NAMES[m.piece] + ' was lost anyway, so they grabbed a ' + NAMES[m.captured] + ' with it first.');
+      if(m.captured && VAL[m.captured] < VAL[m.piece] && (thr[0].free || thr[0].net >= 2) && still(m.to)) good('The ' + NAMES[m.piece] + ' was lost anyway, so taking a ' + NAMES[m.captured] + ' with it first was smart.', 'Their ' + NAMES[m.piece] + ' was lost anyway, so they grabbed a ' + NAMES[m.captured] + ' with it first.');
       else if(mine && S.loss >= 3 && still(thr[0].to)){
         var cp = C.capsFor(fenB, col).filter(function(x){ return x.from === thr[0].to && x.captured; })[0];
         if(cp) o.cons.push('Your ' + NAMES[thr[0].piece] + ' on ' + thr[0].to + ' was lost anyway. It could have taken a ' + NAMES[cp.captured] + ' on ' + cp.to + ' first.');
