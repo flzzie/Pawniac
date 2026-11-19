@@ -849,7 +849,7 @@
       R.last = prev; R.has = R.mine.length > 0;
     }
     var est = init > 0 ? init + 40 * inc : 0;
-    R.est = est; R.base = est / 40; R.far = Math.max(R.base * 4.5, 12);
+    R.est = est; R.base = est / 40; R.far = Math.max(R.base * 4.5, 12); R.slow = Math.max(R.base * 1.6, 5);
     return R;
   }
   // do your mistakes come when the clock is low?
@@ -1099,7 +1099,7 @@
       repeat:repeat, equal:[], posi:[], endTips:[], advice:null,
       engine:evalBlock(fenA, S.cpAfter, me),
       lesson:(lessonKey && (label === 'mistake' || label === 'blunder')) ? LESSON[lessonKey] : null,
-      time:(typeof tm === 'number') ? {t:tm, far:tm > A.time.far} : null
+      time:(typeof tm === 'number') ? {t:tm, far:tm > A.time.far, slow:tm > A.time.slow && tm <= A.time.far} : null
     };
   }
 
@@ -1493,7 +1493,7 @@
       equal:equal, posi:posi, endTips:endTips, advice:advice,
       engine:evalBlock(fenA, S.cpAfter, A.me),
       lesson:(bad && lessonKey) ? LESSON[lessonKey] : null,
-      time:(typeof tm === 'number') ? {t:tm, far:tm > A.time.far} : null
+      time:(typeof tm === 'number') ? {t:tm, far:tm > A.time.far, slow:tm > A.time.slow && tm <= A.time.far} : null
     };
   }
 
@@ -2189,7 +2189,7 @@
     }
     var L = LABEL[E.label];
     var h = '<div class="an-title">' + esc(E.title) + ' <span class="an-chip" style="background:' + L.c + '">' + L.t + '</span></div><div class="an-evline">' + esc(E.evalLine) + ' <span style="opacity:.6">(depth ' + (A.ev[A.sel - 1].depth || '?') + ')</span></div>';
-    if(E.time) h += '<div class="an-time">\u23F1 ' + fmtSec(E.time.t) + (E.time.far ? ' <span class="an-bad">(far too long; guide: about ' + fmtSec(A.time.far) + ')</span>' : '') + '</div>';
+    if(E.time) h += '<div class="an-time">\u23F1 ' + fmtSec(E.time.t) + (E.time.far ? ' <span class="an-bad">(far too long; guide: about ' + fmtSec(A.time.far) + ')</span>' : E.time.slow ? ' <span class="an-note">(a little longer than your usual: about ' + fmtSec(A.time.slow) + ' per move)</span>' : '') + '</div>';
     h += insightHtml(A, A.sel - 1);
     if(E.mode === 'mate'){
       h += sec(E.whyTitle, E.why.map(function(w){ return '<p class="an-note">' + w + '</p>'; }).join(''));
