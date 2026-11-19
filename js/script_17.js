@@ -1919,8 +1919,7 @@
         '<p class="desc">Paste a PGN or upload a .pgn file. A chess engine runs in your browser (free, nothing is uploaded). The whole report is written for you, as a coach would: your mistakes, your missed chances, your clock use, then a short practice round on your errors.</p>' +
         '<textarea id="anPgn" placeholder="1. e4 e5 2. Nf3 Nc6 3. Bb5 a6 ..."></textarea>' +
         '<div class="an-row"><span class="hint" style="min-width:92px;">You played:</span><div class="tcbtn an-sidebtn" id="anSideW">White</div><div class="tcbtn an-sidebtn" id="anSideB">Black</div></div>' +
-        '<label class="an-row" style="cursor:pointer;"><input type="checkbox" id="anNotMine"' + (formNotMine ? ' checked' : '') + '><span class="hint">This is not my game (do not count it in my habits or puzzles)</span></label>' +
-        '<div id="anNotMineNote" class="hint" style="margin:0 0 6px;' + (formNotMine ? '' : 'display:none;') + '">Got it: this game will not count towards your habits or puzzles. If you know the player, you could tell them about Pawniac so they can analyse their own games (totally optional). <button class="secondary" id="anCopySite" type="button" style="margin-left:6px;">Copy the Pawniac link</button></div>' +
+        '<label class="an-notmine"><input type="checkbox" id="anNotMine"' + (formNotMine ? ' checked' : '') + '><span>This is not my game (do not count it in my habits or puzzles)</span></label>' +
         '<div class="an-row"><span class="hint" style="min-width:92px;">Time control:</span><input type="number" id="anTcMin" min="0" max="180" step="any"><span class="hint">min +</span><input type="number" id="anTcInc" min="0" max="60"><span class="hint">sec per move</span><span class="hint" id="anTcNote"></span></div>' +
         '<div class="hint" style="margin-top:4px;">0 min means unknown or no clock. Time per move is read from the [%clk] tags in the PGN (Lichess and Chess.com exports have them).</div>' +
         '<div class="an-row">' +
@@ -1934,11 +1933,20 @@
     document.getElementById('anTcMin').oninput = function(){ formMin = Math.max(0, parseFloat(this.value) || 0); tcManual = true; tcFilled = false; refreshForm(); };
     document.getElementById('anTcInc').oninput = function(){ formInc = Math.max(0, parseInt(this.value, 10) || 0); tcManual = true; tcFilled = false; refreshForm(); };
     document.getElementById('anPgn').oninput = function(){ autoFill(this.value); };
-    document.getElementById('anNotMine').onchange = function(){ formNotMine = this.checked; var nn = document.getElementById('anNotMineNote'); if(nn) nn.style.display = formNotMine ? '' : 'none'; };
-    document.getElementById('anCopySite').onclick = function(){
-      var b = this, url = 'https://pawniac.fun';
-      function ok(){ b.textContent = 'Copied!'; setTimeout(function(){ b.textContent = 'Copy the Pawniac link'; }, 1800); }
-      try{ navigator.clipboard.writeText(url).then(ok, function(){ window.prompt('Copy this link:', url); }); }catch(e){ window.prompt('Copy this link:', url); }
+    document.getElementById('anNotMine').onchange = function(){
+      formNotMine = this.checked;
+      if(!formNotMine) return;
+      var cb = this, ov = document.createElement('div'); ov.className = 'an-pop';
+      ov.innerHTML = '<div class="an-pop-box" role="dialog"><h3>Not your game</h3><p>Got it: this game will not count towards your habits or puzzles.</p><p>If you know the player, you could tell them about Pawniac so they can analyse their own games (totally optional).</p><div class="an-pop-btns"><button type="button" id="anPopCopy">Copy the Pawniac link</button><button type="button" class="secondary" id="anPopOk">Skip</button></div></div>';
+      document.body.appendChild(ov);
+      function close(){ if(ov.parentNode) ov.parentNode.removeChild(ov); }
+      ov.onclick = function(e){ if(e.target === ov) close(); };
+      document.getElementById('anPopOk').onclick = close;
+      document.getElementById('anPopCopy').onclick = function(){
+        var b = this, url = 'https://pawniac.fun';
+        function ok(){ b.textContent = 'Copied!'; setTimeout(close, 900); }
+        try{ navigator.clipboard.writeText(url).then(ok, function(){ window.prompt('Copy this link:', url); close(); }); }catch(e){ window.prompt('Copy this link:', url); close(); }
+      };
     };
     document.getElementById('anGo').onclick = function(){ start(document.getElementById('anPgn').value); };
     var fb = document.getElementById('anFileBtn'), fi = document.getElementById('anFile');
