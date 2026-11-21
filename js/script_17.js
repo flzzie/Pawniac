@@ -90,7 +90,7 @@
   }
   // search to a fixed depth so results do not depend on how fast the device is;
   // the time cap only stops positions that are very slow to search
-  // time per position: Fast 0.35 s, Balanced 0.5 s, Deep 0.7 s (the engine searches as deep as it can in that time)
+  // time per position: Fast 0.35 s, Balanced 0.5 s, Deep 2 s (the engine searches as deep as it can in that time)
   function sfLimits(ms){
     if(ms >= 2000) return {depth:60, cap:ms};
     if(ms <= 300) return {depth:40, cap:350};
@@ -1325,7 +1325,11 @@
         }catch(e){}
         // the tactic you missed
         var tcM = bm ? tacticOf(fenB, bm) : null;
-        if(bm && bestInfo && bestInfo.net >= 2){
+        var sameTarget = !!(bm && m.captured && bm.captured && bm.to === m.to);
+        if(sameTarget){
+          why.push('Both ' + m.san + ' and ' + bestSan + ' take the ' + NAMES[m.captured] + ' on ' + m.to + ', but ' + bestSan + ' is the better way to take it: the engine rates it about ' + (Math.abs(S.cpBefore - S.cpAfter) / 100).toFixed(1) + ' pawns higher.');
+          cons.push('Right capture, but the wrong piece took it.');
+        } else if(bm && bestInfo && bestInfo.net >= 2){
           var how = bm.captured ? ' (a capture)' : (/[+#]/.test(bestSan) ? ' (a check)' : '');
           why.push('You missed a tactic: ' + bestSan + (tcM ? ', ' + tcM.text : how) + '. It wins about ' + plural(bestInfo.net, 'point') + ' of material.');
           cons.push(tcM ? 'Missed a ' + tcM.name + '.' : 'Missed a material-winning tactic.'); lessonKey = lessonKey || 'missed';
@@ -1583,7 +1587,8 @@
       return {k:'walked', t:'Walked into a tactic'};
     }
     var pb = (evB && evB.pv && evB.pv.length && S.uci !== evB.best) ? pvInfo(fenB, evB.pv, 4, me) : null;
-    if(pb && pb.net >= 2.5){
+    if(pb && pb.firstCap && m.captured && pb.firstCap.ply === 0 && pb.firstCap.to === m.to && pb.firstCap.color === me) return {k:'quiet', t:'Right capture, wrong piece'};
+    if(pb && pb.net - gain >= 2.5){
       if(pb.firstCap && pb.firstCap.ply === 0 && pb.firstCap.color === me) return {k:'free', t:'Missed free material'};
       return {k:'missed', t:'Missed a tactic'};
     }
@@ -1926,7 +1931,7 @@
         '<div class="an-row">' +
           '<button id="anGo">Analyze</button><button class="secondary" id="anFileBtn">Upload .pgn</button>' +
           '<input type="file" id="anFile" accept=".pgn,.txt,text/plain" style="display:none;">' +
-          '<select id="anSpeed" aria-label="Analysis depth"><option value="300"' + (ms === 300 ? ' selected' : '') + '>Fast (0.35 s per move)</option><option value="800"' + (ms === 800 ? ' selected' : '') + '>Balanced (0.5 s per move)</option><option value="2000"' + (ms === 2000 ? ' selected' : '') + '>Deep (0.7 s per move)</option></select>' +
+          '<select id="anSpeed" aria-label="Analysis depth"><option value="300"' + (ms === 300 ? ' selected' : '') + '>Fast (0.35 s per move)</option><option value="800"' + (ms === 800 ? ' selected' : '') + '>Balanced (0.5 s per move)</option><option value="2000"' + (ms === 2000 ? ' selected' : '') + '>Deep (2 s per move)</option></select>' +
         '</div><div id="anProg"></div></div>';
     refreshForm();
     document.getElementById('anSideW').onclick = function(){ formSide = 'w'; sideManual = true; refreshForm(); };

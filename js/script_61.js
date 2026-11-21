@@ -132,7 +132,29 @@
   }
 
   window.PawniacPuzzles = {
-    mount: function(el){ root = el; start(); },
+    mount: function(el){
+      root = el; start();
+      try{
+        if(window.PawniacDrag) window.PawniacDrag.enable(el, {
+          src:'.sq[data-sq]', dst:'.sq[data-sq]',
+          imgOf:function(c){
+            if(!ST || ST.state !== 'ask' || ST.busy) return null;
+            var it = ST.items[ST.k]; if(!it) return null;
+            var p = new Chess(it.fen).get(c.dataset.sq);
+            return (p && p.color === it.me) ? c.querySelector('img') : null;
+          },
+          drop:function(c, dst){
+            if(!ST || ST.state !== 'ask') return;
+            var it = ST.items[ST.k], from = c.dataset.sq;
+            if(dst && dst.dataset.sq !== from){
+              var legal = new Chess(it.fen).moves({verbose:true}).some(function(x){ return x.from === from && x.to === dst.dataset.sq; });
+              if(legal){ attempt(from, dst.dataset.sq); return; }
+            }
+            ST.sel = null; draw();
+          }
+        });
+      }catch(e){ console.error(e); }
+    },
     count: function(){ return load().length; },
     _test: {load:load}
   };
