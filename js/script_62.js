@@ -636,17 +636,19 @@
   }
 
   function drawResult(){
-    var P = profileOf(S.ans), games = myGames(), groups = groupGames(games), cats = P.sides === 'w' ? ['w', 'ws', 'wc', 'wf'] : (P.sides === 'b' ? ['e4', 'd4', 'oth'] : ['w', 'ws', 'wc', 'wf', 'e4', 'd4', 'oth']);
+    var P = profileOf(S.ans), games = myGames(), groups = groupGames(games), main = P.sides === 'w' ? ['w'] : (P.sides === 'b' ? ['e4', 'd4'] : ['w', 'e4', 'd4']),
+        extra = P.sides === 'w' ? ['ws', 'wc', 'wf'] : (P.sides === 'b' ? ['oth'] : ['ws', 'wc', 'wf', 'oth']), cats = S.extra ? main.concat(extra) : main;
     var h = '<div class="card"><h2>Openings that fit you</h2><p class="desc">Based on your answers' + (games.length >= 3 ? ' and your ' + games.length + ' analysed games' : '') + '. Tap an opening to see its main ideas, a board and the traps. The fit % is a rough guide, not a rating.</p>' +
       '<div class="an-prbtns"><button class="secondary" id="opRetake">Retake the quiz</button></div></div>';
     cats.forEach(function(cat){
-      var list = rank(P, groups, cat), base = (cat === 'ws' || cat === 'wc' || cat === 'wf') ? 2 : 3, shown = S.more[cat] ? list.length : Math.min(base, list.length);
+      var list = rank(P, groups, cat), base = 3, shown = S.more[cat] ? list.length : Math.min(base, list.length);
       h += '<div class="card"><h3>' + CATNAME[cat] + '</h3>';
       for(var i = 0; i < shown; i++) h += cardHtml(list[i], i, cat);
-      if(list.length > shown) h += '<div class="an-prbtns"><button class="secondary" data-more="' + cat + '">Show ' + (list.length - shown) + ' more options</button></div>';
+      if(list.length > shown) h += '<div class="an-prbtns"><button class="secondary" data-more="' + cat + '">More options</button></div>';
       else if(S.more[cat] && list.length > base) h += '<div class="an-prbtns"><button class="secondary" data-less="' + cat + '">Show fewer</button></div>';
       h += '</div>';
     });
+    h += '<div class="an-prbtns" style="margin:0 0 12px;"><button class="secondary" id="opExtra">' + (S.extra ? 'Hide the extra sections' : 'Also show picks against the Sicilian, Caro-Kann, French and other first moves') + '</button></div>';
     h += insightsHtml(groups, games);
     h += '<p class="an-note" style="opacity:.7;">Openings are a matter of taste. At most levels, tactics and not hanging pieces matter more than the exact opening, so pick one or two you enjoy and play them often.</p>';
     root.innerHTML = h;
@@ -655,6 +657,7 @@
 
   function findItem(id){ return DB.filter(function(o){ return o.id === id; })[0]; }
   function bind(P, groups){
+    var ex = document.getElementById('opExtra'); if(ex) ex.onclick = function(){ S.extra = !S.extra; draw(); };
     var rt = document.getElementById('opRetake'); if(rt) rt.onclick = function(){ S.view = 'quiz'; S.step = 0; draw(); };
     root.querySelectorAll('.op-head').forEach(function(b){ b.onclick = function(){ S.open = S.open === b.dataset.id ? null : b.dataset.id; S.bstep = 0; if(S.open){ var it = findItem(S.open); S.bstep = it ? sanList(it.m).length : 0; } draw(); }; });
     root.querySelectorAll('[data-more]').forEach(function(b){ b.onclick = function(){ S.more[b.dataset.more] = true; draw(); }; });
