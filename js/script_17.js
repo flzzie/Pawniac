@@ -1954,7 +1954,11 @@
         try{ navigator.clipboard.writeText(url).then(ok, function(){ window.prompt('Copy this link:', url); close(); }); }catch(e){ window.prompt('Copy this link:', url); close(); }
       };
     };
-    document.getElementById('anGo').onclick = function(){ start(document.getElementById('anPgn').value); };
+    document.getElementById('anGo').onclick = function(){
+      // ask once (this click is the user's own action) so a notification can tell them when the analysis is done
+      try{ if(!running && 'Notification' in window && Notification.permission === 'default') Notification.requestPermission(); }catch(e){}
+      start(document.getElementById('anPgn').value);
+    };
     var fb = document.getElementById('anFileBtn'), fi = document.getElementById('anFile');
     fb.onclick = function(){ fi.click(); };
     fi.onchange = function(){
@@ -2085,6 +2089,12 @@
       var g2 = document.getElementById('anGo'); if(g2) g2.textContent = 'Analyze';
       try{
         if((screen.style.display === 'none' || document.hidden || AN_MODE !== 'game') && A && !cancelFlag && !document.querySelector('#anProg .an-err')){
+          try{
+            if(document.hidden && 'Notification' in window && Notification.permission === 'granted'){
+              var nt = new Notification('Pawniac: your analysis is ready', {body:'Open the tab to read the report.', tag:'pawniac-analysis'});
+              nt.onclick = function(){ try{ window.focus(); nt.close(); }catch(e){} };
+            }
+          }catch(e){}
           try{ var oldT = document.title; document.title = '\u2713 Analysis ready - ' + oldT; var back = function(){ if(!document.hidden){ document.title = oldT; document.removeEventListener('visibilitychange', back); } }; if(document.hidden) document.addEventListener('visibilitychange', back); else setTimeout(function(){ document.title = oldT; }, 12000); }catch(e){}
           var tt = document.createElement('div'); tt.textContent = 'Your game analysis is ready. Tap to open it.';
           tt.style.cssText = 'position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:2000;background:#1f9d55;color:#fff;padding:12px 18px;border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.35);cursor:pointer;font-size:.95rem;';
