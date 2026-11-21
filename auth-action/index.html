@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Account action | Pawniac</title>
+<script>
+  try{ var t = localStorage.getItem('pawniac-theme'); if(t==='dark'||t==='light') document.documentElement.setAttribute('data-theme', t); }catch(e){}
+</script>
+<style>
+:root{ --bg:#f6f1e6; --card:#fffdf9; --ink:#2b2823; --muted:#6d675b; --line:#e4ddcf; --accent:#1f6f5c; --accent-ink:#fff; --bad:#b8433f; }
+:root[data-theme="dark"]{ --bg:#1d1b18; --card:#262421; --ink:#efe9dc; --muted:#a39c8c; --line:#3a372f; --accent:#4fb59a; --accent-ink:#10231d; --bad:#e0746f; }
+*{box-sizing:border-box;}
+body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px;background:var(--bg);color:var(--ink);font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;}
+.box{width:100%;max-width:420px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:28px 24px;text-align:center;box-shadow:0 10px 30px rgba(0,0,0,.12);}
+.logo{font-weight:800;font-size:1.3rem;letter-spacing:.3px;margin-bottom:14px;}
+h1{font-size:1.25rem;margin:0 0 10px;}
+p{margin:0 0 14px;line-height:1.45;color:var(--muted);}
+.bad{color:var(--bad);}
+input{width:100%;padding:11px 12px;margin:0 0 10px;border:1px solid var(--line);border-radius:8px;background:transparent;color:var(--ink);font-size:1rem;}
+button,a.btn{display:inline-block;width:100%;padding:12px;border:0;border-radius:8px;background:var(--accent);color:var(--accent-ink);font-size:1rem;font-weight:600;cursor:pointer;text-decoration:none;}
+button:disabled{opacity:.6;cursor:default;}
+.spin{width:28px;height:28px;margin:6px auto 14px;border:3px solid var(--line);border-top-color:var(--accent);border-radius:50%;animation:s 0.9s linear infinite;}
+@keyframes s{to{transform:rotate(360deg);}}
+</style>
+</head>
+<body>
+<div class="box" id="box"><div class="logo">Pawniac</div><div class="spin"></div><p>One moment...</p></div>
+
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+<script>
+(function(){
+  firebase.initializeApp({
+    apiKey: "AIzaSyDZ5T0JcPWZviltGwBqu9AuRz_cEhdqr0s",
+    authDomain: "anythingchess-46f24.firebaseapp.com",
+    projectId: "anythingchess-46f24",
+    appId: "1:137582626702:web:14ad934c8298d0411086df"
+  });
+  var auth = firebase.auth(), box = document.getElementById('box');
+  var q = new URLSearchParams(location.search), mode = q.get('mode'), code = q.get('oobCode');
+
+  function show(title, text, bad, btn){
+    box.innerHTML = '<div class="logo">Pawniac</div><h1' + (bad ? ' class="bad"' : '') + '></h1><p></p>' + (btn === false ? '' : '<a class="btn" href="/">Go to Pawniac</a>');
+    box.querySelector('h1').textContent = title; box.querySelector('p').textContent = text;
+  }
+  function why(e){
+    var c = e && e.code || '';
+    if(c === 'auth/expired-action-code') return 'This link has expired. Go back to Pawniac and request a new email.';
+    if(c === 'auth/invalid-action-code') return 'This link is not valid, or it was already used. If you already verified or reset, just sign in. Otherwise request a new email.';
+    if(c === 'auth/user-disabled') return 'This account has been disabled.';
+    if(c === 'auth/user-not-found') return 'This account no longer exists.';
+    if(c === 'auth/weak-password') return 'That password is too weak. Use at least 6 characters.';
+    return 'Something went wrong. Please try again, or request a new email from Pawniac.';
+  }
+
+  if(!mode || !code){ show('Nothing to do here', 'This page opens from the link in a Pawniac email. Go back to Pawniac and request a new email if you need one.', true); return; }
+
+  if(mode === 'verifyEmail'){
+    auth.applyActionCode(code).then(function(){ show('Email verified', 'Thanks! Your email is verified. You can sign in to Pawniac now.'); })
+      .catch(function(e){ show('Could not verify', why(e), true); });
+  } else if(mode === 'resetPassword'){
+    auth.verifyPasswordResetCode(code).then(function(email){
+      box.innerHTML = '<div class="logo">Pawniac</div><h1>Choose a new password</h1><p id="who"></p><input id="pw" type="password" autocomplete="new-password" placeholder="New password (at least 6 characters)"><input id="pw2" type="password" autocomplete="new-password" placeholder="Repeat the new password"><p id="msg" class="bad" style="min-height:1.2em;margin-bottom:10px;"></p><button id="go">Save new password</button>';
+      document.getElementById('who').textContent = 'For ' + email;
+      var go = document.getElementById('go'), msg = document.getElementById('msg');
+      function submit(){
+        var a = document.getElementById('pw').value, b = document.getElementById('pw2').value;
+        if(a.length < 6){ msg.textContent = 'Use at least 6 characters.'; return; }
+        if(a !== b){ msg.textContent = 'The two passwords do not match.'; return; }
+        go.disabled = true; msg.textContent = '';
+        auth.confirmPasswordReset(code, a).then(function(){ show('Password changed', 'You can now sign in to Pawniac with your new password.'); })
+          .catch(function(e){ go.disabled = false; msg.textContent = why(e); });
+      }
+      go.onclick = submit;
+      document.getElementById('pw2').onkeydown = function(e){ if(e.key === 'Enter') submit(); };
+    }).catch(function(e){ show('Could not reset', why(e), true); });
+  } else if(mode === 'recoverEmail'){
+    auth.checkActionCode(code).then(function(){ return auth.applyActionCode(code); })
+      .then(function(){ show('Email restored', 'Your old email address has been restored.'); })
+      .catch(function(e){ show('Could not restore', why(e), true); });
+  } else {
+    show('Unknown link', 'This link type is not supported. Request a new email from Pawniac.', true);
+  }
+})();
+</script>
+</body>
+</html>
