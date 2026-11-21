@@ -18,6 +18,9 @@
   // cat: w = as White, e4 = Black against 1.e4, d4 = Black against 1.d4
   // rx = the names the analysis gives this opening (so your own games can be matched to it).
   // ---------------------------------------------------------------------------------------------
+  function X(cat, id, n, m, rx, a, lvl, rare, d, ideas, watch){
+    return {id:id, cat:cat, n:n, m:m, rx:rx, t:{att:a[0], sol:a[1], tac:a[2], pos:a[3], end:a[4], th:a[5], rk:a[6], open:a[7], sys:a[8]}, lvl:lvl, rare:rare ? 1 : 0, d:d, ideas:ideas, watch:watch};
+  }
   var DB = [
     // ---------------- White ----------------
     {id:'london', cat:'w', n:'London System', m:'1. d4 d5 2. Bf4 Nf6 3. e3 e6 4. Nf3 c5 5. c3 Nc6 6. Nbd2 Bd6 7. Bg3', rx:/London System/, t:{att:2, sol:5, tac:2, pos:3, end:3, th:1, rk:1, open:2, sys:1}, lvl:0,
@@ -106,7 +109,7 @@
      d:'A Dragon without the worst of the White attacks. You get the fianchettoed bishop quickly, with a bit less sharp theory than the full Dragon.',
      ideas:['Fianchetto and castle, then play ...d6 and ...Rc8.', 'Fight for ...d5 at the right moment.', 'The Maroczy Bind (c4 and e4) is the main way White can try to squeeze you.'],
      watch:'Against the Maroczy Bind, you must know how to free yourself. Passive play loses slowly.'},
-    {id:'kan', cat:'e4', n:'Sicilian: Kan / Paulsen', m:'1. e4 c5 2. Nf3 e6 3. d4 cxd4 4. Nxd4 a6 5. Nc3 Qc7 6. Be2 Nf6 7. O-O Nc6', rx:/Kan|Paulsen|Taimanov/, t:{att:3, sol:3, tac:3, pos:4, end:2, th:3, rk:3, open:3, sys:0}, lvl:2,
+    {id:'kan', cat:'e4', n:'Sicilian: Kan / Paulsen', m:'1. e4 c5 2. Nf3 e6 3. d4 cxd4 4. Nxd4 a6 5. Nc3 Qc7 6. Be2 Nf6 7. O-O Nc6', rx:/Kan|Paulsen/, t:{att:3, sol:3, tac:3, pos:4, end:2, th:3, rk:3, open:3, sys:0}, lvl:2,
      d:'A flexible Sicilian: ...e6, ...a6 and ...Qc7 keep many options open. You can adapt your plans to what White does.',
      ideas:['Keep the pawn structure flexible with ...e6 and ...a6.', 'Play ...Qc7, ...Nf6 and ...b5, then develop with ...Bb7.', 'Counterattack in the centre or on the queenside when you are ready.'],
      watch:'Because of the flexibility, different move orders lead to different positions. Learn the key set-ups, not just move lists.'},
@@ -176,6 +179,226 @@
      d:'Bring the knight to c6 and bishop to g4 straight away. Unusual and active, aimed at confusing opponents who know the Queen\'s Gambit.',
      ideas:['Develop the knight and bishop quickly instead of defending d5.', 'Often give up the bishop pair to damage the white pawns.', 'Play for piece activity and a quick ...e5.'],
      watch:'Top players think it is not entirely sound. Fine for club games, but you must know the main lines.'}
+
+    ,
+    // ---------------- more as White ----------------
+    X('w','ruyex','Ruy Lopez: Exchange Variation','1. e4 e5 2. Nf3 Nc6 3. Bb5 a6 4. Bxc6 dxc6 5. O-O f6 6. d4 exd4 7. Nxd4 c5 8. Nb3 Qxd1 9. Rxd1 Bg4',/Exchange Variation/,[2,4,2,4,5,2,2,2,0],1,0,
+      'A simpler Ruy Lopez: trade the bishop for the knight at once. Your pawn majority on the kingside is healthy, Black\'s queenside is doubled, so the endgame is slightly better for you. Fischer used it for the same reason.',
+      ['Trade on c6 to double Black\'s pawns.', 'Aim for an endgame where your kingside majority is the better one.', 'Keep it simple: the plan is clear and the theory is light.'],
+      'Black gets the bishop pair and an active position if you are careless. Do not trade queens without a plan.'),
+    X('w','fourknights','Four Knights Game (Spanish)','1. e4 e5 2. Nf3 Nc6 3. Nc3 Nf6 4. Bb5 Bb4 5. O-O O-O 6. d3 d6 7. Bg5 Bxc3 8. bxc3 Qe7',/Four Knights/,[2,5,2,3,3,1,1,3,1],0,0,
+      'Develop both knights, then the bishop, castle and play d3. A symmetrical and very safe opening with almost no theory, popular for solid and quick games.',
+      ['Develop knights and bishop, castle early.', 'Play d3 and Bg5 to pin the knight on f6.', 'Be ready to play d4 or Nd5 when the moment is right.'],
+      'It can be a little drawish. Find a way to create imbalances, such as the Nd5 jump or a kingside attack, when you want more.'),
+    X('w','bishops','Bishop\'s Opening','1. e4 e5 2. Bc4 Nf6 3. d3 c6 4. Nf3 d5 5. Bb3 Bd6 6. Nc3 O-O',/Bishop's Opening/,[2,4,2,3,3,1,2,3,1],0,1,
+      'Bishop out first, knights later. It keeps many options open: you can transpose to an Italian, a Vienna or a King\'s Gambit-style position, and your opponent must make decisions early.',
+      ['Develop the bishop to c4 to aim at f7.', 'Keep the knight on b1 flexible: c3 or f3 depending on what Black does.', 'Put d3 and Nf3 and castle.'],
+      'Black can hit the bishop with ...Nf6 and ...d5. Know where the bishop retreats and keep the centre under control.'),
+    X('w','ponziani','Ponziani Opening','1. e4 e5 2. Nf3 Nc6 3. c3 Nf6 4. d4 Nxe4 5. Bd3 d5 6. Nxe5 Nxe5 7. dxe5 Nc5',/Ponziani/,[3,3,3,3,2,2,3,4,0],1,1,
+      'Prepare a big centre with c3 and d4. Not many opponents know the theory, and the positions are active without being too sharp.',
+      ['Play c3, then d4 to build a strong pawn centre.', 'Many lines lead to open play with plenty of tactics.', 'A good surprise weapon for club games.'],
+      'Black has good answers such as 3...Nf6 or 3...d5. Learn the main line against each.'),
+    X('w','bird','Bird\'s Opening','1. f4 d5 2. Nf3 Nf6 3. e3 g6 4. Be2 Bg7 5. O-O O-O 6. d3 c5 7. Qe1',/Bird Opening|Bird's Opening/,[3,3,3,3,2,2,3,3,1],1,1,
+      'Start with 1.f4 and control e5. Similar to the Dutch Defense with the colours reversed. A set-up opening that takes your opponent out of book on move 1.',
+      ['Control e5 with the f-pawn and the knight on f3.', 'Castle, then plan d3, Qe1 and a kingside attack with Qh4.', 'Keep an eye on your king, since f4 weakens the e1-h4 diagonal.'],
+      'The weakened e1-h4 diagonal can be used against you by ...Bg4 and ...e5 ideas. Look out for From\'s Gambit (1...e5) and know the answer.'),
+    X('w','larsen','Nimzo-Larsen Attack','1. b3 e5 2. Bb2 Nc6 3. e3 d5 4. Bb5 Bd6 5. f4 Qe7 6. Nf3 f6',/Nimzo-Larsen|Larsen/,[3,3,3,4,3,2,3,3,1],1,1,
+      'Fianchetto the bishop on move 1, with b3 and Bb2 aiming at e5. A rare and flexible opening where the bishop does much of the work from a distance.',
+      ['The bishop on b2 pressures e5 and the long diagonal.', 'Play e3 and Bb5 or Nf3 depending on Black\'s plan.', 'Choose your pawn break: f4 or d4 later.'],
+      'You give Black a free centre, so make sure you take your own chances at the right moment.'),
+    X('w','jobava','Jobava London','1. d4 d5 2. Nc3 Nf6 3. Bf4 c6 4. Nf3 Bf5 5. e3 e6 6. Nh4 Bg6 7. Nxg6 hxg6',/Jobava|Prie/,[4,3,4,3,2,2,3,3,1],1,1,
+      'The aggressive version of the London: knight to c3 first, then the bishop on f4, and often an early Nb5 or e4. Popular in online blitz because it creates quick tactics.',
+      ['Knight to c3 and bishop to f4 before playing e3.', 'Prepare Nb5, e4 and a quick attack.', 'Keep the pieces active and use tactical tricks in the centre.'],
+      'A sharper and trickier opening than the classic London. If Black knows the lines, the knight on c3 and bishop on f4 can get hit.'),
+    X('w','italianmain','Italian Game: Main Line (c3 and d4)','1. e4 e5 2. Nf3 Nc6 3. Bc4 Bc5 4. c3 Nf6 5. d4 exd4 6. cxd4 Bb4+ 7. Bd2 Bxd2+ 8. Nbxd2 d5',/Giuoco Piano|Italian Game: Classical Variation/,[4,3,4,3,2,3,3,4,0],2,0,
+      'The sharper Italian: build a big centre with c3 and d4. It leads to open, tactical positions and has been played at every level for centuries.',
+      ['Play c3 and d4 to take the centre.', 'Use your lead in development for an attack.', 'Know the move order against ...Nf6 and ...Bb4+.'],
+      'Black can hit back in the centre with ...d5. Take care with the isolated d-pawn lines.'),
+
+    // ---------------- White against the Sicilian ----------------
+    X('ws','alapin','Alapin Sicilian (2.c3)','1. e4 c5 2. c3 Nf6 3. e5 Nd5 4. d4 cxd4 5. Nf3 Nc6 6. cxd4 d6 7. Bc4 Nb6 8. Bb3 dxe5 9. Nxe5',/Alapin/,[3,4,3,4,3,2,2,3,1],0,0,
+      'Skip the huge theory of the open Sicilian. Play c3 and d4, take a big centre, and get a calm position with a plan.',
+      ['Play c3 so that after ...cxd4 you recapture with the pawn.', 'Build a pawn centre and develop smoothly.', 'You can reach the same set-ups against many Black replies.'],
+      'Black has sharp options like 2...d5 and 2...Nf6. Know the main answer to each.'),
+    X('ws','morra','Smith-Morra Gambit','1. e4 c5 2. d4 cxd4 3. c3 dxc3 4. Nxc3 Nc6 5. Nf3 d6 6. Bc4 e6 7. O-O Nf6 8. Qe2 Be7 9. Rd1 e5',/Smith-Morra|Morra/,[5,2,5,2,1,2,4,5,0],1,1,
+      'Give a pawn in the Sicilian for fast development and open lines. A trap-laden opening that many Sicilian players hate to face.',
+      ['Sacrifice the d-pawn for open files and quick development.', 'Place the rooks on d1 and e1, bishops on c4 and e3, and attack.', 'Aim at the weak d6 and f7 squares.'],
+      'Strong players can defend, so don\'t overpress. If Black plays well you have compensation, not a forced win.'),
+    X('ws','grandprix','Grand Prix Attack','1. e4 c5 2. Nc3 Nc6 3. f4 g6 4. Nf3 Bg7 5. Bc4 e6 6. f5 Nge7',/Grand Prix/,[5,2,4,2,1,2,4,4,1],1,1,
+      'Attack the Sicilian with a quick f4. The plan is simple: knights out, bishop to c4, f5, and go for the black king.',
+      ['Play f4 and Nf3 early, then Bc4 or Bb5.', 'Break with f5 and aim at the black kingside.', 'The same set-up works against most Black replies.'],
+      'If Black avoids the attack and counters in the centre, your own king can be exposed. Don\'t rush f5 without the pieces to back it up.'),
+    X('ws','closed','Closed Sicilian','1. e4 c5 2. Nc3 Nc6 3. g3 g6 4. Bg2 Bg7 5. d3 d6 6. f4 e6 7. Nf3 Nge7 8. O-O O-O',/Closed Sicilian|Sicilian Defense: Closed/,[3,4,3,4,2,2,2,2,1],1,0,
+      'Avoid the sharp theory of the open Sicilian. Fianchetto the bishop, play f4 and aim for a kingside attack, with a safe king.',
+      ['Fianchetto with g3 and Bg2, and play d3.', 'Play f4, Nf3 and aim for kingside space.', 'Break with e5 or push the f-pawn when ready.'],
+      'It is slower than the open Sicilian, and Black can strike back with ...b5 and ...Rb8. Do not be passive.'),
+    X('ws','openscil','Open Sicilian: English Attack','1. e4 c5 2. Nf3 d6 3. d4 cxd4 4. Nxd4 Nf6 5. Nc3 a6 6. Be3 e6 7. f3 b5 8. Qd2 Nbd7 9. g4',/English Attack|Open Sicilian/,[5,2,5,3,1,5,4,5,0],3,0,
+      'The main way to fight the Sicilian: open the centre with d4 and attack with Be3, f3, Qd2 and a kingside pawn storm (g4). Sharp, theoretical and well known.',
+      ['Play d4 and open the position for your pieces.', 'Be3, f3, Qd2, O-O-O and g4 to attack on the kingside.', 'The king goes queenside while the pawns storm.'],
+      'The most theory in the Sicilian. If you slip, a counterattack with ...b5 and ...Nc4 can win quickly for Black.'),
+
+    // ---------------- White against the Caro-Kann ----------------
+    X('wc','caroadv','Caro-Kann: Advance Variation','1. e4 c6 2. d4 d5 3. e5 Bf5 4. Nf3 e6 5. Be2 c5 6. Be3 Nd7',/Caro-Kann Defense: Advance/,[3,4,2,4,3,2,2,2,1],0,0,
+      'Gain space with e5 and keep Black\'s bishop outside the pawn chain. A simple plan: space, solid pieces and a good structure.',
+      ['Push e5 to take space and block the bishop on c8.', 'Support the centre with c3 and Be2, and castle.', 'Use your space advantage on the kingside.'],
+      'Black strikes back at d4 with ...c5. If you do not keep the centre protected, you can end up with weaknesses.'),
+    X('wc','panov','Caro-Kann: Panov Attack','1. e4 c6 2. d4 d5 3. exd5 cxd5 4. c4 Nf6 5. Nc3 e6 6. Nf3 Bb4 7. cxd5 Nxd5 8. Bd2 Nc6 9. Bd3 Nf6 10. O-O O-O',/Panov/,[4,3,3,4,2,3,3,5,0],2,0,
+      'Take on d5 and add c4. You get an isolated queen\'s pawn or a pawn centre and lots of piece activity. An attacking way to face the Caro-Kann.',
+      ['Exchange on d5 and play c4 to challenge d5.', 'Get active pieces and a lead in development.', 'Play with the isolated d-pawn or a pawn majority.'],
+      'Be ready for the endgame if the isolated d-pawn gets weak. Keep the pieces active.'),
+    X('wc','carofantasy','Caro-Kann: Fantasy Variation','1. e4 c6 2. d4 d5 3. f3 dxe4 4. fxe4 e5 5. Nf3 exd4 6. Bc4 Nf6 7. O-O Bd6',/Fantasy|Tartakower/,[4,3,3,3,2,1,3,4,1],1,1,
+      'Play 3.f3 and aim for a big centre, with little theory to learn. Black has to find the right plan on his own.',
+      ['Use f3 to support e4, and develop with Nc3 and Bc4.', 'You get a strong centre and quick development.', 'A simple weapon if you do not want to learn the main lines.'],
+      'Black can take on e4 and play ...e5 to gain activity. Do not play it automatically: know when to play Nc3.'),
+
+    // ---------------- White against the French ----------------
+    X('wf','frenchadv','French Defense: Advance Variation','1. e4 e6 2. d4 d5 3. e5 c5 4. c3 Nc6 5. Nf3 Qb6 6. a3 Nh6',/French Defense: Advance/,[3,4,2,4,2,2,2,2,1],0,0,
+      'Push e5, take space, and support d4 with c3. A clear plan with less theory than the main lines. You often attack on the kingside.',
+      ['Play e5 and c3 to build a firm centre.', 'Defend d4 and develop with Nf3 and Be2.', 'Play on the kingside while Black plays on the queenside.'],
+      'Black\'s ...Qb6 and ...Bd7 plans put pressure on d4 and b2. Learn how to answer them.'),
+    X('wf','frtarrasch','French Defense: Tarrasch Variation','1. e4 e6 2. d4 d5 3. Nd2 Nf6 4. e5 Nfd7 5. Bd3 c5 6. c3 Nc6 7. Ne2 cxd4 8. cxd4 f6',/Tarrasch Variation/,[3,4,3,4,3,3,2,3,1],1,0,
+      'Develop the knight to d2, avoiding the Winawer pin. A solid, strategic way to play against the French, with a small but lasting edge.',
+      ['Knight to d2 keeps the pin ...Bb4 out of the game.', 'Keep a solid pawn centre with c3.', 'Aim for a slight space advantage.'],
+      'You give Black some freedom with ...c5. Study the plans after 3...c5 and 3...Nf6.'),
+    X('wf','frenchexch','French Defense: Exchange Variation','1. e4 e6 2. d4 d5 3. exd5 exd5 4. Nf3 Nf6 5. Bd3 Bd6 6. O-O O-O 7. Bg5 Bg4 8. Nbd2 Nbd7',/French Defense: Exchange/,[2,5,2,4,4,1,1,3,1],0,0,
+      'Take on d5 and aim for a simple symmetrical position. Easy to play and a good practical choice if you want a calm game with an endgame edge.',
+      ['Exchange on d5 for a clear pawn structure.', 'Develop the pieces to natural squares and castle.', 'Use the extra tempo and create an edge in the endgame.'],
+      'It is drawish at the top levels. Play for the win by choosing the right plan, such as a minority attack or a kingside attack.'),
+    X('wf','kiaf','King\'s Indian Attack vs the French','1. e4 e6 2. d3 d5 3. Nd2 Nf6 4. Ngf3 c5 5. g3 Nc6 6. Bg2 Be7 7. O-O O-O',/King's Indian Attack/,[3,4,2,4,2,1,2,2,1],0,0,
+      'Skip the French theory entirely: build a solid set-up with d3, Nd2, Ngf3, g3 and Bg2. The same set-up works against several Black defences.',
+      ['Use the same pieces whatever Black does.', 'Play e5 when you are ready to gain space.', 'Aim at the black kingside with Nh4 and f4.'],
+      'Black has a free hand in the centre. Do not be passive, and look for the right time for e5.'),
+
+    // ---------------- more against 1.e4 as Black ----------------
+    X('e4','sveshnikov','Sicilian: Sveshnikov','1. e4 c5 2. Nf3 Nc6 3. d4 cxd4 4. Nxd4 Nf6 5. Nc3 e5 6. Ndb5 d6 7. Bg5 a6 8. Na3 b5',/Sveshnikov|Lasker-Pelikan/,[4,2,4,3,2,5,4,3,0],3,0,
+      'Accept a weak d5 square in return for active piece play and a strong pawn centre. A modern main line, very theoretical and very respected.',
+      ['Put pawns on e5 and d6 and take control of the centre.', 'Attack on the queenside with ...b5 and ...Bg7 or ...Be7.', 'The knight on d5 is annoying but you get counterplay.'],
+      'Your d5 square can be a permanent weakness. Learn the main lines carefully before you play it.'),
+    X('e4','scheveningen','Sicilian: Scheveningen','1. e4 c5 2. Nf3 d6 3. d4 cxd4 4. Nxd4 Nf6 5. Nc3 e6 6. Be2 Be7 7. O-O O-O',/Scheveningen/,[3,4,3,4,2,4,3,3,0],2,0,
+      'A solid pawn structure with ...e6 and ...d6, the "small centre". You wait and counterattack when White commits.',
+      ['Play ...e6, ...d6, ...Be7 and castle.', 'Hold the centre and strike with ...d5 or ...b5 at the right moment.', 'Counterattack when White attacks on the kingside.'],
+      'White can attack hard with g4 (the Keres Attack). You must be ready to meet it.'),
+    X('e4','taimanov','Sicilian: Taimanov','1. e4 c5 2. Nf3 e6 3. d4 cxd4 4. Nxd4 Nc6 5. Nc3 Qc7 6. Be3 a6 7. Qd2 Nf6 8. O-O-O Be7',/Taimanov/,[3,3,3,4,2,3,3,3,0],2,1,
+      'A flexible Sicilian with ...e6, ...Nc6 and ...Qc7. Many different plans, and White cannot easily force you into one line.',
+      ['Keep the structure flexible and decide your plan after White\'s set-up.', 'Play ...a6 and ...Nf6, and look at ...Ne5 or ...b5.', 'Counterattack in the centre with ...d5.'],
+      'Many move orders. Learn what you will do against the English Attack and the Maroczy Bind.'),
+    X('e4','marshall','Ruy Lopez: Marshall Attack','1. e4 e5 2. Nf3 Nc6 3. Bb5 a6 4. Ba4 Nf6 5. O-O Be7 6. Re1 b5 7. Bb3 O-O 8. c3 d5 9. exd5 Nxd5 10. Nxe5 Nxe5 11. Rxe5 c6 12. d4 Bd6',/Marshall/,[5,2,5,2,1,5,5,5,0],3,1,
+      'Sacrifice a pawn in the Ruy Lopez for a strong attack on the white king. One of the most famous gambits, played at the highest level.',
+      ['Give a pawn on d5 and play for activity.', 'Attack the white king with ...Qh4, ...Bd6 and ...Bf5.', 'You get a lot of play for the pawn.'],
+      'White can avoid it with the Anti-Marshall lines. And you must know the theory exactly, since a single slip loses.'),
+    X('e4','winawer','French Defense: Winawer','1. e4 e6 2. d4 d5 3. Nc3 Bb4 4. e5 c5 5. a3 Bxc3+ 6. bxc3 Ne7 7. Qg4 Qc7',/Winawer/,[4,2,4,3,2,4,4,3,0],2,0,
+      'Pin the knight with ...Bb4 and give up the bishop for the knight to double White\'s pawns. Sharp and double-edged, but with clear plans.',
+      ['Pin the knight on c3 and take it with ...Bxc3+.', 'Attack the doubled pawns and the centre with ...c5 and ...Qc7.', 'Accept the weak dark squares in return for activity.'],
+      'White gets the bishop pair and attacking chances on the kingside. You must know the main lines.'),
+    X('e4','latvian','Latvian Gambit','1. e4 e5 2. Nf3 f5 3. Nxe5 Qf6 4. d4 d6 5. Nc4 fxe4 6. Nc3 Qg6 7. Ne3 Nf6',/Latvian/,[4,1,5,1,1,2,5,5,0],0,1,
+      'An old trappy opening: play ...f5 on move 2 and go for the attack. It is unsound against best play, but it can win many quick games against unprepared opponents.',
+      ['Play ...f5 and look for tricks and quick attacks.', 'Use the queen early on f6 or h4.', 'Look for traps on the f-file and e4.'],
+      'A good opponent can punish the early ...f5, so use it as a surprise weapon only. Do not make it your main opening.'),
+
+    // ---------------- more against 1.d4 as Black ----------------
+    X('d4','semislav','Semi-Slav Defense','1. d4 d5 2. c4 c6 3. Nf3 Nf6 4. Nc3 e6 5. e3 Nbd7 6. Bd3 dxc4 7. Bxc4 b5 8. Bd3 Bb7',/Semi-Slav|Meran|Botvinnik/,[3,3,4,3,2,5,4,3,0],3,0,
+      'A fighting defence: a solid centre with ...c6 and ...e6, then sharp play. One of the most complex openings, with a lot of theory.',
+      ['Hold the centre with ...c6, ...d5 and ...e6.', 'Break with ...c5 or ...e5, or take on c4 and play ...b5.', 'Rich play for both sides.'],
+      'Huge theory, and some lines are very sharp (Botvinnik, Anti-Moscow). Needs real study.'),
+    X('d4','tarrasch','Tarrasch Defense','1. d4 d5 2. c4 e6 3. Nc3 c5 4. cxd5 exd5 5. Nf3 Nc6 6. g3 Nf6 7. Bg2 Be7 8. O-O O-O',/Tarrasch Defense/,[3,2,3,3,2,3,3,4,0],2,0,
+      'Take the centre openly with ...c5 and play with an isolated d-pawn but active pieces. A principled, open and attacking defence.',
+      ['Strike at the centre with ...c5 and accept the isolated d-pawn.', 'Use the active pieces and open lines.', 'Be careful in the endgame, the isolated pawn can be weak.'],
+      'Your d5 pawn can become a long-term weakness. Keep the position tactical and the pieces active.'),
+    X('d4','qga','Queen\'s Gambit Accepted','1. d4 d5 2. c4 dxc4 3. Nf3 Nf6 4. e3 e6 5. Bxc4 c5 6. O-O a6 7. Qe2 b5 8. Bb3 Nc6',/Queen's Gambit Accepted/,[3,4,3,3,3,3,2,4,0],1,0,
+      'Take the pawn and give it back at the right time. Simpler than many other d4 defences, with clear plans and easy development.',
+      ['Take on c4, then hit the centre with ...c5.', 'Develop the pieces quickly and castle.', 'Give back the pawn if needed to get a good position.'],
+      'White gets a lead in development. Do not get greedy and try to keep the pawn.'),
+    X('d4','oldindian','Old Indian Defense','1. d4 Nf6 2. c4 d6 3. Nc3 Nbd7 4. e4 e5 5. Nf3 Be7 6. Be2 O-O 7. O-O c6',/Old Indian/,[2,4,2,3,3,2,2,3,1],1,1,
+      'A solid, flexible set-up with ...d6, ...Nbd7 and ...e5. Less theory than the King\'s Indian, and the same ideas.',
+      ['Play ...d6 and ...e5 for a firm centre.', 'Develop the pieces to natural squares and castle.', 'Look for ...c6 and a safe position.'],
+      'Passive if you don\'t find the right break. Learn the plans with ...exd4 and ...c6.'),
+    X('d4','bogo','Bogo-Indian Defense','1. d4 Nf6 2. c4 e6 3. Nf3 Bb4+ 4. Bd2 Qe7 5. g3 Nc6 6. Nc3 Bxc3 7. Bxc3 Ne4',/Bogo-Indian/,[2,4,2,4,3,2,2,3,1],1,0,
+      'A simple and safe alternative to the Nimzo: check on b4 and then solid development. Little theory and sound structure.',
+      ['Play ...Bb4+ and trade or retreat it.', 'Get the pieces out and castle.', 'Play ...d5 or ...b6 depending on the set-up.'],
+      'It can be a little passive. Look for the right moment to play ...d5 and ...c5.'),
+    X('d4','albin','Albin Countergambit','1. d4 d5 2. c4 e5 3. dxe5 d4 4. Nf3 Nc6 5. g3 Be6 6. Nbd2 Qd7 7. Bg2 O-O-O',/Albin/,[4,1,4,2,1,3,5,4,0],1,1,
+      'Give a pawn in the Queen\'s Gambit for a space-gaining pawn on d4 and attacking chances. Many players do not know the theory.',
+      ['Sacrifice the pawn for a strong d4 pawn and space.', 'Use the pieces quickly in a kingside or central attack.', 'Look for traps involving ...Bg4 and ...Nge7.'],
+      'It is unsound at the highest level. Use it as a surprise weapon, and be ready for the main Lasker Trap and Alapin line.'),
+    X('d4','benko','Benko Gambit','1. d4 Nf6 2. c4 c5 3. d5 b5 4. cxb5 a6 5. bxa6 Bxa6 6. Nc3 g6 7. e4 Bxf1 8. Kxf1 d6 9. Nf3 Bg7 10. g3 O-O',/Benko|Volga/,[3,2,3,5,4,4,4,3,0],3,1,
+      'Give a pawn for long-term pressure on the queenside. You get open files and active pieces. Positional, not tactical.',
+      ['Open the a- and b-files for the rooks.', 'Put pressure on the queenside with ...Qa5, ...Rb8 and ...Nbd7.', 'Play the long game and use the bishop on g7.'],
+      'It needs patience: you are a pawn down for many moves. White can also decline with 4.Nf3 or play the Fianchetto.'),
+    X('d4','leningrad','Dutch Defense (Leningrad)','1. d4 f5 2. g3 Nf6 3. Bg2 g6 4. Nf3 Bg7 5. O-O O-O 6. c4 d6 7. Nc3 Qe8',/Dutch Defense: Leningrad/,[4,2,3,3,2,3,4,3,0],2,1,
+      'A fianchetto version of the Dutch: the bishop on g7 and a kingside attack with ...e5 and ...Ne4. A real attacking weapon against 1.d4.',
+      ['Control e4 with ...f5 and play ...d6.', 'Break with ...e5 or ...c6 and ...Qc7.', 'Attack the white king with ...Ne4 and ...g5.'],
+      'It weakens the king a bit. Make sure that you know the plans with ...e5 and ...Qe8.'),
+
+    // ---------------- against 1.c4, 1.Nf3 and other first moves ----------------
+    X('oth','symeng','Symmetrical English (as Black)','1. c4 c5 2. Nc3 Nc6 3. g3 g6 4. Bg2 Bg7 5. Nf3 d6 6. O-O e6',/English Opening: Symmetrical/,[2,4,2,4,3,3,2,2,1],1,0,
+      'Mirror White\'s moves. The set-up with ...c5, ...Nc6 and ...g6 is simple and safe, and the pieces go to the same squares as in the Sicilian.',
+      ['Copy the fianchetto with ...g6 and ...Bg7.', 'Play ...d6 and ...e5 or ...e6 depending on the situation.', 'Counter with ...Rb8 and ...b5.'],
+      'The Maroczy-type structures can be a little passive. Learn when to play ...d5.'),
+    X('oth','revsic','Reversed Sicilian (answer to 1.c4)','1. c4 e5 2. Nc3 Nf6 3. Nf3 Nc6 4. g3 d5 5. cxd5 Nxd5 6. Bg2 Nb6 7. O-O Be7',/English Opening: King's English/,[3,3,3,4,2,3,3,3,0],1,0,
+      'Answer 1.c4 with ...e5, like a Sicilian with an extra tempo. A common and active choice, leading to open positions.',
+      ['Take the centre with ...e5 and ...d5.', 'Play ...Nc6 and ...Nf6 and fight for central squares.', 'Look for chances for both sides.'],
+      'White has extra tempo options such as Qb3 and Nd5. Know the main lines.'),
+    X('oth','hedgehog','Hedgehog (against 1.c4 and 1.Nf3)','1. c4 c5 2. Nf3 Nf6 3. Nc3 e6 4. g3 b6 5. Bg2 Bb7 6. O-O Be7 7. d4 cxd4 8. Qxd4 d6',/Hedgehog/,[2,4,3,5,3,3,2,2,1],2,1,
+      'A flexible structure with pawns on a6, b6, d6, e6 and pieces behind them. It looks passive, but you hit back with ...b5 or ...d5 when White overextends.',
+      ['Build the structure with ...b6, ...Bb7, ...d6, ...e6.', 'Wait, then strike with ...b5 or ...d5.', 'The pieces behind the pawns are ready to take advantage of White\'s mistakes.'],
+      'You are cramped for a long time. You must know the break ideas, or you get squeezed.'),
+    X('oth','kidset','King\'s Indian set-up against 1.Nf3','1. Nf3 Nf6 2. g3 g6 3. Bg2 Bg7 4. O-O O-O 5. d3 d6 6. Nbd2 Nc6 7. e4 e5',/Réti|King's Indian Attack/,[3,3,3,3,2,2,3,3,1],0,0,
+      'Use the same set-up that White uses against you: fianchetto, castle, ...d6, ...e5. It is the quickest way to learn one plan against 1.Nf3 and 1.c4.',
+      ['Fianchetto the bishop, castle and play ...d6.', 'Play ...e5 and ...Nc6 to take the centre.', 'Attack on the kingside with ...f5.'],
+      'White can play d4 to take the centre. Make sure that you know the Réti and Catalan answers.')
+
+    ,
+    // ---------------- even more ----------------
+    X('w','veresov','Veresov Attack','1. d4 d5 2. Nc3 Nf6 3. Bg5 Nbd7 4. f3 c6 5. e4 dxe4 6. fxe4 e5',/Veresov/,[4,3,4,3,2,2,3,4,1],1,1,
+      'A tricky d4 opening: knight to c3 and bishop to g5 before Black has settled. Many opponents leave book on move 3 and have to think for themselves.',
+      ['Knight to c3 and bishop to g5, pinning or threatening the knight on f6.', 'Play e3 and f3 or Nf3 and build a strong centre.', 'Look for pins and tactics against the knight.'],
+      'Black has easy answers if you do not prepare (like 3...Bf5 or 3...Nbd7). Know the replies.'),
+    X('w','bdg','Blackmar-Diemer Gambit','1. d4 d5 2. e4 dxe4 3. Nc3 Nf6 4. f3 exf3 5. Nxf3 e6 6. Bd3 Bb4 7. Bd2',/Blackmar/,[5,2,5,2,1,3,5,5,0],1,1,
+      'Give a pawn for quick development and attack on the kingside. A rare and aggressive gambit that is fun to play in blitz.',
+      ['Give a pawn with 2.e4 for a lead in development.', 'Get the pieces out with Nc3, f3 and Bc4 or Bd3.', 'Look for a quick kingside attack with Qe1 and Bg5.'],
+      'Strong players can simply defend and keep the pawn. Use it as a practical weapon, not as a long-term plan.'),
+    X('w','qgexch','Queen\'s Gambit: Exchange Variation','1. d4 d5 2. c4 e6 3. Nc3 Nf6 4. cxd5 exd5 5. Bg5 Be7 6. e3 O-O 7. Bd3 Nbd7',/Queen's Gambit Declined: Exchange/,[2,5,2,5,4,2,1,2,0],1,0,
+      'Take on d5 and get a clear pawn structure. The plan is the "minority attack" on the queenside with b4-b5, which is easy to learn.',
+      ['Exchange on d5 to get a fixed structure.', 'Plan the minority attack with Rb1, b4 and b5.', 'Aim for an endgame advantage.'],
+      'It is slow, so Black can get active pieces. Make sure the pieces are well placed before starting the minority attack.'),
+    X('w','stonewall','Stonewall Attack','1. d4 d5 2. e3 Nf6 3. Bd3 e6 4. f4 c5 5. c3 Nc6 6. Nf3 Bd6 7. O-O O-O',/Stonewall/,[4,3,3,3,2,1,3,2,1],0,0,
+      'A set-up with pawns on d4, e3, f4 and c3 and a bishop on d3, aiming at the kingside. One plan with very little theory.',
+      ['Set up the pawns on d4, e3, f4 and c3.', 'Aim the bishop on d3 and knight on e5 at the kingside.', 'Attack with a rook lift and Ne5 and Qh5 ideas.'],
+      'The bishop on c1 can be bad, and the e5 square needs to stay under control. Do not let Black take control of e4.'),
+    X('w','centre','Center Game','1. e4 e5 2. d4 exd4 3. Qxd4 Nc6 4. Qe3 Nf6 5. Nc3 Bb4 6. Bd2 O-O',/Center Game/,[3,3,3,3,2,2,3,4,0],0,1,
+      'Open the centre at once and bring the queen out early. Rare, and many players do not know it. Simple development makes it easy to learn.',
+      ['Take the centre and recapture with the queen.', 'Retreat the queen to e3 or a4 and develop the pieces.', 'Play Nc3, Bd2, O-O-O and go for an open game.'],
+      'Your queen can be chased by ...Nc6 and ...Nf6. Don\'t lose too much time with her.'),
+
+    X('e4','scanmod','Scandinavian: Modern (3...Qd6)','1. e4 d5 2. exd5 Qxd5 3. Nc3 Qd6 4. d4 Nf6 5. Nf3 a6 6. g3 Bg4 7. Bg2 Nc6',/Scandinavian Defense: Main Line|Scandinavian Defense: Modern/,[2,4,2,3,3,2,2,3,1],0,0,
+      'The same Scandinavian idea, but the queen goes to d6 instead of a5. A bit calmer and keeps the queen out of tempo attacks.',
+      ['Take on d5 and retreat the queen to d6.', 'Develop ...Nf6, ...Bg4 or ...Bf5 and ...e6.', 'Castle and use the space in the centre.'],
+      'White can gain space in the centre. Strike with ...c5 or ...e5 to challenge it.'),
+    X('e4','nimzo_def','Nimzowitsch Defense','1. e4 Nc6 2. Nf3 d6 3. d4 Nf6 4. Nc3 Bg4 5. Be3 e6 6. Be2 Be7 7. O-O O-O',/Nimzowitsch Defense/,[2,3,3,4,2,2,3,3,1],1,1,
+      'Start with the knight on c6 and keep the position flexible. A rare move that leads to unusual positions and out of book on move 1.',
+      ['Develop the knight to c6 before committing the pawns.', 'Hit the centre with ...e5 or ...d5 at the right moment.', 'Play the position, not a memorised line.'],
+      'White can take a lot of space. Know your plan against 2.d4 and 2.Nf3.'),
+    X('e4','owen','Owen\'s Defense','1. e4 b6 2. d4 Bb7 3. Bd3 e6 4. Nf3 Nf6 5. O-O Be7 6. c4 O-O 7. Nc3 d6',/Owen/,[2,3,2,4,3,1,3,3,1],0,1,
+      'Fianchetto the queen\'s bishop at once. A simple and hypermodern set-up with little theory, and the same idea against many White moves.',
+      ['Put the bishop on b7 and aim it at e4 and the long diagonal.', 'Play ...e6 and ...Nf6 and castle.', 'Strike at the centre with ...c5 or ...d5 later.'],
+      'White gets a big centre. You must attack it and not simply wait.'),
+    X('e4','classicalsic','Sicilian: Classical / Richter-Rauzer','1. e4 c5 2. Nf3 d6 3. d4 cxd4 4. Nxd4 Nf6 5. Nc3 Nc6 6. Bg5 e6 7. Qd2 Be7 8. O-O-O O-O',/Richter-Rauzer|Sicilian Defense: Classical/,[3,3,4,3,2,4,3,3,0],2,0,
+      'Develop with ...Nc6 and ...Nf6, then ...e6 and ...Be7. A classical and well-tested system that does not leave you too exposed.',
+      ['Develop the knights and play ...e6, ...Be7 and castle.', 'Counterattack with ...d5 or ...a6 and ...b5.', 'White often castles queenside, so you can attack with ...h5.'],
+      'Know the lines where White plays Bg5 and Qd2, with O-O-O. Sharp in some lines.'),
+    X('e4','hungarian','Hungarian Defense','1. e4 e5 2. Nf3 Nc6 3. Bc4 Be7 4. d4 d6 5. O-O Nf6 6. Nc3 O-O 7. h3 exd4',/Hungarian Defense/,[1,5,1,3,3,1,1,3,1],0,1,
+      'A very safe reply to the Italian: ...Be7 and ...d6. A solid set-up, with little theory and a robust position.',
+      ['Play ...Be7 and ...d6 and wait.', 'Develop the knight to f6 and castle.', 'Take on d4 or play ...exd4 when the moment is right.'],
+      'It can be a little passive, so look for the right time to strike with ...d5.'),
+
+    X('d4','antilondon','Anti-London set-up (...c5 and ...Qb6)','1. d4 d5 2. Nf3 Nf6 3. Bf4 c5 4. e3 Nc6 5. c3 Qb6 6. Qb3 c4 7. Qxb6 axb6',/London System/,[2,4,2,3,3,2,2,3,1],0,0,
+      'The standard way to meet the London: take the centre with ...c5 and ...Nc6, and use the queen to hit b2. Easy to play and leads to good, equal positions.',
+      ['Strike with ...c5 as soon as White plays Bf4.', 'Put the queen on b6 to hit the b2 pawn.', 'Develop with ...Nc6, ...e6 and ...Bd6.'],
+      'White can defend b2 and continue developing. Keep your own pieces active and do not trade queens too early.'),
+    X('d4','catblack','Open Catalan (as Black)','1. d4 Nf6 2. c4 e6 3. g3 d5 4. Bg2 dxc4 5. Nf3 a6 6. O-O Nc6 7. Qc2 Bd7',/Catalan Opening: Open/,[2,4,2,4,3,3,2,3,0],2,0,
+      'Take the pawn on c4 and hold it as long as is safe. White gets the long-diagonal pressure, but you can return the pawn at the right moment.',
+      ['Take on c4 and aim to give the pawn back for equality.', 'Use ...a6 and ...b5 to hold the extra pawn.', 'Develop the pieces to safe squares and castle.'],
+      'White has strong pressure for the pawn. Be accurate when giving it back.')
   ];
 
   // ---------------------------------------------------------------------------------------------
@@ -194,6 +417,11 @@
     {id:'theory', q:'How much theory are you willing to learn?', o:[
       {t:'As little as possible. I want a plan, not a list of moves', set:{th:1}}, {t:'A bit: the first 6 to 8 moves', set:{th:2}},
       {t:'A fair amount, if it is worth it', set:{th:3}}, {t:'I love memorising lines, give me everything', set:{th:5}}]},
+    {id:'study', q:'How much time can you spend studying openings each week?', o:[
+      {t:'Almost none. I just play', set:{cap:1}}, {t:'Up to an hour', set:{cap:2}}, {t:'A few hours', set:{cap:3}}, {t:'A lot. I enjoy it', set:{cap:5}}]},
+    {id:'init', q:'Early in the game, would you rather...', o:[
+      {t:'Have the initiative and make the opponent react', w:{att:1, tac:1}}, {t:'Stay flexible and react to what the opponent does', w:{sol:1, pos:1}},
+      {t:'Make sure I never end up in a bad position', w:{sol:2}}]},
     {id:'risk', q:'How do you feel about risk?', o:[
       {t:'Win or bust. A draw is no better than a loss', set:{rk:5}}, {t:'I take some chances if the position calls for it', set:{rk:3}},
       {t:'I would rather play safe, even if it means more draws', set:{rk:1}}]},
@@ -218,7 +446,7 @@
   ];
 
   function profileOf(ans){
-    var P = {lvl:2, w:{att:0, sol:0, tac:0, pos:0, end:0}, th:3, rk:3, open:3, sys:0, rare:0, sides:'wb'};
+    var P = {lvl:2, w:{att:0, sol:0, tac:0, pos:0, end:0}, th:3, cap:5, rk:3, open:3, sys:0, rare:0, sides:'wb'};
     Q.forEach(function(q){
       var i = ans[q.id]; if(i == null || !q.o[i]) return;
       var o = q.o[i];
@@ -227,6 +455,7 @@
       if(o.w) Object.keys(o.w).forEach(function(k){ P.w[k] += o.w[k]; });
     });
     P.sys = Math.max(-2, Math.min(2, P.sys));
+    P.th = Math.min(P.th, P.cap);        // the time you can spend studying caps how much theory is sensible
     return P;
   }
 
@@ -251,7 +480,7 @@
     // all of your games whose opening name matches this one
     var hit = null;
     groups.forEach(function(g){
-      if(g.me !== (item.cat === 'w' ? 'w' : 'b')) return;
+      if(g.me !== (WHITE[item.cat] ? 'w' : 'b')) return;
       Object.keys(g.ops).forEach(function(op){
         if(item.rx && item.rx.test(op)){ hit = hit || {n:0, el:0}; hit.n += g.ops[op]; hit.el += g.el * g.ops[op]; }
       });
@@ -260,6 +489,7 @@
     return hit;
   }
 
+  var PEN = {latvian:10, danish:5, albin:5, bdg:4, budapest:3};
   function scoreItem(o, P, groups){
     var t = o.t, s = 0, why = [], k;
     ['att', 'sol', 'tac', 'pos', 'end'].forEach(function(k){ s += Math.min(3, P.w[k] || 0) * (t[k] - 3); });
@@ -269,6 +499,7 @@
     s -= Math.max(0, t.th - P.th) * 5;
     s -= Math.max(0, o.lvl - P.lvl) * 5;
     s += P.rare * (o.rare ? 2.5 : -0.5);
+    s -= (PEN[o.id] || 0);        // openings that are fun but not fully sound should not top the list
     var own = ownStats(o, groups);
     if(own){
       if(own.el <= 10){ s += 3 + Math.min(2, own.n * 0.5); why.push('You already play this (' + own.n + ' game' + (own.n > 1 ? 's' : '') + ') and your first moves go well. Keep it.'); }
@@ -309,7 +540,7 @@
   }
   function lineText(str){ return sanList(str).map(function(m, i){ return (i % 2 === 0 ? (i / 2 + 1) + '. ' : '') + m; }).join(' '); }
   function boardFor(item, step){
-    var f = fensFor(item.m), st = Math.max(0, Math.min(step, f.length - 1)), flip = item.cat !== 'w';
+    var f = fensFor(item.m), st = Math.max(0, Math.min(step, f.length - 1)), flip = !WHITE[item.cat];
     var arrows = [];
     try{
       if(st > 0){ var c = new Chess(f[st - 1].fen), mv = c.move(f[st].san); if(mv) arrows = [{from:mv.from, to:mv.to, color:'#1f9d55'}]; }
@@ -320,7 +551,8 @@
   // ---------------------------------------------------------------------------------------------
   // Drawing
   // ---------------------------------------------------------------------------------------------
-  var CATNAME = {w:'As White', e4:'As Black against 1.e4', d4:'As Black against 1.d4'};
+  var CATNAME = {w:'As White: your main openings', ws:'As White: against the Sicilian (1.e4 c5)', wc:'As White: against the Caro-Kann (1.e4 c6)', wf:'As White: against the French (1.e4 e6)', e4:'As Black against 1.e4', d4:'As Black against 1.d4', oth:'As Black against 1.c4, 1.Nf3 and other moves'};
+  var WHITE = {w:1, ws:1, wc:1, wf:1};
 
   function start(){
     var saved = lsGet(QKEY, null);
@@ -404,15 +636,15 @@
   }
 
   function drawResult(){
-    var P = profileOf(S.ans), games = myGames(), groups = groupGames(games), cats = P.sides === 'w' ? ['w'] : (P.sides === 'b' ? ['e4', 'd4'] : ['w', 'e4', 'd4']);
+    var P = profileOf(S.ans), games = myGames(), groups = groupGames(games), cats = P.sides === 'w' ? ['w', 'ws', 'wc', 'wf'] : (P.sides === 'b' ? ['e4', 'd4', 'oth'] : ['w', 'ws', 'wc', 'wf', 'e4', 'd4', 'oth']);
     var h = '<div class="card"><h2>Openings that fit you</h2><p class="desc">Based on your answers' + (games.length >= 3 ? ' and your ' + games.length + ' analysed games' : '') + '. Tap an opening to see its main ideas, a board and the traps. The fit % is a rough guide, not a rating.</p>' +
       '<div class="an-prbtns"><button class="secondary" id="opRetake">Retake the quiz</button></div></div>';
     cats.forEach(function(cat){
-      var list = rank(P, groups, cat), shown = S.more[cat] ? list.length : Math.min(3, list.length);
+      var list = rank(P, groups, cat), base = (cat === 'ws' || cat === 'wc' || cat === 'wf') ? 2 : 3, shown = S.more[cat] ? list.length : Math.min(base, list.length);
       h += '<div class="card"><h3>' + CATNAME[cat] + '</h3>';
       for(var i = 0; i < shown; i++) h += cardHtml(list[i], i, cat);
       if(list.length > shown) h += '<div class="an-prbtns"><button class="secondary" data-more="' + cat + '">Show ' + (list.length - shown) + ' more options</button></div>';
-      else if(S.more[cat] && list.length > 3) h += '<div class="an-prbtns"><button class="secondary" data-less="' + cat + '">Show fewer</button></div>';
+      else if(S.more[cat] && list.length > base) h += '<div class="an-prbtns"><button class="secondary" data-less="' + cat + '">Show fewer</button></div>';
       h += '</div>';
     });
     h += insightsHtml(groups, games);
