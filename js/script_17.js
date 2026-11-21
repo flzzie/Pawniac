@@ -1661,7 +1661,20 @@
     });
     var rs = (A.hdr && A.hdr.Result) || '', score = null;
     if(rs === '1-0') score = A.me === 'w' ? 1 : 0; else if(rs === '0-1') score = A.me === 'b' ? 1 : 0; else if(rs === '1/2-1/2') score = 0.5;
-    return {k:habitKey(A), t:Date.now(), me:A.me, acc:Math.round(S.acc), moves:mine.length, bad:nBad, types:types, phases:phases, only:[onlyFound, onlyTot], rng:rng, score:score};
+    // opening facts for the Find my opening page: the opening you reached, how many moves were known theory,
+    // how much win chance your first 12 moves cost, and the move number of your first mistake in the first 15
+    var op = null, eloss = 0, fb = 0;
+    try{
+      for(var bi = (A.book || []).length - 1; bi >= 0; bi--){ if(A.book[bi] && A.book[bi].n){ op = A.book[bi].n; break; } }
+      if(!op && A.hdr && A.hdr.Opening && A.hdr.Opening !== '?') op = String(A.hdr.Opening);
+      mine.forEach(function(i){
+        var mn = fenParts(A.fens[i]).full;
+        if(mn <= 12) eloss += Math.min(60, A.stats[i].loss || 0);
+        if(!fb && mn <= 15 && isBadLabel(A.stats[i].label)) fb = mn;
+      });
+    }catch(e){}
+    return {k:habitKey(A), t:Date.now(), me:A.me, acc:Math.round(S.acc), moves:mine.length, bad:nBad, types:types, phases:phases, only:[onlyFound, onlyTot], rng:rng, score:score,
+            op:op, fam:op ? op.split(':')[0].trim() : null, bk:(A.book || []).length, eloss:Math.round(eloss * 10) / 10, fb:fb};
   }
   function saveHabit(A){
     try{
@@ -2624,6 +2637,7 @@
     zw.style.display = (AN_MODE === 'puz') ? '' : 'none';
     iw.style.display = rs.style.display = (AN_MODE === 'game') ? '' : 'none';
     pw.style.display = (AN_MODE === 'pos') ? '' : 'none';
+    var ow2 = document.getElementById('anOpnWrap'); if(ow2) ow2.style.display = (AN_MODE === 'opn') ? '' : 'none';
     document.querySelectorAll('#anModeBar .an-modebtn').forEach(function(b){ b.classList.toggle('active', b.dataset.mode === AN_MODE); });
   }
   function mountModeBar(){
@@ -2631,16 +2645,19 @@
     if(!scr) return;
     if(!document.getElementById('anModeBar')){
       var bar = document.createElement('div'); bar.id = 'anModeBar'; bar.className = 'an-modebar';
-      bar.innerHTML = '<button class="an-modebtn" data-mode="game">Analyze a game</button><button class="an-modebtn" data-mode="pos">Understand a position</button><button class="an-modebtn" data-mode="puz">Puzzles from my games</button>';
+      bar.innerHTML = '<button class="an-modebtn" data-mode="game">Analyze a game</button><button class="an-modebtn" data-mode="pos">Understand a position</button><button class="an-modebtn" data-mode="puz">Puzzles from my games</button><button class="an-modebtn" data-mode="opn">Find my opening</button>';
       scr.insertBefore(bar, scr.firstChild);
       var pw = document.createElement('div'); pw.id = 'anPosWrap'; pw.style.display = 'none';
       scr.insertBefore(pw, document.getElementById('anInputWrap'));
       var zw = document.createElement('div'); zw.id = 'anPuzWrap'; zw.style.display = 'none';
       scr.insertBefore(zw, document.getElementById('anInputWrap'));
+      var ow = document.createElement('div'); ow.id = 'anOpnWrap'; ow.style.display = 'none';
+      scr.insertBefore(ow, document.getElementById('anInputWrap'));
       bar.querySelectorAll('.an-modebtn').forEach(function(b){ b.onclick = function(){
         AN_MODE = b.dataset.mode;
         if(AN_MODE === 'pos' && window.PawniacPosition) window.PawniacPosition.mount(document.getElementById('anPosWrap'), {});
         if(AN_MODE === 'puz' && window.PawniacPuzzles) window.PawniacPuzzles.mount(document.getElementById('anPuzWrap'));
+        if(AN_MODE === 'opn' && window.PawniacOpenings) window.PawniacOpenings.mount(document.getElementById('anOpnWrap'));
         applyMode();
       }; });
     }
