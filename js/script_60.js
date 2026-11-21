@@ -790,9 +790,61 @@
     try{ var rs = E.root.querySelector('.ps-res'); if(rs) rs.scrollIntoView({behavior:'smooth', block:'start'}); }catch(e){}
   }
 
+  // ---------- drag and drop (mouse and touch), shared with the puzzle page ----------
+  // o.src: selector for things you can pick up; o.dst: selector for drop targets; o.imgOf(el): the piece image to carry, or null; o.drop(el, dstOrNull)
+  window.PawniacDrag = {
+    enable: function(root, o){
+      if(!root || root.__dragOn) return; root.__dragOn = true;
+      root.addEventListener('dragstart', function(e){ e.preventDefault(); });   // no browser image-drag: it would cancel our own
+      root.addEventListener('pointerdown', function(e){
+        if(e.pointerType === 'mouse' && e.button !== 0) return;
+        var el = e.target.closest ? e.target.closest(o.src) : null;
+        if(!el || !root.contains(el)) return;
+        var img = o.imgOf(el); if(!img) return;
+        var sx = e.clientX, sy = e.clientY, ghost = null, moved = false;
+        function mv(ev){
+          if(!moved && Math.abs(ev.clientX - sx) + Math.abs(ev.clientY - sy) > 8){
+            moved = true;
+            ghost = document.createElement('img'); ghost.src = img.src; ghost.alt = '';
+            ghost.style.cssText = 'position:fixed;z-index:3000;width:58px;height:58px;pointer-events:none;transform:translate(-50%,-50%);opacity:.92;filter:drop-shadow(0 4px 6px rgba(0,0,0,.4));';
+            document.body.appendChild(ghost); el.style.opacity = '.45';
+          }
+          if(ghost){ ghost.style.left = ev.clientX + 'px'; ghost.style.top = ev.clientY + 'px'; ev.preventDefault(); }
+        }
+        function end(ev, cancelled){
+          window.removeEventListener('pointermove', mv); window.removeEventListener('pointerup', up); window.removeEventListener('pointercancel', cn);
+          if(ghost && ghost.parentNode) ghost.parentNode.removeChild(ghost);
+          el.style.opacity = '';
+          if(!moved) return;
+          var stop = function(x){ x.stopPropagation(); x.preventDefault(); };      // the click that follows a drag must not also select a square
+          document.addEventListener('click', stop, true); setTimeout(function(){ document.removeEventListener('click', stop, true); }, 60);
+          if(cancelled){ return; }
+          var t = document.elementFromPoint(ev.clientX, ev.clientY), dst = t && t.closest ? t.closest(o.dst) : null;
+          o.drop(el, dst && root.contains(dst) ? dst : null);
+        }
+        function up(ev){ end(ev, false); }
+        function cn(ev){ end(ev, true); }
+        window.addEventListener('pointermove', mv, {passive:false}); window.addEventListener('pointerup', up); window.addEventListener('pointercancel', cn);
+      });
+    }
+  };
+
   window.PawniacPosition = {
     mount: function(root, opts){
       E.root = root; opts = opts || {};
+      window.PawniacDrag.enable(root, {
+        src:'[data-psq],[data-tool]', dst:'[data-psq]',
+        imgOf:function(el){ if(el.dataset.tool) return el.dataset.tool === 'x' ? null : el.querySelector('img'); return at(el.dataset.psq) ? el.querySelector('img') : null; },
+        drop:function(el, dst){
+          if(el.dataset.tool){ var t = el.dataset.tool; if(!dst) return; E.pieces[dst.dataset.psq] = {color:t.charAt(0), type:t.charAt(1)}; }
+          else {
+            var from = el.dataset.psq, pc = E.pieces[from];
+            if(!dst) delete E.pieces[from];                       // dropped off the board: remove it
+            else if(dst.dataset.psq !== from){ E.pieces[dst.dataset.psq] = pc; delete E.pieces[from]; }
+          }
+          E.result = null; E.status = ''; draw();
+        }
+      });
       if(opts.fen){ var p = parseFen(opts.fen); if(p){ E.pieces = p.pieces; E.turn = p.turn; E.cs = p.cs; E.result = null; E.status = ''; } }
       else if(!Object.keys(E.pieces).length){ var s = parseFen(START); E.pieces = s.pieces; E.turn = s.turn; E.cs = s.cs; }
       draw();

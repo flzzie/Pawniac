@@ -55,3 +55,6 @@
 .an-pop-box p{margin:0 0 10px;font-size:.92rem;line-height:1.4;}
 .an-pop-btns{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px;}
 [data-theme=dark] .an-pop-box{background:#252320;border-color:#3a372f;color:#e8e4d8;}
+
+/* drag and drop: stop the page scrolling while a piece is being dragged */
+.ps-boardx .sq,.ps-tool,#anPuzWrap .board .sq{touch-action:none;}
