@@ -2084,10 +2084,11 @@
       running = false;
       var g2 = document.getElementById('anGo'); if(g2) g2.textContent = 'Analyze';
       try{
-        if(screen.style.display === 'none' && A && !cancelFlag && !document.querySelector('#anProg .an-err')){
+        if((screen.style.display === 'none' || document.hidden || AN_MODE !== 'game') && A && !cancelFlag && !document.querySelector('#anProg .an-err')){
+          try{ var oldT = document.title; document.title = '\u2713 Analysis ready - ' + oldT; var back = function(){ if(!document.hidden){ document.title = oldT; document.removeEventListener('visibilitychange', back); } }; if(document.hidden) document.addEventListener('visibilitychange', back); else setTimeout(function(){ document.title = oldT; }, 12000); }catch(e){}
           var tt = document.createElement('div'); tt.textContent = 'Your game analysis is ready. Tap to open it.';
           tt.style.cssText = 'position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:2000;background:#1f9d55;color:#fff;padding:12px 18px;border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.35);cursor:pointer;font-size:.95rem;';
-          tt.onclick = function(){ if(tt.parentNode) tt.parentNode.removeChild(tt); renderAnalyze(); };
+          tt.onclick = function(){ if(tt.parentNode) tt.parentNode.removeChild(tt); if(screen.style.display === 'none') renderAnalyze(); AN_MODE = 'game'; applyMode(); };
           document.body.appendChild(tt); setTimeout(function(){ if(tt.parentNode) tt.parentNode.removeChild(tt); }, 12000);
         }
       }catch(e){}

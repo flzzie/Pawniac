@@ -627,7 +627,7 @@
     var h = '<div class="board ps-boardx">';
     rows.forEach(function(r, ri){
       cols.forEach(function(f, ci){
-        var sq = FILES.charAt(f) + r, p = at(sq), cls = 'sq ' + (((8 - r) + f) % 2 === 0 ? 'light' : 'dark'), co = '';
+        var sq = FILES.charAt(f) + r, p = at(sq), cls = 'sq ' + (((8 - r) + f) % 2 === 0 ? 'light' : 'dark') + (E.sel === sq ? ' from' : ''), co = '';
         if(ci === 0) co += '<span class="coord rank">' + r + '</span>';
         if(ri === 7) co += '<span class="coord file">' + FILES.charAt(f) + '</span>';
         h += '<div class="' + cls + '" data-psq="' + sq + '">' + co + (p ? '<img class="piece-img" draggable="false" alt="" src="' + pieceImgUrl(p.color, p.type) + '">' : '') + '</div>';
@@ -667,7 +667,8 @@
     E.root.innerHTML =
       '<div class="card"><h2>Understand a position</h2><p class="desc">Set up any standard chess position, or paste a FEN. The engine evaluates it and the page explains who is better, what matters, a plan for each side and the best moves.</p>' +
       '<div class="ps-grid"><div>' + boardHtml() + '</div><div class="ps-side">' +
-        paletteHtml() +
+        (E.result ? '<div class="ps-row"><span>Board</span><button class="' + (E.mode === 'test' ? '' : 'secondary') + '" id="psModeTest">Test a move on the board</button><button class="' + (E.mode === 'test' ? 'secondary' : '') + '" id="psModeEdit">Edit pieces</button></div>' + (E.mode === 'test' ? '<div class="hint">Click or drag a piece of the side to move to see how the engine rates that move.</div>' : '') : '') +
+        (E.result && E.mode === 'test' ? '' : paletteHtml()) +
         '<div class="ps-row"><span>To move</span><label><input type="radio" name="psTurn" value="w"' + (E.turn === 'w' ? ' checked' : '') + '> White</label><label><input type="radio" name="psTurn" value="b"' + (E.turn === 'b' ? ' checked' : '') + '> Black</label></div>' +
         '<div class="ps-row"><span>Castling</span>' + [['K', 'White short'], ['Q', 'White long'], ['k', 'Black short'], ['q', 'Black long']].map(function(c){ return '<label><input type="checkbox" data-cs="' + c[0] + '"' + (E.cs[c[0]] ? ' checked' : '') + '> ' + c[1] + '</label>'; }).join('') + '</div>' +
         '<div class="ps-row"><button class="secondary" id="psStart">Start position</button><button class="secondary" id="psClear">Clear board</button><button class="secondary" id="psFlip">Flip</button></div>' +
@@ -681,11 +682,15 @@
     var r = E.root;
     r.querySelectorAll('[data-psq]').forEach(function(el){ el.onclick = function(){
       var sq = el.dataset.psq;
+      if(E.result && E.mode === 'test'){ boardTestClick(sq); return; }
       if(!E.tool){ E.status = 'Pick a piece from the row above the board, then click a square.'; draw(); return; }
       if(E.tool === 'x') delete E.pieces[sq];
       else { var c = E.tool.charAt(0), t = E.tool.charAt(1), cur = at(sq); if(cur && cur.color === c && cur.type === t) delete E.pieces[sq]; else E.pieces[sq] = {color:c, type:t}; }
       E.result = null; E.status = ''; draw();
     }; });
+    var mt = r.querySelector('#psModeTest'), me = r.querySelector('#psModeEdit');
+    if(mt) mt.onclick = function(){ E.mode = 'test'; E.sel = null; draw(); };
+    if(me) me.onclick = function(){ E.mode = 'edit'; E.sel = null; draw(); };
     r.querySelectorAll('[data-tool]').forEach(function(el){ el.onclick = function(){ E.tool = (E.tool === el.dataset.tool) ? null : el.dataset.tool; draw(); }; });
     r.querySelectorAll('input[name=psTurn]').forEach(function(el){ el.onchange = function(){ E.turn = el.value; E.result = null; draw(); }; });
     r.querySelectorAll('[data-cs]').forEach(function(el){ el.onchange = function(){ E.cs[el.dataset.cs] = el.checked ? 1 : 0; }; });
@@ -697,6 +702,23 @@
     r.querySelector('#psGo').onclick = run;
     var tg = r.querySelector('#psTestGo'), ti = r.querySelector('#psTest');
     if(tg){ tg.onclick = testMove; ti.onkeydown = function(e){ if(e.key === 'Enter') testMove(); }; }
+  }
+  // play a move on the board to have the engine rate it (same check as typing it in the Test a move box)
+  function playTest(mv){
+    E.sel = null; E.testTxt = mv.san; draw();
+    var inp = E.root && E.root.querySelector('#psTest'); if(!inp) return;
+    inp.value = mv.san; testMove();
+    try{ var o = E.root.querySelector('#psTestOut'); if(o) o.scrollIntoView({behavior:'smooth', block:'nearest'}); }catch(e){}
+  }
+  function legalFor(M, from, to){
+    var c = new Chess(); c.load(M.fen);
+    return c.moves({verbose:true}).filter(function(x){ return x.from === from && x.to === to; })[0] || null;
+  }
+  function boardTestClick(sq){
+    var M = E.result; if(!M || E.busy) return;
+    if(E.sel && E.sel !== sq){ var mv = legalFor(M, E.sel, sq); if(mv){ playTest(mv); return; } }
+    var c = new Chess(); c.load(M.fen); var pc = c.get(sq);
+    E.sel = (pc && pc.color === M.turn) ? sq : null; draw();
   }
   function setFen(fen){
     var p = parseFen(fen);
@@ -781,7 +803,7 @@
           if(og.load(oppFen) && !og.game_over()){ E.status = 'Checking what the other side wants...'; var m3 = E.root && E.root.querySelector('#psMsg'); if(m3) m3.textContent = E.status; R.opp = await Z.evalFen(eng, oppFen, 1500, 1); }
         }
       }catch(e){ R.opp = null; }
-      E.result = understand(fen, R); E.status = '';
+      E.result = understand(fen, R); E.status = ''; E.mode = 'test'; E.sel = null;
     }catch(e){
       console.error('position reading failed', e);
       E.result = null; E.status = 'Sorry, something went wrong while reading this position.';
@@ -834,8 +856,16 @@
       E.root = root; opts = opts || {};
       window.PawniacDrag.enable(root, {
         src:'[data-psq],[data-tool]', dst:'[data-psq]',
-        imgOf:function(el){ if(el.dataset.tool) return el.dataset.tool === 'x' ? null : el.querySelector('img'); return at(el.dataset.psq) ? el.querySelector('img') : null; },
+        imgOf:function(el){
+          if(E.result && E.mode === 'test'){ var pt = at(el.dataset.psq); return (!el.dataset.tool && !E.busy && pt && pt.color === E.result.turn) ? el.querySelector('img') : null; }
+          if(el.dataset.tool) return el.dataset.tool === 'x' ? null : el.querySelector('img'); return at(el.dataset.psq) ? el.querySelector('img') : null;
+        },
         drop:function(el, dst){
+          if(E.result && E.mode === 'test'){
+            var tm = dst && dst.dataset.psq !== el.dataset.psq ? legalFor(E.result, el.dataset.psq, dst.dataset.psq) : null;
+            if(tm) playTest(tm); else { E.sel = null; draw(); }
+            return;
+          }
           if(el.dataset.tool){ var t = el.dataset.tool; if(!dst) return; E.pieces[dst.dataset.psq] = {color:t.charAt(0), type:t.charAt(1)}; }
           else {
             var from = el.dataset.psq, pc = E.pieces[from];
