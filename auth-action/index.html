@@ -6,7 +6,8 @@
 <meta name="robots" content="noindex">
 <title>Account action | Pawniac</title>
 <script>
-  try{ var t = localStorage.getItem('pawniac-theme'); if(t==='dark'||t==='light') document.documentElement.setAttribute('data-theme', t); }catch(e){}
+  var t = 'dark'; try{ var st = localStorage.getItem('pawniac-theme'); if(st==='light') t = 'light'; }catch(e){}
+  document.documentElement.setAttribute('data-theme', t);
 </script>
 <style>
 :root{ --bg:#f6f1e6; --card:#fffdf9; --ink:#2b2823; --muted:#6d675b; --line:#e4ddcf; --accent:#1f6f5c; --accent-ink:#fff; --bad:#b8433f; }
