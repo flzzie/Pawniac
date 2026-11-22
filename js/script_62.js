@@ -541,11 +541,7 @@
   function lineText(str){ return sanList(str).map(function(m, i){ return (i % 2 === 0 ? (i / 2 + 1) + '. ' : '') + m; }).join(' '); }
   function boardFor(item, step){
     var f = fensFor(item.m), st = Math.max(0, Math.min(step, f.length - 1)), flip = !WHITE[item.cat];
-    var arrows = [];
-    try{
-      if(st > 0){ var c = new Chess(f[st - 1].fen), mv = c.move(f[st].san); if(mv) arrows = [{from:mv.from, to:mv.to, color:'#1f9d55'}]; }
-    }catch(e){}
-    return {html:Z().boardHtml(f[st].fen, null, arrows, flip, {}), step:st, max:f.length - 1, san:f[st].san, no:Math.ceil(st / 2)};
+    return {html:Z().boardHtml(f[st].fen, null, [], flip, {}), step:st, max:f.length - 1, san:f[st].san, no:Math.ceil(st / 2)};
   }
 
   // ---------------------------------------------------------------------------------------------
@@ -641,11 +637,11 @@
     var h = '<div class="card"><h2>Openings that fit you</h2><p class="desc">Based on your answers' + (games.length >= 3 ? ' and your ' + games.length + ' analysed games' : '') + '. Each card shows the position after the opening moves; use the arrows to step through them. The fit % is a rough guide, not a rating.</p>' +
       '<div class="an-prbtns"><button class="secondary" id="opRetake">Retake the quiz</button></div></div>';
     cats.forEach(function(cat){
-      var list = rank(P, groups, cat), base = 3, shown = S.more[cat] ? list.length : Math.min(base, list.length);
+      var list = rank(P, groups, cat), base = 3, extraN = 0; for(var k = base; k < list.length && k < base + 2 && list[k].pct >= 85; k++) extraN++; var total = base + extraN, shown = S.more[cat] ? Math.min(total, list.length) : Math.min(base, list.length);
       h += '<div class="card"><h3>' + CATNAME[cat] + '</h3>';
       for(var i = 0; i < shown; i++) h += cardHtml(list[i], i, cat);
-      if(list.length > shown) h += '<div class="an-prbtns"><button class="secondary" data-more="' + cat + '">More options</button></div>';
-      else if(S.more[cat] && list.length > base) h += '<div class="an-prbtns"><button class="secondary" data-less="' + cat + '">Show fewer</button></div>';
+      if(!S.more[cat] && extraN > 0) h += '<div class="an-prbtns"><button class="secondary" data-more="' + cat + '">Show ' + extraN + ' more close fit' + (extraN > 1 ? 's' : '') + '</button></div>';
+      else if(S.more[cat] && extraN > 0) h += '<div class="an-prbtns"><button class="secondary" data-less="' + cat + '">Show fewer</button></div>';
       h += '</div>';
     });
     h += '<div class="an-prbtns" style="margin:0 0 12px;"><button class="secondary" id="opExtra">' + (S.extra ? 'Hide the extra sections' : 'Also show picks against the Sicilian, Caro-Kann, French and other first moves') + '</button></div>';
