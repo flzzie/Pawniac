@@ -571,7 +571,7 @@
   function drawIntro(){
     var games = myGames(), n = games.length;
     root.innerHTML = '<div class="card"><h2>Find my opening</h2>' +
-      '<p class="desc">Answer ' + Q.length + ' quick questions about how you like to play. You get a short list of openings that fit you, with the main ideas, the traps to watch for and a board to step through. ' +
+      '<p class="desc">Answer ' + Q.length + ' quick questions about how you like to play. You get a short list of openings that fit you, each with a board you can step through, the main ideas and the traps to watch for. ' +
       (n >= 3 ? 'It also uses your <b>' + n + ' analysed games</b> to see which openings already work for you and which cost you points early.' : 'Analyse a few of your games first, and it will also use them to see which openings already work for you.') +
       '</p><p class="desc" style="opacity:.75;">Your answers and your game data stay on this device. Nothing is uploaded.</p>' +
       '<div class="an-prbtns"><button id="opStart">Start the quiz</button></div></div>';
@@ -618,35 +618,37 @@
       '<p class="an-note" style="opacity:.7;">"Lost early" is the average win chance your first 12 moves cost. Under 6% is clean. Based on the games analysed on this device, so a small sample can be misleading.</p></div>';
   }
 
+  function stepOf(o){ S.bs = S.bs || {}; return S.bs[o.id] == null ? sanList(o.m).length : S.bs[o.id]; }
   function cardHtml(r, idx, cat){
-    var o = r.o, isOpen = S.open === o.id, h = '';
-    h += '<div class="op-item' + (isOpen ? ' open' : '') + '" data-id="' + o.id + '"><button class="op-head" data-id="' + o.id + '">' +
-      '<span class="op-rank">' + (idx + 1) + '</span><span class="op-name">' + esc(o.n) + '</span><span class="op-pct">' + r.pct + '% fit</span></button>';
+    var o = r.o, isOpen = S.open === o.id, b = boardFor(o, stepOf(o)), h = '';
+    h += '<div class="op-item' + (isOpen ? ' open' : '') + '" data-id="' + o.id + '"><div class="op-head"><span class="op-rank">' + (idx + 1) + '</span><span class="op-name">' + esc(o.n) + '</span><span class="op-pct">' + r.pct + '% fit</span></div>';
     h += '<div class="op-chips">' + r.chips.map(function(c){ return '<span class="op-chip">' + esc(c) + '</span>'; }).join('') + (r.own ? '<span class="op-chip own">In your games</span>' : '') + '</div>';
+    h += '<div class="an-main"><div>' + b.html + '<div class="an-prbtns op-step" data-id="' + o.id + '"><button class="secondary" data-act="first">&laquo;</button><button class="secondary" data-act="prev">&lsaquo;</button><button class="secondary" data-act="next">&rsaquo;</button><button class="secondary" data-act="last">&raquo;</button></div></div>' +
+      '<div class="an-side"><p>' + esc(o.d) + '</p>' + (r.ownNote ? '<div class="an-fb">' + esc(r.ownNote) + '</div>' : '') +
+      '<div class="an-title">The moves</div><span class="an-line">' + esc(lineText(o.m)) + '</span>';
     if(isOpen){
-      var b = boardFor(o, S.bstep);
-      h += '<div class="op-body"><div class="an-main"><div>' + b.html + '<div class="an-prbtns op-step"><button class="secondary" data-act="first">&laquo;</button><button class="secondary" data-act="prev">&lsaquo;</button><button class="secondary" data-act="next">&rsaquo;</button><button class="secondary" data-act="last">&raquo;</button></div></div>' +
-        '<div class="an-side"><p>' + esc(o.d) + '</p>' + (r.ownNote ? '<div class="an-fb">' + esc(r.ownNote) + '</div>' : '') +
-        '<div class="an-title">The moves</div><span class="an-line">' + esc(lineText(o.m)) + '</span>' +
-        '<div class="an-title" style="margin-top:10px;">Main ideas</div><ul class="op-ul">' + o.ideas.map(function(x){ return '<li>' + esc(x) + '</li>'; }).join('') + '</ul>' +
+      h += '<div class="an-title" style="margin-top:10px;">Main ideas</div><ul class="op-ul">' + o.ideas.map(function(x){ return '<li>' + esc(x) + '</li>'; }).join('') + '</ul>' +
         '<div class="an-title">Watch out</div><p class="an-note">' + esc(o.watch) + '</p>' +
-        '<div class="an-prbtns"><button class="secondary" data-act="copy">Copy the moves</button></div></div></div></div>';
+        '<div class="an-prbtns"><button class="secondary" data-act="copy" data-id="' + o.id + '">Copy the moves</button></div>';
     }
-    return h + '</div>';
+    h += '<div class="an-prbtns"><button class="secondary op-more" data-id="' + o.id + '">' + (isOpen ? 'Hide ideas and traps' : 'Main ideas and traps') + '</button></div></div></div></div>';
+    return h;
   }
 
   function drawResult(){
-    var P = profileOf(S.ans), games = myGames(), groups = groupGames(games), cats = P.sides === 'w' ? ['w', 'ws', 'wc', 'wf'] : (P.sides === 'b' ? ['e4', 'd4', 'oth'] : ['w', 'ws', 'wc', 'wf', 'e4', 'd4', 'oth']);
-    var h = '<div class="card"><h2>Openings that fit you</h2><p class="desc">Based on your answers' + (games.length >= 3 ? ' and your ' + games.length + ' analysed games' : '') + '. Tap an opening to see its main ideas, a board and the traps. The fit % is a rough guide, not a rating.</p>' +
+    var P = profileOf(S.ans), games = myGames(), groups = groupGames(games), main = P.sides === 'w' ? ['w'] : (P.sides === 'b' ? ['e4', 'd4'] : ['w', 'e4', 'd4']),
+        extra = P.sides === 'w' ? ['ws', 'wc', 'wf'] : (P.sides === 'b' ? ['oth'] : ['ws', 'wc', 'wf', 'oth']), cats = S.extra ? main.concat(extra) : main;
+    var h = '<div class="card"><h2>Openings that fit you</h2><p class="desc">Based on your answers' + (games.length >= 3 ? ' and your ' + games.length + ' analysed games' : '') + '. Each card shows the position after the opening moves; use the arrows to step through them. The fit % is a rough guide, not a rating.</p>' +
       '<div class="an-prbtns"><button class="secondary" id="opRetake">Retake the quiz</button></div></div>';
     cats.forEach(function(cat){
-      var list = rank(P, groups, cat), base = (cat === 'ws' || cat === 'wc' || cat === 'wf') ? 2 : 3, shown = S.more[cat] ? list.length : Math.min(base, list.length);
+      var list = rank(P, groups, cat), base = 3, shown = S.more[cat] ? list.length : Math.min(base, list.length);
       h += '<div class="card"><h3>' + CATNAME[cat] + '</h3>';
       for(var i = 0; i < shown; i++) h += cardHtml(list[i], i, cat);
-      if(list.length > shown) h += '<div class="an-prbtns"><button class="secondary" data-more="' + cat + '">Show ' + (list.length - shown) + ' more options</button></div>';
+      if(list.length > shown) h += '<div class="an-prbtns"><button class="secondary" data-more="' + cat + '">More options</button></div>';
       else if(S.more[cat] && list.length > base) h += '<div class="an-prbtns"><button class="secondary" data-less="' + cat + '">Show fewer</button></div>';
       h += '</div>';
     });
+    h += '<div class="an-prbtns" style="margin:0 0 12px;"><button class="secondary" id="opExtra">' + (S.extra ? 'Hide the extra sections' : 'Also show picks against the Sicilian, Caro-Kann, French and other first moves') + '</button></div>';
     h += insightsHtml(groups, games);
     h += '<p class="an-note" style="opacity:.7;">Openings are a matter of taste. At most levels, tactics and not hanging pieces matter more than the exact opening, so pick one or two you enjoy and play them often.</p>';
     root.innerHTML = h;
@@ -655,16 +657,17 @@
 
   function findItem(id){ return DB.filter(function(o){ return o.id === id; })[0]; }
   function bind(P, groups){
+    var ex = document.getElementById('opExtra'); if(ex) ex.onclick = function(){ S.extra = !S.extra; draw(); };
     var rt = document.getElementById('opRetake'); if(rt) rt.onclick = function(){ S.view = 'quiz'; S.step = 0; draw(); };
-    root.querySelectorAll('.op-head').forEach(function(b){ b.onclick = function(){ S.open = S.open === b.dataset.id ? null : b.dataset.id; S.bstep = 0; if(S.open){ var it = findItem(S.open); S.bstep = it ? sanList(it.m).length : 0; } draw(); }; });
+    root.querySelectorAll('.op-more').forEach(function(b){ b.onclick = function(){ S.open = S.open === b.dataset.id ? null : b.dataset.id; draw(); }; });
     root.querySelectorAll('[data-more]').forEach(function(b){ b.onclick = function(){ S.more[b.dataset.more] = true; draw(); }; });
     root.querySelectorAll('[data-less]').forEach(function(b){ b.onclick = function(){ S.more[b.dataset.less] = false; draw(); }; });
     root.querySelectorAll('.op-step [data-act]').forEach(function(b){ b.onclick = function(){
-      var it = findItem(S.open); if(!it) return; var max = sanList(it.m).length;
-      var a = b.dataset.act; S.bstep = a === 'first' ? 0 : (a === 'last' ? max : (a === 'prev' ? Math.max(0, S.bstep - 1) : Math.min(max, S.bstep + 1))); draw();
+      var id = b.parentNode.dataset.id, it = findItem(id); if(!it) return; var max = sanList(it.m).length, cur = stepOf(it);
+      var a = b.dataset.act; S.bs[id] = a === 'first' ? 0 : (a === 'last' ? max : (a === 'prev' ? Math.max(0, cur - 1) : Math.min(max, cur + 1))); draw();
     }; });
     root.querySelectorAll('[data-act=copy]').forEach(function(b){ b.onclick = function(){
-      var it = findItem(S.open); if(!it) return; var txt = lineText(it.m);
+      var it = findItem(b.dataset.id); if(!it) return; var txt = lineText(it.m);
       try{ navigator.clipboard.writeText(txt).then(function(){ b.textContent = 'Copied!'; }, function(){ window.prompt('Copy the moves:', txt); }); }catch(e){ window.prompt('Copy the moves:', txt); }
     }; });
   }
