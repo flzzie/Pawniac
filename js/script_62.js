@@ -623,6 +623,9 @@
     h += '<div class="op-item' + (isOpen ? ' open' : '') + '" data-id="' + o.id + '"><button class="op-head" data-id="' + o.id + '">' +
       '<span class="op-rank">' + (idx + 1) + '</span><span class="op-name">' + esc(o.n) + '</span><span class="op-pct">' + r.pct + '% fit</span></button>';
     h += '<div class="op-chips">' + r.chips.map(function(c){ return '<span class="op-chip">' + esc(c) + '</span>'; }).join('') + (r.own ? '<span class="op-chip own">In your games</span>' : '') + '</div>';
+    if(!isOpen){
+      h += '<div class="op-sum"><p>' + esc(o.d) + '</p><span class="an-line">' + esc(lineText(o.m)) + '</span><div class="op-tap">Tap the name for the board, main ideas and traps</div></div>';
+    }
     if(isOpen){
       var b = boardFor(o, S.bstep);
       h += '<div class="op-body"><div class="an-main"><div>' + b.html + '<div class="an-prbtns op-step"><button class="secondary" data-act="first">&laquo;</button><button class="secondary" data-act="prev">&lsaquo;</button><button class="secondary" data-act="next">&rsaquo;</button><button class="secondary" data-act="last">&raquo;</button></div></div>' +

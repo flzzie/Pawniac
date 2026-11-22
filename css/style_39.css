@@ -82,3 +82,7 @@
 .op-tbl{overflow-x:auto;}
 .op-tbl table{border-collapse:collapse;width:100%;font-size:.82rem;}
 .op-tbl th,.op-tbl td{padding:6px 8px;border-bottom:1px solid rgba(128,128,128,.3);text-align:left;white-space:nowrap;}
+
+.op-sum{padding:6px 2px 4px;}
+.op-sum p{margin:0 0 6px;font-size:14px;line-height:1.45;}
+.op-tap{font-size:12px;opacity:.6;margin-top:6px;}
