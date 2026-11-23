@@ -733,21 +733,20 @@
     r.remove();
     if(a && a.classList.contains('bt-h')) a.remove();
   }
-  // premoves: Standard, Piece Auction and Double Move, while it is the bot's turn.
-  // Double Move allows two queued premoves (one for each move of your turn), everything else one.
+  // premoves: Standard, Piece Auction and Double Move, while it is the bot's turn. Queue as many as you like: they play one by one
+  // and the queue stops at the first one that is no longer legal. (Hand & Brain against the bot has no premoves.)
   function canPre(){ return !!G && G.phase === 'play' && !G.over && G.variant !== 'hb' && G.chess.turn() === G.bot; }
   function pq(){ return G.pq || (G.pq = []); }
-  function preMax(){ return G.variant === 'double' ? 2 : 1; }
-  // Double Move: a third premove is ignored once two are queued (Esc / right-click cancels). Elsewhere a new one replaces the old.
-  function preFull(){ return preMax() > 1 && pq().length >= preMax(); }
-  function preAdd(from, to){ if(preFull()) return; var q = pq(); if(q.length >= preMax()) q.pop(); q.push({from:from, to:to}); }
+  function preFull(){ return false; }
+  function preAdd(from, to){ pq().push({from:from, to:to}); }
   // the pieces as they will stand after the premoves already queued, so a queued piece can be premoved again
   function preChess(){
-    var q = pq(), n = (q.length >= preMax() && preMax() === 1) ? q.length - 1 : q.length;
-    if(!n || G.variant !== 'double' || !window.PawniacFenAfter || !window.PawniacChessFor) return G.chess;
+    var q = pq(), n = q.length;
+    if(!n || !window.PawniacFenAfter) return G.chess;
     var fen = G.chess.fen();
     for(var i = 0; i < n; i++) fen = window.PawniacFenAfter(fen, q[i].from, q[i].to);
-    return new (window.PawniacChessFor('double'))(fen);
+    var K = (G.variant === 'double' && window.PawniacChessFor) ? window.PawniacChessFor('double') : Chess;
+    return new K(fen);
   }
   // same rules as premoves in the main game: where this piece COULD go once the bot has moved.
   // Ignores enemy pieces in the way and checks. Squares with your OWN piece count too (that is how
@@ -843,7 +842,7 @@
       if(acts && G.variant !== 'hb' && !scr.querySelector('.bt-pmh')){
         var hh = document.createElement('div');
         hh.className = 'hint bt-pmh'; hh.style.margin = '10px 0';
-        hh.textContent = 'Drag pieces to move. Premove while the bot thinks (right-click or Esc cancels).';
+        hh.textContent = 'Drag pieces to move. Premove as many moves as you like while the bot thinks (right-click or Esc cancels them all).';
         acts.parentNode.insertBefore(hh, acts);
       }
     }catch(e){ console.error('bot decorate failed', e); }

@@ -9,7 +9,7 @@
   function applyBody(){ document.body.classList.toggle('dnd-on', !!P.dnd); }
   applyBody();
 
-  var PQ = [];            // queued premoves [{gid, from, to}]: up to 2 in Double Move (one per move of your turn), 1 elsewhere
+  var PQ = [];            // queued premoves [{gid, from, to}]: as many as you like; they play one by one and stop at the first one that no longer fits
   var firedFen = null;    // the position the last queued premove was played from (stops one premove firing twice)
   var pmSel = null;       // piece picked up for a premove
   var D = null;           // active pointer interaction
@@ -30,18 +30,16 @@
     return c.myTurn && !pendingPromotion && !!c.g.announced &&
       ((c.g.mode === 'team' && c.me.role === 'hand') || (c.g.mode === 'random' && c.me.role === 'solo'));
   }
-  // premoves: Standard Chess, Piece Auction (once the army is placed) and Double Move, while it is the opponent's turn
-  function isPmVariant(g){ return !!g && (g.variant === 'standard' || g.variant === 'auction' || g.variant === 'double'); }
+  // premoves: Standard Chess, Piece Auction (once the army is placed), Double Move and Hand & Brain, while it is the
+  // opponent's turn. In Hand & Brain a premove only plays if the Brain names that piece type for you.
+  function isHb(g){ return !!g && (!g.variant || g.variant === 'hb'); }        // older games have no variant field: they are Hand & Brain
+  function isPmVariant(g){ return !!g && (g.variant === 'standard' || g.variant === 'auction' || g.variant === 'double' || isHb(g)); }
   function canPremoveNow(c){
-    return P.premove && isPmVariant(c.g) && c.g.mode === 'random' && !c.myTurn;
+    if(!P.premove || !isPmVariant(c.g) || c.myTurn) return false;
+    return isHb(c.g) ? (c.me.role === 'hand' || c.me.role === 'solo') : c.g.mode === 'random';
   }
-  function pmMax(g){ return g && g.variant === 'double' ? 2 : 1; }
-  // Double Move: once both premoves are queued a third is ignored (cancel with Esc / right-click to change them).
-  // Elsewhere there is only one premove and a new one replaces it.
-  function pmFull(g){ return pmMax(g) > 1 && PQ.length >= pmMax(g); }
+  function pmFull(){ return false; }                  // no limit
   function pmAdd(g, from, to){
-    if(pmFull(g)) return;
-    if(PQ.length >= pmMax(g)) PQ.pop();
     PQ.push({gid:currentGameId, from:from, to:to});
   }
   // the pieces as they will stand after the premoves already queued (so a queued piece can be premoved again)
@@ -70,7 +68,7 @@
   }
   window.PawniacFenAfter = fenAfter;       // the bot screen (script_34.js) uses the same helper
   function pmBase(g){
-    var fen = g.fen, n = (PQ.length >= pmMax(g) && pmMax(g) === 1) ? PQ.length - 1 : PQ.length;
+    var fen = g.fen, n = PQ.length;
     for(var i = 0; i < n; i++) fen = fenAfter(fen, PQ[i].from, PQ[i].to);
     return fen;
   }
@@ -365,9 +363,9 @@
   function runPremove(g){
     var pm = PQ.shift(); pmSel = null;
     if(!pm) return;
-    var mv = new (CF(g))(g.fen).moves({verbose:true}).filter(function(m){
-      return m.from === pm.from && m.to === pm.to;
-    })[0];
+    var legal = new (CF(g))(g.fen).moves({verbose:true});
+    if(isHb(g)) legal = legal.filter(function(m){ return m.piece === g.announced; });     // only the piece the Brain named
+    var mv = legal.filter(function(m){ return m.from === pm.from && m.to === pm.to; })[0];
     if(!mv){ PQ = []; return; }
     firedFen = g.fen;
     makeMove(pm.from, pm.to, mv.promotion ? 'q' : undefined);
@@ -385,6 +383,8 @@
     var chess = new (CF(g))(g.fen);
     if(canMoveNow(c)){
       if(P.dnd) allowedFromSquares(chess, g.announced).forEach(function(m){ mark(m.from, 'dnd-from'); });
+    } else if(PQ.length && !canPremoveNow(c)){
+      PQ.forEach(function(q){ mark(q.from, 'pm-from'); mark(q.to, 'pm-to'); });     // waiting for the Brain to name a piece
     } else if(canPremoveNow(c)){
       var side = c.me.side;
       if(P.dnd){
@@ -419,7 +419,8 @@
             var pc0 = new (CF(g))(g.fen).get(sq0);
             if(pc0 && pc0.color === me.side && !PQ.length) selectedSquare = sq0;
           }
-          if(PQ.length && g.fen !== firedFen) runPremove(g);   // a queued premove plays now (the next one once this has landed)
+          // a queued premove plays now (the next one once this has landed). Hand & Brain waits until the Brain has named a piece.
+          if(PQ.length && g.fen !== firedFen && (!isHb(g) || g.announced)) runPremove(g);
         }
       }
     }catch(e){ console.error('premove failed', e); }
@@ -443,7 +444,7 @@
     card.id = 'inputCard';
     card.innerHTML = '<h2>Moving pieces</h2><p class="desc">Saved on this device.</p>' +
       row('dnd', 'Drag and drop', 'Drag pieces to move them (clicking still works). Works in every game mode.') +
-      row('premove', 'Premoves', 'Standard Chess, Piece Auction and Double Move. Queue a move on your opponent\'s turn and it plays automatically if it is legal (Double Move: up to 2, one for each move of your turn). Right-click or Esc cancels them.');
+      row('premove', 'Premoves', 'Standard Chess, Piece Auction, Double Move and Hand &amp; Brain. Queue as many moves as you like on your opponent\'s turn: they play one by one as soon as it is your turn, and the queue stops at the first move that is no longer legal. In Hand &amp; Brain a premove only plays if your Brain names that piece. Right-click or Esc cancels them all.');
     var reset = document.getElementById('setReset');
     var host = reset && reset.closest('.card');
     if(host) scr.insertBefore(card, host); else scr.appendChild(card);
