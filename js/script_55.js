@@ -69,13 +69,22 @@
       return best;
     }
 
+    // transposition table (position + which half of the turn + depth), so repeated positions are not searched twice
+    var tt = {}, ttSize = 0;
     function negamax(st, depth, alpha, beta){
       if((++nodes & 63) === 0 && Date.now() > deadline){ stopped = true; }
       if(stopped) return 0;
       if(depth <= 0) return quiesce(st, 2, alpha, beta);
+      var key = st.fen + (st.movesLeft || 1), e = tt[key], a0 = alpha;
+      if(e && e.d >= depth){
+        if(e.f === 0) return e.v;
+        if(e.f === 1 && e.v >= beta) return e.v;
+        if(e.f === 2 && e.v <= alpha) return e.v;
+      }
       var list = sorted(new Chess(st.fen).moves({verbose:true}));
       if(!list.length) return stand(st);
-      var best = -Infinity;
+      if(e && e.m){ for(var k = 1; k < list.length; k++){ if(uci(list[k]) === e.m){ var t = list[k]; list.splice(k, 1); list.unshift(t); break; } } }
+      var best = -Infinity, bestM = null;
       for(var i = 0; i < list.length; i++){
         var r = PD.apply(st, list[i], {fast:true}); if(!r) continue;
         var sc;
@@ -83,10 +92,13 @@
         else if(r.next.turn === st.turn) sc = negamax(r.next, depth - 1, alpha, beta);
         else sc = -negamax(r.next, depth - 1, -beta, -alpha);
         if(stopped) return 0;
-        if(sc > best) best = sc;
+        if(sc > best){ best = sc; bestM = list[i]; }
         if(sc > alpha) alpha = sc;
         if(alpha >= beta) break;
       }
+      if(ttSize > 400000){ tt = {}; ttSize = 0; }
+      if(!e) ttSize++;
+      tt[key] = {d:depth, v:best, f:(best <= a0 ? 2 : (best >= beta ? 1 : 0)), m:bestM ? uci(bestM) : null};
       return best;
     }
 
@@ -103,7 +115,7 @@
         var pool = (caps.length && Math.random() < 0.5) ? caps : list;
         return {move:uci(pool[Math.floor(Math.random() * pool.length)]), depth:0};
       }
-      nodes = 0; stopped = false; deadline = Date.now() + req.budget;
+      nodes = 0; stopped = false; tt = {}; ttSize = 0; deadline = Date.now() + req.budget;
       var bestMove = list[0], bestScore = -Infinity, doneDepth = 0;
       for(var d = 1; d <= req.maxDepth; d++){
         var iterBest = null, iterScore = -Infinity, alpha = -Infinity;
@@ -187,7 +199,7 @@
     if(skill <= 7)  return {maxDepth:1, noise:60};
     if(skill <= 12) return {maxDepth:2, noise:15};
     if(skill <= 17) return {maxDepth:3, noise:0};
-    return {maxDepth:5, noise:0};
+    return {maxDepth:12, noise:0};
   }
   var chain = Promise.resolve();
   function pick(game, ms, skill){
