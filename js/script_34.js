@@ -733,9 +733,10 @@
     r.remove();
     if(a && a.classList.contains('bt-h')) a.remove();
   }
-  // premoves: Standard, Piece Auction and Double Move, while it is the bot's turn. Queue as many as you like: they play one by one
-  // and the queue stops at the first one that is no longer legal. (Hand & Brain against the bot has no premoves.)
-  function canPre(){ return !!G && G.phase === 'play' && !G.over && G.variant !== 'hb' && G.chess.turn() === G.bot; }
+  // premoves: every game type, while it is the bot's turn. Queue as many as you like: they play one by one and the queue stops at
+  // the first one that is no longer legal. In Hand & Brain a premove only plays if the piece you are given (rolled, or named by
+  // your bot Brain) is that piece type; otherwise the queue is cleared.
+  function canPre(){ return !!G && G.phase === 'play' && !G.over && G.chess.turn() === G.bot; }
   function pq(){ return G.pq || (G.pq = []); }
   function preFull(){ return false; }
   function preAdd(from, to){ pq().push({from:from, to:to}); }
@@ -827,6 +828,14 @@
   drawPlay = function(){
     _dp();
     try{
+      // Hand & Brain: the piece for your turn is only known once it has been rolled or named, so the queue fires from here
+      if(G && !G.over && G.variant === 'hb' && pq().length && G.chess.turn() === G.me && G.ann && !G.busy && !G.promo){
+        var hp = pq().shift();
+        var hm = allowed().filter(function(x){ return x.from === hp.from && x.to === hp.to; })[0];
+        if(!hm) G.pq = [];                                   // not the piece you were given, or no longer legal: drop the whole queue
+        else if(hm.promotion && !autoQ()){ G.pq = []; G.promo = {from:hm.from, to:hm.to}; draw(); return; }
+        else { play(hm.from, hm.to, hm.promotion ? 'q' : undefined); nextTurn(); return; }
+      }
       killSlider('bSk2');
       if(!G || G.over) return;
       if(canPre()){
@@ -839,10 +848,10 @@
         scr.querySelectorAll('.sq[data-sq]').forEach(function(c){ var p = vc.get(c.dataset.sq); if(p && p.color === G.me) c.classList.add('selectable'); });
       }
       var acts = scr.querySelector('.game-actions');
-      if(acts && G.variant !== 'hb' && !scr.querySelector('.bt-pmh')){
+      if(acts && !scr.querySelector('.bt-pmh')){
         var hh = document.createElement('div');
         hh.className = 'hint bt-pmh'; hh.style.margin = '10px 0';
-        hh.textContent = 'Drag pieces to move. Premove as many moves as you like while the bot thinks (right-click or Esc cancels them all).';
+        hh.textContent = 'Drag pieces to move. Premove as many moves as you like while the bot thinks (right-click or Esc cancels them all).' + (G.variant === 'hb' ? ' In Hand & Brain a premove only plays if it uses the piece you are given.' : '');
         acts.parentNode.insertBefore(hh, acts);
       }
     }catch(e){ console.error('bot decorate failed', e); }
