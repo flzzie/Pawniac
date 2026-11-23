@@ -1,5 +1,43 @@
 const PIECE_NAMES = {p:"Pawn",n:"Knight",b:"Bishop",r:"Rook",q:"Queen",k:"King"};
 
+// FIDE 6.9 (and 5.2.2): when a player's flag falls, the game is a draw only if the OPPONENT could not checkmate
+// them by any series of legal moves. That is not the same as chess.js insufficient_material(), which asks whether
+// NEITHER side can mate. Example: White has a bare king, Black has a full army and runs out of time -> draw.
+window.PawniacMate = (function(){
+  function canMateFen(fen, color){
+    const rows = String(fen).split(' ')[0].split('/');
+    let mine = {p:0,n:0,b:0,r:0,q:0}, bishopsOnDark = 0, bishopsOnLight = 0, theirs = 0;
+    for(let r = 0; r < rows.length; r++){
+      let f = 0;
+      for(const ch of rows[r]){
+        if(ch >= '1' && ch <= '8'){ f += +ch; continue; }
+        const low = ch.toLowerCase(), c = ch === low ? 'b' : 'w';
+        if(low !== 'k'){
+          if(c === color){
+            mine[low]++;
+            if(low === 'b'){ if((r + f) % 2 === 0) bishopsOnLight++; else bishopsOnDark++; }
+          } else theirs++;
+        }
+        f++;
+      }
+    }
+    if(mine.p || mine.r || mine.q) return true;
+    const minors = mine.n + mine.b;
+    if(minors === 0) return false;
+    if(theirs > 0) return true;                       // a lone minor can still mate when the other side has a piece of its own in the way
+    if(minors === 1) return false;                    // king and one minor piece against a bare king
+    if(mine.n === 0 && (bishopsOnDark === 0 || bishopsOnLight === 0)) return false;   // bishops that all stand on one colour
+    return true;                                      // two knights can still mate (if the defender helps), bishop pair, bishop and knight
+  }
+  function oppOf(c){ return c === 'w' ? 'b' : 'w'; }
+  // loser = the side whose time ran out. variant 'double' (Double Move): the king can be captured, so only bare kings are dead.
+  function flagIsDraw(fen, loser, variant){
+    if(variant === 'double') return String(fen).split(' ')[0].replace(/[\/0-9kK]/g, '').length === 0;
+    return !canMateFen(fen, oppOf(loser));
+  }
+  return {canMateFen:canMateFen, flagIsDraw:flagIsDraw};
+})();
+
 const FIGURINE = {
   w: {N:'♘',B:'♗',R:'♖',Q:'♕',K:'♔'},
   b: {N:'♞',B:'♝',R:'♜',Q:'♛',K:'♚'}
@@ -925,8 +963,7 @@ async function clockTick(){
       const loser = fresh.turn;
       // FIDE 6.9: if the flag falls and the opponent has no way to checkmate with
       // any sequence of legal moves, the game is a draw rather than a loss.
-      const chessNow = new Chess(fresh.fen);
-      const isDraw = chessNow.insufficient_material();
+      const isDraw = window.PawniacMate.flagIsDraw(fresh.fen, loser, fresh.variant);
       await db.ref(dbPath('hb:game:'+gid)).update({
         status:'finished',
         winner: isDraw ? 'draw' : (loser==='w'?'b':'w'),
@@ -1286,7 +1323,7 @@ async function makeMove(from, to, promotion){
   if(g.clock && g.clock.initialSec>0 && g.clock.turnStartedAt){
     const mine = moverColor==='w' ? g.clock.whiteMs : g.clock.blackMs;
     if(serverNow() - g.clock.turnStartedAt >= mine){
-      const isDraw = chess.insufficient_material();
+      const isDraw = window.PawniacMate.flagIsDraw(g.fen, moverColor, g.variant);
       g.status = 'finished';
       g.winner = isDraw ? 'draw' : (moverColor==='w' ? 'b' : 'w');
       g.statusNote = isDraw ? 'draw - insufficient material on time' : 'won on time';

@@ -191,7 +191,7 @@
     if(remMs(loser) > 0) return;
     G.clock[loser] = 0;
     var winner = opp(loser);
-    if(G.chess.insufficient_material()) finish('Draw (time ran out, but nobody can mate)', 'd');
+    if(window.PawniacMate.flagIsDraw(G.chess.fen(), loser, G.variant)) finish('Draw (time ran out, but the other side cannot checkmate)', 'd');
     else finish(winner === G.me ? 'You win on time!' : 'Bot wins on time', winner === G.me ? 'w' : 'l');
   }
   setInterval(function(){
