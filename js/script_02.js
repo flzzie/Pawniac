@@ -936,7 +936,7 @@ function clearLastGame(){
 // Remaining ms for a side, using server time so both players see the same clock.
 function clockMs(g, side){
   const base = side==='w' ? g.clock.whiteMs : g.clock.blackMs;
-  if(g.status==='active' && g.turn===side && g.clock.turnStartedAt) return base - (serverNow() - g.clock.turnStartedAt);
+  if(g.status==='active' && g.turn===side && g.clock.turnStartedAt) return base - Math.max(0, serverNow() - g.clock.turnStartedAt);
   return base;
 }
 
@@ -1347,7 +1347,8 @@ async function makeMove(from, to, promotion){
   // Deduct the time used this turn, then add the increment (every move, including the first).
   if(g.clock && g.clock.initialSec>0){
     const now = serverNow();
-    const elapsed = g.clock.turnStartedAt ? now - g.clock.turnStartedAt : 0;
+    // never negative: if two devices' clocks disagree by a second or two, an instant (pre)move would otherwise ADD time
+    const elapsed = g.clock.turnStartedAt ? Math.max(0, now - g.clock.turnStartedAt) : 0;
     const incMs = (g.clock.incrementSec||0)*1000;
     if(moverColor==='w') g.clock.whiteMs = Math.max(0, g.clock.whiteMs - elapsed) + incMs;
     else g.clock.blackMs = Math.max(0, g.clock.blackMs - elapsed) + incMs;
