@@ -143,12 +143,12 @@
     var x = cv.getContext('2d'), cols = ['#2aa37a', '#f2b632', '#e8553c', '#6c8cff', '#c46bff', '#ff8fb1'];
     function size(){ cv.width = innerWidth; cv.height = innerHeight; }
     size(); window.addEventListener('resize', size);
-    var N = Math.min(70, Math.round(innerWidth / 18));
-    bits = []; for(var i = 0; i < N; i++) bits.push({x: Math.random() * cv.width, y: Math.random() * cv.height, w: 6 + Math.random() * 7, h: 10 + Math.random() * 8, c: cols[i % cols.length], v: .6 + Math.random() * 1.2, r: Math.random() * 6, vr: (Math.random() - .5) * .06, sw: Math.random() * 6, a: .4 + Math.random() * .35});
+    var N = Math.min(16, Math.round(innerWidth / 70));
+    bits = []; for(var i = 0; i < N; i++) bits.push({x: Math.random() * cv.width, y: Math.random() * cv.height, w: 4 + Math.random() * 4, h: 7 + Math.random() * 5, c: cols[i % cols.length], v: .25 + Math.random() * .45, r: Math.random() * 6, vr: (Math.random() - .5) * .02, sw: Math.random() * 6, a: .22 + Math.random() * .2});
     (function frame(){
       x.clearRect(0, 0, cv.width, cv.height);
       bits.forEach(function(b){
-        b.y += b.v; b.r += b.vr; b.sw += .02; b.x += Math.sin(b.sw) * .6;
+        b.y += b.v; b.r += b.vr; b.sw += .02; b.x += Math.sin(b.sw) * .3;
         if(b.y > cv.height + 20){ b.y = -20; b.x = Math.random() * cv.width; }
         x.save(); x.globalAlpha = b.a; x.translate(b.x, b.y); x.rotate(b.r); x.fillStyle = b.c; x.fillRect(-b.w / 2, -b.h / 2, b.w, b.h); x.restore();
       });
