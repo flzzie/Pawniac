@@ -143,8 +143,8 @@
     var x = cv.getContext('2d'), cols = ['#2aa37a', '#f2b632', '#e8553c', '#6c8cff', '#c46bff', '#ff8fb1'];
     function size(){ cv.width = innerWidth; cv.height = innerHeight; }
     size(); window.addEventListener('resize', size);
-    var N = Math.min(16, Math.round(innerWidth / 70));
-    bits = []; for(var i = 0; i < N; i++) bits.push({x: Math.random() * cv.width, y: Math.random() * cv.height, w: 4 + Math.random() * 4, h: 7 + Math.random() * 5, c: cols[i % cols.length], v: .25 + Math.random() * .45, r: Math.random() * 6, vr: (Math.random() - .5) * .02, sw: Math.random() * 6, a: .22 + Math.random() * .2});
+    var N = Math.min(38, Math.round(innerWidth / 38));
+    bits = []; for(var i = 0; i < N; i++) bits.push({x: Math.random() * cv.width, y: Math.random() * cv.height, w: 5 + Math.random() * 5, h: 9 + Math.random() * 6, c: cols[i % cols.length], v: .4 + Math.random() * .7, r: Math.random() * 6, vr: (Math.random() - .5) * .02, sw: Math.random() * 6, a: .35 + Math.random() * .3});
     (function frame(){
       x.clearRect(0, 0, cv.width, cv.height);
       bits.forEach(function(b){
