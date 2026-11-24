@@ -99,7 +99,7 @@
     // the clock only changes hands (and the increment is only paid) when the turn is over
     if((r.ended || r.over) && g.clock && g.clock.initialSec > 0){
       var now = serverNow();
-      var elapsed = g.clock.turnStartedAt ? now - g.clock.turnStartedAt : 0;
+      var elapsed = g.clock.turnStartedAt ? Math.max(0, now - g.clock.turnStartedAt) : 0;
       var incMs = (g.clock.incrementSec || 0) * 1000;
       if(mover === 'w') g.clock.whiteMs = Math.max(0, g.clock.whiteMs - elapsed) + incMs;
       else g.clock.blackMs = Math.max(0, g.clock.blackMs - elapsed) + incMs;
