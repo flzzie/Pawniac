@@ -7,6 +7,7 @@
   function esc(s){ return String(s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
   function $(id){ return document.getElementById(id); }
   function isAdmin(){ return !!(typeof ME !== 'undefined' && ME && ADMINS.indexOf(String(ME.username).toLowerCase()) >= 0); }
+  window.pawniacIsAdmin = isAdmin;                         // used by the Donate page
   function val(p){ return db.ref(p).once('value').then(function(s){ return s.exists() ? s.val() : null; }); }
   function arr(x){ return Array.isArray(x) ? x.filter(Boolean) : (x && typeof x === 'object' ? Object.keys(x).map(function(k){ return x[k]; }) : []); }
   function inActiveGame(){

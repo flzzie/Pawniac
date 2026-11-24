@@ -1,0 +1,10 @@
+{
+  "_note": "Add this under rules > hb. Copy the .read and .write conditions you already use for hb/reports (players can create their own, staff can read and update) and use them here. The .indexOn lines are needed for the queries on the Donate page.",
+  "donations": {
+    ".indexOn": ["user", "status", "ts"],
+    "$id": {
+      ".read": "SAME AS hb/reports: the player named in 'user', and staff",
+      ".write": "players may create a request whose 'user' is their own username and whose status is 'pending'; only staff may change status"
+    }
+  }
+}
