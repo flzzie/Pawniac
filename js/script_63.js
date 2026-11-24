@@ -7,7 +7,7 @@
    - your own QR codes: put the pictures at images/donate-upi.png and images/donate-<coin>.png; they show if the file exists */
 (function(){
   var DONATE_CONFIG = {
-    upi:    {id: 'rishit.10@fam', name: 'Rishit', qr: 'images/donate-upi.png'},   // your UPI id
+    upi:    {id: 'rishit.10@fam', name: 'Rishit', qr: '/images/donate-upi.png'},   // your UPI id
     crypto: [             // shown in this order; optional qr: 'images/donate-xxx.png' (shown if the file exists)
       {coin: 'USDT', network: 'Tron (TRC-20)',      addr: 'TBfuGnGaeqrT8f9hxsvvLv7MNV32e29Vt1'},
       {coin: 'USDT', network: 'Polygon',            addr: '0x8992B4776Cb211Fc49Dbe5363BF95B164F254015'},
@@ -35,6 +35,19 @@
   + '#screen-donate .dn-st{font-size:12px;font-weight:700;padding:2px 8px;border-radius:999px;background:rgba(127,127,127,.2)}'
   + '#screen-donate .dn-st.ok{background:rgba(31,157,85,.25)}#screen-donate .dn-st.no{background:rgba(220,60,60,.22)}'
   + '#screen-donate select{background:rgba(127,127,127,.12);color:inherit;border:1px solid rgba(127,127,127,.35);border-radius:8px;padding:9px}#screen-donate option{color:#111}#screen-donate a:not(.dn-open){color:inherit;text-decoration:underline}#screen-donate .dn-open{text-decoration:none}#screen-donate label{display:block;font-size:13px;margin:10px 0 4px}#screen-donate select,#screen-donate input[type=text]{width:100%;max-width:420px;box-sizing:border-box}';
+  css += '#screen-donate .dn-tabs{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:6px 0 4px}'
+  + '#screen-donate .dn-tab{display:flex;align-items:center;justify-content:center;gap:8px;padding:14px 10px;border-radius:12px;border:2px solid rgba(127,127,127,.3);background:rgba(127,127,127,.08);color:inherit;font-size:16px;font-weight:700;cursor:pointer}'
+  + '#screen-donate .dn-tab.on{border-color:#2aa37a;background:rgba(42,163,122,.16)}'
+  + '#screen-donate .dn-chips{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin:6px 0 4px}'
+  + '#screen-donate .dn-chip{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:12px;border:2px solid rgba(127,127,127,.3);background:rgba(127,127,127,.08);color:inherit;cursor:pointer;text-align:left}'
+  + '#screen-donate .dn-chip.on{border-color:var(--cc);background:rgba(127,127,127,.18);box-shadow:0 0 0 3px rgba(127,127,127,.12)}'
+  + '#screen-donate .dn-coin{flex:none;width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;overflow:hidden}#screen-donate .dn-coin img{width:38px;height:38px;display:block}'
+  + '#screen-donate .dn-chip b{display:block;font-size:15px}#screen-donate .dn-chip small{display:block;font-size:12px;opacity:.75}'
+  + '#screen-donate .dn-bigaddr{border-left:4px solid var(--cc,#2aa37a);padding-left:10px;margin:12px 0}';
+  css += '#screen-donate{position:relative;z-index:1}#screen-donate .dn-layout{display:grid;grid-template-columns:1fr;gap:0 18px;position:relative;z-index:1}'
+  + '@media(min-width:900px){#screen-donate .dn-layout{grid-template-columns:minmax(0,1fr) 290px;align-items:start}#screen-donate .dn-side{position:sticky;top:12px}}'
+  + '#screen-donate .dn-donor{padding:7px 0;border-top:1px solid rgba(127,127,127,.2);font-weight:700;font-size:15px}#screen-donate .dn-donor:first-of-type{border-top:0}'
+  + '#dnConfetti{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:0}';
   var st = document.createElement('style'); st.textContent = css; document.head.appendChild(st);
 
   var scr = document.createElement('div'); scr.id = 'screen-donate'; scr.style.display = 'none';
@@ -46,10 +59,15 @@
   function code(){ return 'PAW-' + (loggedIn() ? ME.username : 'yourname'); }
   function copyBtn(txt, label){ return '<button type="button" class="secondary dn-copy" data-c="' + esc(txt) + '">' + (label || 'Copy') + '</button>'; }
 
-  var D = {mine: [], pending: [], msg: ''};
+  var D = {mine: [], pending: [], msg: '', donors: []};
   function when(ts){ return ts ? new Date(ts).toLocaleDateString(undefined, {day:'numeric', month:'short', year:'numeric'}) : ''; }
   function statusTag(s){ return '<span class="dn-st ' + (s === 'approved' ? 'ok' : (s === 'rejected' ? 'no' : '')) + '">' + (s === 'approved' ? 'Approved' : (s === 'rejected' ? 'Not matched' : 'Waiting')) + '</span>'; }
 
+  function coinLook(c){
+    var f = {USDT: 'usdt', SOL: 'sol', POL: 'matic', LTC: 'ltc'}[c.coin];
+    var col = {USDT: '#26a17b', SOL: '#9945ff', POL: '#8247e5', LTC: '#345d9d'}[c.coin] || '#2aa37a';
+    return [f ? '/images/crypto/' + f + '.svg' : '', col];
+  }
   function cryptoList(){ return (DONATE_CONFIG.crypto || []).filter(function(c){ return c && c.addr; }); }
   function hasUpi(){ return !!(DONATE_CONFIG.upi && DONATE_CONFIG.upi.id); }
   function curKind(){ var k = D.kind; if(k === 'upi' && hasUpi()) return 'upi'; if(k === 'crypto' && cryptoList().length) return 'crypto'; return hasUpi() ? 'upi' : 'crypto'; }
@@ -72,22 +90,24 @@
 
   function payCard(){
     var kinds = [], kind = curKind(), loggedOut = !loggedIn();
-    if(hasUpi()) kinds.push(['upi', 'UPI (India)']);
+    if(hasUpi()) kinds.push(['upi', 'UPI']);
     if(cryptoList().length) kinds.push(['crypto', 'Crypto']);
-    var h = '<div class="card"><h2>Donate</h2><label for="dnKind" style="margin-top:0;">Payment method</label><select id="dnKind">' +
-      kinds.map(function(k){ return '<option value="' + k[0] + '"' + (k[0] === kind ? ' selected' : '') + '>' + k[1] + '</option>'; }).join('') + '</select>';
+    var h = '<div class="card"><h2>Donate</h2><div class="dn-tabs">' +
+      kinds.map(function(k){ return '<button type="button" class="dn-tab' + (k[0] === kind ? ' on' : '') + '" data-kind="' + k[0] + '">' + k[1] + '</button>'; }).join('') + '</div>';
     if(kind === 'upi'){
       var u = DONATE_CONFIG.upi, uri = 'upi://pay?pa=' + encodeURIComponent(u.id) + '&pn=' + encodeURIComponent(u.name || 'Pawniac') + '&cu=INR&tn=' + encodeURIComponent(code());
       h += '<p class="desc" style="margin-top:12px;">Any UPI app works. In the note write <b>' + esc(code()) + '</b> so we can match it to you.</p>' +
-        '<div class="dn-addr"><code>' + esc(u.id) + '</code>' + copyBtn(u.id) + '</div>' +
+        '<div class="dn-addr"><code>' + esc(u.id) + '</code>' + copyBtn(u.id, 'Copy') + '</div>' +
         '<div style="display:flex;gap:10px;flex-wrap:wrap;"><a href="' + esc(uri) + '" class="dn-open"><button type="button">Open my UPI app</button></a>' + copyBtn(code(), 'Copy the note') + '</div>' +
         (u.qr ? '<img class="dn-qr" src="' + esc(u.qr) + '" alt="UPI QR code" onerror="this.style.display=\'none\'">' : '') +
         '<div class="hint">On a phone, tap "Open my UPI app". On a computer, copy the UPI ID into any UPI app on your phone.</div>';
     } else {
       var l = cryptoList(), c = curCoin();
-      h += '<label for="dnCoin">Coin and network</label><select id="dnCoin">' + l.map(function(x, i){ return '<option value="' + i + '"' + (x === c ? ' selected' : '') + '>' + esc(x.coin) + ' on ' + esc(x.network) + '</option>'; }).join('') + '</select>' +
+      var look = coinLook(c);
+      h += '<div class="dn-chips">' + l.map(function(x, i){ var lk = coinLook(x); return '<button type="button" class="dn-chip' + (x === c ? ' on' : '') + '" data-ci="' + i + '" style="--cc:' + lk[1] + '"><span class="dn-coin">' + (lk[0] ? '<img src="' + lk[0] + '" alt="" onerror="this.remove()">' : '') + '</span><span><b>' + esc(x.coin) + '</b><small>' + esc(x.network) + '</small></span></button>'; }).join('') + '</div>' +
         '<div class="dn-warn"><b>Send only ' + esc(c.coin) + ' on ' + esc(c.network) + ' to this address.</b> A wrong coin or network cannot be recovered. If unsure, send a tiny test first.</div>' +
-        '<div class="dn-addr"><code>' + esc(c.addr) + '</code>' + copyBtn(c.addr) + '</div>' +
+        '<div class="dn-bigaddr" style="--cc:' + look[1] + '">' +
+        '<div class="dn-addr" style="margin:0"><code>' + esc(c.addr) + '</code>' + copyBtn(c.addr, 'Copy') + '</div></div>' +
         (c.qr ? '<img class="dn-qr" src="' + esc(c.qr) + '" alt="' + esc(c.coin) + ' QR code" onerror="this.style.display=\'none\'">' : '');
     }
     h += '<hr style="border:0;border-top:1px solid rgba(127,127,127,.25);margin:16px 0 4px;">';
@@ -103,6 +123,40 @@
       return '<div class="dn-row"><span>' + esc(r.method || '') + (r.amount ? ' &middot; ' + esc(r.amount) : '') + ' <span class="hint">' + esc(when(r.ts)) + '</span></span>' + statusTag(r.status) + '</div>';
     }).join('') + '<div class="hint" style="margin-top:8px;">When it says Approved, open Settings to pick your name colours.</div></div>';
   }
+  function sideCard(){
+    var l = D.donors.length ? D.donors.map(function(n){ return '<div class="dn-donor" data-user="' + esc(n) + '">' + esc(n) + '</div>'; }).join('') : '<p class="desc" style="margin:0;">Nobody yet. You could be the first.</p>';
+    return '<aside class="dn-side"><div class="card"><h2>Our donators</h2><p class="desc">Thank you to everyone who helps keep Pawniac free.</p>' + l + '</div></aside>';
+  }
+  function loadDonors(){
+    if(typeof db === 'undefined' || !db) return;
+    db.ref('hb/donors').once('value').then(function(s){
+      var o = []; s.forEach(function(c){ var v = c.val(); if(v && v.on === true) o.push(c.key); });
+      o.sort(function(a, b){ return a.toLowerCase() < b.toLowerCase() ? -1 : 1; }); D.donors = o; draw();
+    }).catch(function(){});
+  }
+
+  // ---------- confetti behind the page (skipped for people who asked for less motion) ----------
+  var cv = null, raf = 0, bits = [];
+  function confettiOn(){
+    if(cv || (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches)) return;
+    cv = document.createElement('canvas'); cv.id = 'dnConfetti'; document.body.appendChild(cv);
+    var x = cv.getContext('2d'), cols = ['#2aa37a', '#f2b632', '#e8553c', '#6c8cff', '#c46bff', '#ff8fb1'];
+    function size(){ cv.width = innerWidth; cv.height = innerHeight; }
+    size(); window.addEventListener('resize', size);
+    var N = Math.min(70, Math.round(innerWidth / 18));
+    bits = []; for(var i = 0; i < N; i++) bits.push({x: Math.random() * cv.width, y: Math.random() * cv.height, w: 6 + Math.random() * 7, h: 10 + Math.random() * 8, c: cols[i % cols.length], v: .6 + Math.random() * 1.2, r: Math.random() * 6, vr: (Math.random() - .5) * .06, sw: Math.random() * 6, a: .4 + Math.random() * .35});
+    (function frame(){
+      x.clearRect(0, 0, cv.width, cv.height);
+      bits.forEach(function(b){
+        b.y += b.v; b.r += b.vr; b.sw += .02; b.x += Math.sin(b.sw) * .6;
+        if(b.y > cv.height + 20){ b.y = -20; b.x = Math.random() * cv.width; }
+        x.save(); x.globalAlpha = b.a; x.translate(b.x, b.y); x.rotate(b.r); x.fillStyle = b.c; x.fillRect(-b.w / 2, -b.h / 2, b.w, b.h); x.restore();
+      });
+      raf = requestAnimationFrame(frame);
+    })();
+  }
+  function confettiOff(){ if(raf) cancelAnimationFrame(raf); raf = 0; if(cv){ cv.remove(); cv = null; } }
+
   function adminCard(){
     if(!isAdmin()) return '';
     var rows = D.pending.length ? D.pending.map(function(r){
@@ -118,9 +172,10 @@
     scr.innerHTML = '<div class="card"><h2>Support Pawniac</h2>' +
       '<p class="desc">Pawniac is free and has no ads. If you enjoy it and want to help with the running costs, you can donate. It is entirely optional and does not change how the site treats you.</p>' +
       '<p class="desc" style="margin-bottom:0;"><b>Thank-you perk:</b> a gradient colour on your username that everyone sees, everywhere on the site, and a "Donator" tag.</p></div>' +
-      (none ? '<div class="card"><h2>Payment details</h2><p class="desc">Payment details are not set up yet. To donate now, email <a href="mailto:' + CONTACT + '">' + CONTACT + '</a>.</p></div>' : payCard()) +
+      '<div class="dn-layout"><div class="dn-main">' + (none ? '<div class="card"><h2>Payment details</h2><p class="desc">Payment details are not set up yet. To donate now, email <a href="mailto:' + CONTACT + '">' + CONTACT + '</a>.</p></div>' : payCard()) +
       mineCard() + adminCard() +
-      '<div class="card"><div class="hint">Donations are non-refundable and a thank-you, not a purchase. See section 9 of the <a data-go="tos" style="cursor:pointer;">Terms of Service</a>. Questions? Email <a href="mailto:' + CONTACT + '">' + CONTACT + '</a>.</div></div>';
+      '<div class="card"><div class="hint">Donations are non-refundable and a thank-you, not a purchase. See section 9 of the <a data-go="tos" style="cursor:pointer;">Terms of Service</a>. Questions? Email <a href="mailto:' + CONTACT + '">' + CONTACT + '</a>.</div></div>' +
+      '</div>' + sideCard() + '</div>';
     wire();
   }
 
@@ -133,8 +188,8 @@
       };
     });
     var tos = scr.querySelector('[data-go=tos]'); if(tos) tos.onclick = function(){ if(typeof window.renderTerms === 'function') window.renderTerms(); };
-    var kd = $('dnKind'); if(kd) kd.onchange = function(){ D.kind = kd.value; D.msg = ''; draw(); };
-    var cn = $('dnCoin'); if(cn) cn.onchange = function(){ D.ci = +cn.value; D.msg = ''; draw(); };
+    scr.querySelectorAll('.dn-tab').forEach(function(b){ b.onclick = function(){ D.kind = b.getAttribute('data-kind'); D.msg = ''; draw(); }; });
+    scr.querySelectorAll('.dn-chip').forEach(function(b){ b.onclick = function(){ D.ci = +b.getAttribute('data-ci'); D.msg = ''; draw(); }; });
     var ia = $('dnAmt'), ir = $('dnRef');
     if(ia) ia.oninput = function(){ D.amt = ia.value; };
     if(ir) ir.oninput = function(){ D.ref = ir.value; };
@@ -193,13 +248,14 @@
     if(typeof stopPoll === 'function') stopPoll();
     showScreen('donate'); D.msg = '';
     try{ PW.replace('#/donate'); }catch(e){}
-    draw(); loadMine(); loadPending();
+    draw(); loadMine(); loadPending(); loadDonors();
     window.scrollTo(0, 0);
   };
   var prevShow = window.showScreen;
   window.showScreen = function(n){
     prevShow(n);
     scr.style.display = (n === 'donate') ? 'block' : 'none';
+    if(n === 'donate') confettiOn(); else confettiOff();
     if(n === 'donate') nav.querySelectorAll('[data-nav]').forEach(function(a){ a.classList.toggle('active', a.dataset.nav === 'donate'); });
     if(n === 'donate' && !loggedIn()) nav.style.display = 'none';
   };
