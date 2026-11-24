@@ -18,7 +18,7 @@
   function loggedIn(){ return typeof ME !== 'undefined' && !!ME && !!ME.username; }
   function isAdmin(){ return typeof window.pawniacIsAdmin === 'function' && window.pawniacIsAdmin(); }
   // Discord ping when a donor sends the "I've donated" form: paste the Cloudflare Worker address here (see donate-notify-worker.js). Empty = no ping.
-  var DONATE_NOTIFY_URL = '';
+  var DONATE_NOTIFY_URL = 'https://pawniacdonate.rishiitsrivastava.workers.dev/';
   var CONTACT = 'support@pawniac.fun';
 
   var css = '#screen-donate .dn-addr{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:6px 0 10px}'
