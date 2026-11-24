@@ -13,7 +13,8 @@
       {coin: 'USDT', network: 'Polygon',            addr: '0x8992B4776Cb211Fc49Dbe5363BF95B164F254015'},
       {coin: 'USDT', network: 'Solana',             addr: 'WPLNoZweHiZDS74SxztRzxGe69minqFL7kUPv6zeHQE'},
       {coin: 'SOL',  network: 'Solana',             addr: 'WPLNoZweHiZDS74SxztRzxGe69minqFL7kUPv6zeHQE'},
-      {coin: 'POL',  network: 'Polygon',            addr: '0x8992B4776Cb211Fc49Dbe5363BF95B164F254015'}
+      {coin: 'POL',  network: 'Polygon',            addr: '0x8992B4776Cb211Fc49Dbe5363BF95B164F254015'},
+      {coin: 'LTC',  network: 'Litecoin',           addr: 'LUypJecVs2JPp4RFf8jUGqnJWLUUtb99Gz'}
     ]
   };
 
