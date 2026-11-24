@@ -3,11 +3,11 @@
    - payment methods are filled in below in DONATE_CONFIG: an empty UPI id or empty wallet address is simply not shown
    - after paying, a logged-in player presses "I've donated" and sends their username, amount and the payment reference;
      staff (script_48 ADMINS) approve it here, which switches on the donator name colours (hb/donors/<name>/on)
-   - requests live at hb/donations/<id> (see donation-rules.json for the database rules)
+   - requests live at hb/donations/<username>/<id> (database rules: firebase-rules-with-donations.json, kept outside the repo)
    - your own QR codes: put the pictures at images/donate-upi.png and images/donate-<coin>.png; they show if the file exists */
 (function(){
   var DONATE_CONFIG = {
-    upi:    {id: '', name: 'Pawniac', qr: 'images/donate-upi.png'},          // your UPI id, e.g. yourname@okhdfcbank
+    upi:    {id: 'rishit.10@fam', name: 'Rishit', qr: 'images/donate-upi.png'},   // your UPI id
     crypto: [
       // {coin: 'USDT', network: 'Polygon', addr: '0x...', qr: 'images/donate-usdt.png'}
     ]
@@ -17,6 +17,8 @@
   function $(id){ return document.getElementById(id); }
   function loggedIn(){ return typeof ME !== 'undefined' && !!ME && !!ME.username; }
   function isAdmin(){ return typeof window.pawniacIsAdmin === 'function' && window.pawniacIsAdmin(); }
+  // Discord ping when a donor sends the "I've donated" form: paste the Cloudflare Worker address here (see donate-notify-worker.js). Empty = no ping.
+  var DONATE_NOTIFY_URL = '';
   var CONTACT = 'support@pawniac.fun';
 
   var css = '#screen-donate .dn-addr{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:6px 0 10px}'
@@ -34,6 +36,7 @@
   var nav = $('navbar');
   var link = document.createElement('a'); link.setAttribute('data-nav', 'donate'); link.textContent = 'Donate'; nav.appendChild(link);
 
+  function paintNav(){ link.textContent = 'Donate' + (isAdmin() && D.pending.length ? ' (' + D.pending.length + ')' : ''); }
   function code(){ return 'PAW-' + (loggedIn() ? ME.username : 'yourname'); }
   function copyBtn(txt, label){ return '<button type="button" class="secondary dn-copy" data-c="' + esc(txt) + '">' + (label || 'Copy') + '</button>'; }
 
@@ -119,9 +122,17 @@
       if(ref.length < 6){ msg.textContent = 'Please paste the UPI reference number or the transaction hash (at least 6 characters).'; return; }
       if(D.mine.filter(function(r){ return r.status === 'pending'; }).length >= 3){ msg.textContent = 'You already have 3 donations waiting. Please wait for them to be checked.'; return; }
       send.disabled = true; msg.textContent = 'Sending...';
-      var id = db.ref('hb/donations').push();
+      var id = db.ref('hb/donations/' + ME.username).push();
       id.set({user: ME.username, method: method, amount: amt, ref: ref, ts: firebase.database.ServerValue.TIMESTAMP, status: 'pending'})
-        .then(function(){ D.msg = 'Thank you! We will check it and switch on your donator name.'; return loadMine(); })
+        .then(function(){
+          D.msg = 'Thank you! We will check it and switch on your donator name.';
+          try{      // best effort ping to the site owner on Discord; the donation is already saved whatever happens here
+            if(DONATE_NOTIFY_URL) firebase.auth().currentUser.getIdToken().then(function(tok){
+              fetch(DONATE_NOTIFY_URL, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({token:tok, id:id.key})}).catch(function(){});
+            });
+          }catch(e){}
+          return loadMine();
+        })
         .catch(function(){ send.disabled = false; msg.textContent = 'Could not send. Check your connection, or email ' + CONTACT + '.'; });
     };
     scr.querySelectorAll('[data-a]').forEach(function(b){
@@ -130,7 +141,7 @@
         if(!r) return;
         var ok = b.getAttribute('data-a') === 'ok';
         b.disabled = true;
-        var tasks = [db.ref('hb/donations/' + id).update({status: ok ? 'approved' : 'rejected', by: ME.username, at: firebase.database.ServerValue.TIMESTAMP})];
+        var tasks = [db.ref('hb/donations/' + r.user + '/' + id).update({status: ok ? 'approved' : 'rejected', by: ME.username, at: firebase.database.ServerValue.TIMESTAMP})];
         if(ok) tasks.push(db.ref('hb/donors/' + r.user + '/on').set(true));
         Promise.all(tasks).then(function(){ m.textContent = ok ? (r.user + ' is now a donator.') : 'Marked as not matched.'; return loadPending(); })
           .catch(function(){ b.disabled = false; m.textContent = 'Could not save (permission). If approving fails, set hb/donors/' + r.user + '/on to true in the Firebase console.'; });
@@ -140,16 +151,17 @@
 
   function loadMine(){
     if(!loggedIn()) { D.mine = []; draw(); return Promise.resolve(); }
-    return db.ref('hb/donations').orderByChild('user').equalTo(ME.username).limitToLast(10).once('value').then(function(s){
+    return db.ref('hb/donations/' + ME.username).limitToLast(10).once('value').then(function(s){
       var o = []; s.forEach(function(c){ var v = c.val(); if(v){ v.id = c.key; o.push(v); } });
       o.sort(function(a, b){ return (b.ts || 0) - (a.ts || 0); }); D.mine = o; draw();
     }).catch(function(){ draw(); });
   }
   function loadPending(){
     if(!isAdmin()) return Promise.resolve();
-    return db.ref('hb/donations').orderByChild('status').equalTo('pending').limitToLast(100).once('value').then(function(s){
-      var o = []; s.forEach(function(c){ var v = c.val(); if(v){ v.id = c.key; o.push(v); } });
-      o.sort(function(a, b){ return (a.ts || 0) - (b.ts || 0); }); D.pending = o; draw();
+    // requests live at hb/donations/<username>/<id>; staff read the whole node (there are few) and keep the waiting ones
+    return db.ref('hb/donations').once('value').then(function(s){
+      var o = []; s.forEach(function(u){ u.forEach(function(c){ var v = c.val(); if(v && v.status === 'pending'){ v.id = c.key; o.push(v); } }); });
+      o.sort(function(a, b){ return (a.ts || 0) - (b.ts || 0); }); D.pending = o; paintNav(); draw();
     }).catch(function(){ draw(); });
   }
 
@@ -189,7 +201,7 @@
   if(typeof prevAfter === 'function') window.afterAuth = async function(){
     var h = boot ? PW.hash() : ''; boot = false;
     var r = await prevAfter.apply(this, arguments);
-    try{ var gs = $('screen-game'); if(RT.test(h) && !(gs && gs.style.display === 'block')) window.renderDonate(); }catch(e){ console.error(e); }
+    try{ var gs = $('screen-game'); if(RT.test(h) && !(gs && gs.style.display === 'block')) window.renderDonate(); else if(isAdmin()) loadPending(); }catch(e){ console.error(e); }
     return r;
   };
 })();
