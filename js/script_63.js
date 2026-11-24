@@ -46,48 +46,56 @@
   function code(){ return 'PAW-' + (loggedIn() ? ME.username : 'yourname'); }
   function copyBtn(txt, label){ return '<button type="button" class="secondary dn-copy" data-c="' + esc(txt) + '">' + (label || 'Copy') + '</button>'; }
 
-  function upiCard(){
-    var u = DONATE_CONFIG.upi; if(!u || !u.id) return '';
-    var uri = 'upi://pay?pa=' + encodeURIComponent(u.id) + '&pn=' + encodeURIComponent(u.name || 'Pawniac') + '&cu=INR&tn=' + encodeURIComponent(code());
-    return '<div class="card"><h2>Donate by UPI</h2>' +
-      '<p class="desc">Any UPI app works. In the note or remark write <b>' + esc(code()) + '</b> so we can match it to you.</p>' +
-      '<div class="dn-addr"><code>' + esc(u.id) + '</code>' + copyBtn(u.id) + '</div>' +
-      '<div style="display:flex;gap:10px;flex-wrap:wrap;"><a href="' + esc(uri) + '" class="dn-open"><button type="button">Open my UPI app</button></a>' + copyBtn(code(), 'Copy the note') + '</div>' +
-      (u.qr ? '<img class="dn-qr" src="' + esc(u.qr) + '" alt="UPI QR code" onerror="this.style.display=\'none\'">' : '') +
-      '<div class="hint">On a phone, tap "Open my UPI app". On a computer, copy the UPI ID into any UPI app on your phone.</div></div>';
-  }
-  function cryptoCards(){
-    var list = (DONATE_CONFIG.crypto || []).filter(function(c){ return c && c.addr; });
-    if(!list.length) return '';
-    return '<div class="card"><h2>Donate with crypto</h2>' +
-      '<div class="dn-warn"><b>Send only the exact coin on the exact network shown.</b> For example USDT on Tron is not the same as USDT on Polygon. A wrong coin or network cannot be recovered. If you are unsure, send a tiny test first.</div>' +
-      list.map(function(c){
-        return '<div class="dn-crow"><div class="dn-clabel"><b>' + esc(c.coin) + '</b> on ' + esc(c.network) + '</div>' +
-          '<div class="dn-addr"><code>' + esc(c.addr) + '</code>' + copyBtn(c.addr) + '</div>' +
-          (c.qr ? '<img class="dn-qr" src="' + esc(c.qr) + '" alt="' + esc(c.coin) + ' ' + esc(c.network) + ' QR code" onerror="this.style.display=\'none\'">' : '') + '</div>';
-      }).join('') +
-      '<div class="hint">After sending, press "I\'ve donated" below and paste the transaction hash (the long id you get after sending).</div></div>';
-  }
-  function methodList(){
-    var m = [];
-    if(DONATE_CONFIG.upi && DONATE_CONFIG.upi.id) m.push(['upi', 'UPI']);
-    (DONATE_CONFIG.crypto || []).forEach(function(c){ if(c && c.addr) m.push(['crypto', c.coin + ' (' + c.network + ')']); });
-    return m;
-  }
-
   var D = {mine: [], pending: [], msg: ''};
   function when(ts){ return ts ? new Date(ts).toLocaleDateString(undefined, {day:'numeric', month:'short', year:'numeric'}) : ''; }
   function statusTag(s){ return '<span class="dn-st ' + (s === 'approved' ? 'ok' : (s === 'rejected' ? 'no' : '')) + '">' + (s === 'approved' ? 'Approved' : (s === 'rejected' ? 'Not matched' : 'Waiting')) + '</span>'; }
 
-  function formCard(){
-    if(!loggedIn()) return '<div class="card"><h2>I\'ve donated</h2><p class="desc">Log in first, so we know which username to thank.</p></div>';
-    var ms = methodList();
-    if(!ms.length) return '';
-    return '<div class="card"><h2>I\'ve donated</h2><p class="desc">Sent your donation? Tell us here. Staff check it against the payment and switch on your donator name. This can take a day.</p>' +
-      '<label for="dnMethod">How did you pay?</label><select id="dnMethod">' + ms.map(function(m){ return '<option value="' + esc(m[1]) + '">' + esc(m[1]) + '</option>'; }).join('') + '</select>' +
-      '<label for="dnAmt">Amount (for example 100 INR or 5 USDT)</label><input type="text" id="dnAmt" maxlength="30" autocomplete="off">' +
-      '<label for="dnRef">UPI reference number, or the crypto transaction hash</label><input type="text" id="dnRef" maxlength="120" autocomplete="off">' +
-      '<div style="margin-top:12px;"><button type="button" id="dnSend">Send</button></div><div class="hint" id="dnMsg" aria-live="polite" style="min-height:1.4em;margin-top:8px;">' + esc(D.msg) + '</div></div>';
+  function cryptoList(){ return (DONATE_CONFIG.crypto || []).filter(function(c){ return c && c.addr; }); }
+  function hasUpi(){ return !!(DONATE_CONFIG.upi && DONATE_CONFIG.upi.id); }
+  function curKind(){ var k = D.kind; if(k === 'upi' && hasUpi()) return 'upi'; if(k === 'crypto' && cryptoList().length) return 'crypto'; return hasUpi() ? 'upi' : 'crypto'; }
+  function curCoin(){ var l = cryptoList(); return l[Math.min(D.ci || 0, l.length - 1)]; }
+  function methodName(){ if(curKind() === 'upi') return 'UPI'; var c = curCoin(); return c.coin + ' (' + c.network + ')'; }
+
+  // what a valid payment reference looks like, per method. UPI stays lenient on purpose (apps show different ids).
+  function refRule(){
+    if(curKind() === 'upi') return {hint: 'UPI reference number (UTR). Usually 12 digits.', ok: function(v){ return v.length >= 6; }, bad: 'Please paste the UPI reference number (at least 6 characters).'};
+    var n = curCoin().network;
+    if(/solana/i.test(n)) return {hint: 'Transaction signature (a long code of 86 to 88 letters and numbers).', find: /[1-9A-HJ-NP-Za-km-z]{86,88}/, ok: function(v){ return /^[1-9A-HJ-NP-Za-km-z]{86,88}$/.test(v); }, bad: 'That does not look like a Solana transaction signature. Copy it from your wallet or from solscan.io.'};
+    if(/polygon/i.test(n)) return {hint: 'Transaction hash (starts with 0x, then 64 characters).', find: /0x[0-9a-fA-F]{64}/, ok: function(v){ return /^0x[0-9a-fA-F]{64}$/.test(v); }, bad: 'That does not look like a Polygon transaction hash (0x followed by 64 characters). Copy it from your wallet or polygonscan.com.'};
+    return {hint: 'Transaction hash (64 letters and numbers).', find: /[0-9a-fA-F]{64}/, ok: function(v){ return /^[0-9a-fA-F]{64}$/.test(v); }, bad: 'That does not look like a transaction hash (64 letters and numbers). Copy it from your wallet or a block explorer.'};
+  }
+  function cleanRef(v){
+    v = (v || '').trim(); var r = refRule();
+    if(r.find && /^https?:\/\//i.test(v)){ var m = v.match(r.find); if(m) return m[0]; }   // a pasted explorer link is fine: pull the hash out of it
+    return v;
+  }
+
+  function payCard(){
+    var kinds = [], kind = curKind(), loggedOut = !loggedIn();
+    if(hasUpi()) kinds.push(['upi', 'UPI (India)']);
+    if(cryptoList().length) kinds.push(['crypto', 'Crypto']);
+    var h = '<div class="card"><h2>Donate</h2><label for="dnKind" style="margin-top:0;">Payment method</label><select id="dnKind">' +
+      kinds.map(function(k){ return '<option value="' + k[0] + '"' + (k[0] === kind ? ' selected' : '') + '>' + k[1] + '</option>'; }).join('') + '</select>';
+    if(kind === 'upi'){
+      var u = DONATE_CONFIG.upi, uri = 'upi://pay?pa=' + encodeURIComponent(u.id) + '&pn=' + encodeURIComponent(u.name || 'Pawniac') + '&cu=INR&tn=' + encodeURIComponent(code());
+      h += '<p class="desc" style="margin-top:12px;">Any UPI app works. In the note write <b>' + esc(code()) + '</b> so we can match it to you.</p>' +
+        '<div class="dn-addr"><code>' + esc(u.id) + '</code>' + copyBtn(u.id) + '</div>' +
+        '<div style="display:flex;gap:10px;flex-wrap:wrap;"><a href="' + esc(uri) + '" class="dn-open"><button type="button">Open my UPI app</button></a>' + copyBtn(code(), 'Copy the note') + '</div>' +
+        (u.qr ? '<img class="dn-qr" src="' + esc(u.qr) + '" alt="UPI QR code" onerror="this.style.display=\'none\'">' : '') +
+        '<div class="hint">On a phone, tap "Open my UPI app". On a computer, copy the UPI ID into any UPI app on your phone.</div>';
+    } else {
+      var l = cryptoList(), c = curCoin();
+      h += '<label for="dnCoin">Coin and network</label><select id="dnCoin">' + l.map(function(x, i){ return '<option value="' + i + '"' + (x === c ? ' selected' : '') + '>' + esc(x.coin) + ' on ' + esc(x.network) + '</option>'; }).join('') + '</select>' +
+        '<div class="dn-warn"><b>Send only ' + esc(c.coin) + ' on ' + esc(c.network) + ' to this address.</b> A wrong coin or network cannot be recovered. If unsure, send a tiny test first.</div>' +
+        '<div class="dn-addr"><code>' + esc(c.addr) + '</code>' + copyBtn(c.addr) + '</div>' +
+        (c.qr ? '<img class="dn-qr" src="' + esc(c.qr) + '" alt="' + esc(c.coin) + ' QR code" onerror="this.style.display=\'none\'">' : '');
+    }
+    h += '<hr style="border:0;border-top:1px solid rgba(127,127,127,.25);margin:16px 0 4px;">';
+    if(loggedOut) return h + '<p class="desc">After paying, log in to tell us, so we know which username to thank.</p></div>';
+    return h + '<p class="desc" style="margin-bottom:0;">Paid? Tell us here. Staff check it and switch on your donator name. This can take a day.</p>' +
+      '<label for="dnAmt">Amount (for example 100 INR or 5 USDT)</label><input type="text" id="dnAmt" maxlength="30" autocomplete="off" value="' + esc(D.amt || '') + '">' +
+      '<label for="dnRef">' + esc(refRule().hint) + '</label><input type="text" id="dnRef" maxlength="200" autocomplete="off" value="' + esc(D.ref || '') + '">' +
+      '<div style="margin-top:12px;"><button type="button" id="dnSend">I\'ve donated</button></div><div class="hint" id="dnMsg" aria-live="polite" style="min-height:1.4em;margin-top:8px;">' + esc(D.msg) + '</div></div>';
   }
   function mineCard(){
     if(!loggedIn() || !D.mine.length) return '';
@@ -106,12 +114,12 @@
 
   function draw(){
     if(scr.style.display !== 'block') return;
-    var none = !methodList().length;
+    var none = !hasUpi() && !cryptoList().length;
     scr.innerHTML = '<div class="card"><h2>Support Pawniac</h2>' +
       '<p class="desc">Pawniac is free and has no ads. If you enjoy it and want to help with the running costs, you can donate. It is entirely optional and does not change how the site treats you.</p>' +
       '<p class="desc" style="margin-bottom:0;"><b>Thank-you perk:</b> a gradient colour on your username that everyone sees, everywhere on the site, and a "Donator" tag.</p></div>' +
-      (none ? '<div class="card"><h2>Payment details</h2><p class="desc">Payment details are not set up yet. To donate now, email <a href="mailto:' + CONTACT + '">' + CONTACT + '</a>.</p></div>' : upiCard() + cryptoCards()) +
-      formCard() + mineCard() + adminCard() +
+      (none ? '<div class="card"><h2>Payment details</h2><p class="desc">Payment details are not set up yet. To donate now, email <a href="mailto:' + CONTACT + '">' + CONTACT + '</a>.</p></div>' : payCard()) +
+      mineCard() + adminCard() +
       '<div class="card"><div class="hint">Donations are non-refundable and a thank-you, not a purchase. See section 9 of the <a data-go="tos" style="cursor:pointer;">Terms of Service</a>. Questions? Email <a href="mailto:' + CONTACT + '">' + CONTACT + '</a>.</div></div>';
     wire();
   }
@@ -125,16 +133,22 @@
       };
     });
     var tos = scr.querySelector('[data-go=tos]'); if(tos) tos.onclick = function(){ if(typeof window.renderTerms === 'function') window.renderTerms(); };
+    var kd = $('dnKind'); if(kd) kd.onchange = function(){ D.kind = kd.value; D.msg = ''; draw(); };
+    var cn = $('dnCoin'); if(cn) cn.onchange = function(){ D.ci = +cn.value; D.msg = ''; draw(); };
+    var ia = $('dnAmt'), ir = $('dnRef');
+    if(ia) ia.oninput = function(){ D.amt = ia.value; };
+    if(ir) ir.oninput = function(){ D.ref = ir.value; };
     var send = $('dnSend');
     if(send) send.onclick = function(){
-      var msg = $('dnMsg'), ref = $('dnRef').value.trim(), amt = $('dnAmt').value.trim(), method = $('dnMethod').value;
-      if(ref.length < 6){ msg.textContent = 'Please paste the UPI reference number or the transaction hash (at least 6 characters).'; return; }
+      var msg = $('dnMsg'), ref = cleanRef($('dnRef').value), amt = $('dnAmt').value.trim(), method = methodName(), rule = refRule();
+      if(!rule.ok(ref)){ msg.textContent = rule.bad; return; }
+      if(D.mine.some(function(r){ return (r.ref || '').toLowerCase() === ref.toLowerCase(); })){ msg.textContent = 'You already sent this reference.'; return; }
       if(D.mine.filter(function(r){ return r.status === 'pending'; }).length >= 3){ msg.textContent = 'You already have 3 donations waiting. Please wait for them to be checked.'; return; }
       send.disabled = true; msg.textContent = 'Sending...';
       var id = db.ref('hb/donations/' + ME.username).push();
       id.set({user: ME.username, method: method, amount: amt, ref: ref, ts: firebase.database.ServerValue.TIMESTAMP, status: 'pending'})
         .then(function(){
-          D.msg = 'Thank you! We will check it and switch on your donator name.';
+          D.msg = 'Thank you! We will check it and switch on your donator name.'; D.ref = ''; D.amt = '';
           try{      // best effort ping to the site owner on Discord; the donation is already saved whatever happens here
             if(DONATE_NOTIFY_URL) firebase.auth().currentUser.getIdToken().then(function(tok){
               fetch(DONATE_NOTIFY_URL, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({token:tok, id:id.key})}).catch(function(){});
