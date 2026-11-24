@@ -8,8 +8,12 @@
 (function(){
   var DONATE_CONFIG = {
     upi:    {id: 'rishit.10@fam', name: 'Rishit', qr: 'images/donate-upi.png'},   // your UPI id
-    crypto: [
-      // {coin: 'USDT', network: 'Polygon', addr: '0x...', qr: 'images/donate-usdt.png'}
+    crypto: [             // shown in this order; optional qr: 'images/donate-xxx.png' (shown if the file exists)
+      {coin: 'USDT', network: 'Tron (TRC-20)',      addr: 'TBfuGnGaeqrT8f9hxsvvLv7MNV32e29Vt1'},
+      {coin: 'USDT', network: 'Polygon',            addr: '0x8992B4776Cb211Fc49Dbe5363BF95B164F254015'},
+      {coin: 'USDT', network: 'Solana',             addr: 'WPLNoZweHiZDS74SxztRzxGe69minqFL7kUPv6zeHQE'},
+      {coin: 'SOL',  network: 'Solana',             addr: 'WPLNoZweHiZDS74SxztRzxGe69minqFL7kUPv6zeHQE'},
+      {coin: 'POL',  network: 'Polygon',            addr: '0x8992B4776Cb211Fc49Dbe5363BF95B164F254015'}
     ]
   };
 
@@ -24,6 +28,7 @@
   var css = '#screen-donate .dn-addr{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:6px 0 10px}'
   + '#screen-donate .dn-addr code{display:block;padding:8px 10px;border-radius:8px;background:rgba(127,127,127,.15);word-break:break-all;font-size:13px;flex:1 1 220px;user-select:all}'
   + '#screen-donate .dn-qr{max-width:180px;width:100%;border-radius:10px;background:#fff;padding:6px;display:block;margin:8px 0}'
+  + '#screen-donate .dn-crow{padding:8px 0;border-top:1px solid rgba(127,127,127,.2)}#screen-donate .dn-clabel{font-size:14px;margin-top:2px}'
   + '#screen-donate .dn-warn{font-size:13px;margin:8px 0;padding:8px 10px;border-radius:8px;background:rgba(220,150,0,.13)}'
   + '#screen-donate .dn-row{display:flex;gap:10px;flex-wrap:wrap;align-items:center;justify-content:space-between;padding:8px 0;border-top:1px solid rgba(127,127,127,.2)}'
   + '#screen-donate .dn-st{font-size:12px;font-weight:700;padding:2px 8px;border-radius:999px;background:rgba(127,127,127,.2)}'
@@ -48,16 +53,19 @@
       '<div class="dn-addr"><code>' + esc(u.id) + '</code>' + copyBtn(u.id) + '</div>' +
       '<div style="display:flex;gap:10px;flex-wrap:wrap;"><a href="' + esc(uri) + '" class="dn-open"><button type="button">Open my UPI app</button></a>' + copyBtn(code(), 'Copy the note') + '</div>' +
       (u.qr ? '<img class="dn-qr" src="' + esc(u.qr) + '" alt="UPI QR code" onerror="this.style.display=\'none\'">' : '') +
-      '<div class="hint">On a computer, scan the QR with your phone. The "Open my UPI app" button works on phones.</div></div>';
+      '<div class="hint">On a phone, tap "Open my UPI app". On a computer, copy the UPI ID into any UPI app on your phone.</div></div>';
   }
   function cryptoCards(){
-    return (DONATE_CONFIG.crypto || []).filter(function(c){ return c && c.addr; }).map(function(c){
-      return '<div class="card"><h2>Donate with ' + esc(c.coin) + ' (' + esc(c.network) + ')</h2>' +
-        '<div class="dn-warn"><b>Send only ' + esc(c.coin) + ' on the ' + esc(c.network) + ' network.</b> Other coins or other networks cannot be recovered. Do a tiny test first if you are unsure.</div>' +
-        '<div class="dn-addr"><code>' + esc(c.addr) + '</code>' + copyBtn(c.addr) + '</div>' +
-        (c.qr ? '<img class="dn-qr" src="' + esc(c.qr) + '" alt="' + esc(c.coin) + ' QR code" onerror="this.style.display=\'none\'">' : '') +
-        '<div class="hint">After sending, press "I\'ve donated" below and paste the transaction hash (the long id you get after sending).</div></div>';
-    }).join('');
+    var list = (DONATE_CONFIG.crypto || []).filter(function(c){ return c && c.addr; });
+    if(!list.length) return '';
+    return '<div class="card"><h2>Donate with crypto</h2>' +
+      '<div class="dn-warn"><b>Send only the exact coin on the exact network shown.</b> For example USDT on Tron is not the same as USDT on Polygon. A wrong coin or network cannot be recovered. If you are unsure, send a tiny test first.</div>' +
+      list.map(function(c){
+        return '<div class="dn-crow"><div class="dn-clabel"><b>' + esc(c.coin) + '</b> on ' + esc(c.network) + '</div>' +
+          '<div class="dn-addr"><code>' + esc(c.addr) + '</code>' + copyBtn(c.addr) + '</div>' +
+          (c.qr ? '<img class="dn-qr" src="' + esc(c.qr) + '" alt="' + esc(c.coin) + ' ' + esc(c.network) + ' QR code" onerror="this.style.display=\'none\'">' : '') + '</div>';
+      }).join('') +
+      '<div class="hint">After sending, press "I\'ve donated" below and paste the transaction hash (the long id you get after sending).</div></div>';
   }
   function methodList(){
     var m = [];
