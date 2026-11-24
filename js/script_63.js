@@ -35,6 +35,15 @@
   + '#screen-donate .dn-st{font-size:12px;font-weight:700;padding:2px 8px;border-radius:999px;background:rgba(127,127,127,.2)}'
   + '#screen-donate .dn-st.ok{background:rgba(31,157,85,.25)}#screen-donate .dn-st.no{background:rgba(220,60,60,.22)}'
   + '#screen-donate select{background:rgba(127,127,127,.12);color:inherit;border:1px solid rgba(127,127,127,.35);border-radius:8px;padding:9px}#screen-donate option{color:#111}#screen-donate a:not(.dn-open){color:inherit;text-decoration:underline}#screen-donate .dn-open{text-decoration:none}#screen-donate label{display:block;font-size:13px;margin:10px 0 4px}#screen-donate select,#screen-donate input[type=text]{width:100%;max-width:420px;box-sizing:border-box}';
+  css += '#screen-donate .dn-tabs{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:6px 0 4px}'
+  + '#screen-donate .dn-tab{display:flex;align-items:center;justify-content:center;gap:8px;padding:14px 10px;border-radius:12px;border:2px solid rgba(127,127,127,.3);background:rgba(127,127,127,.08);color:inherit;font-size:16px;font-weight:700;cursor:pointer}'
+  + '#screen-donate .dn-tab.on{border-color:#2aa37a;background:rgba(42,163,122,.16)}#screen-donate .dn-tab .ic{font-size:22px}'
+  + '#screen-donate .dn-chips{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin:6px 0 4px}'
+  + '#screen-donate .dn-chip{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:12px;border:2px solid rgba(127,127,127,.3);background:rgba(127,127,127,.08);color:inherit;cursor:pointer;text-align:left}'
+  + '#screen-donate .dn-chip.on{border-color:var(--cc);background:rgba(127,127,127,.18);box-shadow:0 0 0 3px rgba(127,127,127,.12)}'
+  + '#screen-donate .dn-coin{flex:none;width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:800;color:#fff;background:var(--cc)}'
+  + '#screen-donate .dn-chip b{display:block;font-size:15px}#screen-donate .dn-chip small{display:block;font-size:12px;opacity:.75}'
+  + '#screen-donate .dn-bigaddr{border-left:4px solid var(--cc,#2aa37a);padding-left:10px;margin:12px 0}';
   var st = document.createElement('style'); st.textContent = css; document.head.appendChild(st);
 
   var scr = document.createElement('div'); scr.id = 'screen-donate'; scr.style.display = 'none';
@@ -50,6 +59,15 @@
   function when(ts){ return ts ? new Date(ts).toLocaleDateString(undefined, {day:'numeric', month:'short', year:'numeric'}) : ''; }
   function statusTag(s){ return '<span class="dn-st ' + (s === 'approved' ? 'ok' : (s === 'rejected' ? 'no' : '')) + '">' + (s === 'approved' ? 'Approved' : (s === 'rejected' ? 'Not matched' : 'Waiting')) + '</span>'; }
 
+  function coinLook(c){
+    var n = c.coin + '|' + c.network;
+    if(c.coin === 'SOL') return ['\u25CE', '#9945ff'];
+    if(c.coin === 'POL') return ['\u2B21', '#8247e5'];
+    if(c.coin === 'LTC') return ['\u0141', '#345d9d'];
+    if(/tron/i.test(c.network)) return ['\u20AE', '#26a17b'];
+    if(/solana/i.test(c.network)) return ['\u20AE', '#14b8a6'];
+    return ['\u20AE', '#8247e5'];
+  }
   function cryptoList(){ return (DONATE_CONFIG.crypto || []).filter(function(c){ return c && c.addr; }); }
   function hasUpi(){ return !!(DONATE_CONFIG.upi && DONATE_CONFIG.upi.id); }
   function curKind(){ var k = D.kind; if(k === 'upi' && hasUpi()) return 'upi'; if(k === 'crypto' && cryptoList().length) return 'crypto'; return hasUpi() ? 'upi' : 'crypto'; }
@@ -72,22 +90,24 @@
 
   function payCard(){
     var kinds = [], kind = curKind(), loggedOut = !loggedIn();
-    if(hasUpi()) kinds.push(['upi', 'UPI (India)']);
-    if(cryptoList().length) kinds.push(['crypto', 'Crypto']);
-    var h = '<div class="card"><h2>Donate</h2><label for="dnKind" style="margin-top:0;">Payment method</label><select id="dnKind">' +
-      kinds.map(function(k){ return '<option value="' + k[0] + '"' + (k[0] === kind ? ' selected' : '') + '>' + k[1] + '</option>'; }).join('') + '</select>';
+    if(hasUpi()) kinds.push(['upi', 'UPI', '\uD83C\uDDEE\uD83C\uDDF3']);
+    if(cryptoList().length) kinds.push(['crypto', 'Crypto', '\uD83E\uDE99']);
+    var h = '<div class="card"><h2>\uD83D\uDC9D Donate</h2><div class="dn-tabs">' +
+      kinds.map(function(k){ return '<button type="button" class="dn-tab' + (k[0] === kind ? ' on' : '') + '" data-kind="' + k[0] + '"><span class="ic">' + k[2] + '</span>' + k[1] + '</button>'; }).join('') + '</div>';
     if(kind === 'upi'){
       var u = DONATE_CONFIG.upi, uri = 'upi://pay?pa=' + encodeURIComponent(u.id) + '&pn=' + encodeURIComponent(u.name || 'Pawniac') + '&cu=INR&tn=' + encodeURIComponent(code());
       h += '<p class="desc" style="margin-top:12px;">Any UPI app works. In the note write <b>' + esc(code()) + '</b> so we can match it to you.</p>' +
-        '<div class="dn-addr"><code>' + esc(u.id) + '</code>' + copyBtn(u.id) + '</div>' +
-        '<div style="display:flex;gap:10px;flex-wrap:wrap;"><a href="' + esc(uri) + '" class="dn-open"><button type="button">Open my UPI app</button></a>' + copyBtn(code(), 'Copy the note') + '</div>' +
+        '<div class="dn-addr"><code>' + esc(u.id) + '</code>' + copyBtn(u.id, '\uD83D\uDCCB Copy') + '</div>' +
+        '<div style="display:flex;gap:10px;flex-wrap:wrap;"><a href="' + esc(uri) + '" class="dn-open"><button type="button">\uD83D\uDCF1 Open my UPI app</button></a>' + copyBtn(code(), 'Copy the note') + '</div>' +
         (u.qr ? '<img class="dn-qr" src="' + esc(u.qr) + '" alt="UPI QR code" onerror="this.style.display=\'none\'">' : '') +
         '<div class="hint">On a phone, tap "Open my UPI app". On a computer, copy the UPI ID into any UPI app on your phone.</div>';
     } else {
       var l = cryptoList(), c = curCoin();
-      h += '<label for="dnCoin">Coin and network</label><select id="dnCoin">' + l.map(function(x, i){ return '<option value="' + i + '"' + (x === c ? ' selected' : '') + '>' + esc(x.coin) + ' on ' + esc(x.network) + '</option>'; }).join('') + '</select>' +
-        '<div class="dn-warn"><b>Send only ' + esc(c.coin) + ' on ' + esc(c.network) + ' to this address.</b> A wrong coin or network cannot be recovered. If unsure, send a tiny test first.</div>' +
-        '<div class="dn-addr"><code>' + esc(c.addr) + '</code>' + copyBtn(c.addr) + '</div>' +
+      var look = coinLook(c);
+      h += '<div class="dn-chips">' + l.map(function(x, i){ var lk = coinLook(x); return '<button type="button" class="dn-chip' + (x === c ? ' on' : '') + '" data-ci="' + i + '" style="--cc:' + lk[1] + '"><span class="dn-coin">' + lk[0] + '</span><span><b>' + esc(x.coin) + '</b><small>' + esc(x.network) + '</small></span></button>'; }).join('') + '</div>' +
+        '<div class="dn-warn">\u26A0\uFE0F <b>Send only ' + esc(c.coin) + ' on ' + esc(c.network) + ' to this address.</b> A wrong coin or network cannot be recovered. If unsure, send a tiny test first.</div>' +
+        '<div class="dn-bigaddr" style="--cc:' + look[1] + '">' +
+        '<div class="dn-addr" style="margin:0"><code>' + esc(c.addr) + '</code>' + copyBtn(c.addr, '\uD83D\uDCCB Copy') + '</div></div>' +
         (c.qr ? '<img class="dn-qr" src="' + esc(c.qr) + '" alt="' + esc(c.coin) + ' QR code" onerror="this.style.display=\'none\'">' : '');
     }
     h += '<hr style="border:0;border-top:1px solid rgba(127,127,127,.25);margin:16px 0 4px;">';
@@ -95,7 +115,7 @@
     return h + '<p class="desc" style="margin-bottom:0;">Paid? Tell us here. Staff check it and switch on your donator name. This can take a day.</p>' +
       '<label for="dnAmt">Amount (for example 100 INR or 5 USDT)</label><input type="text" id="dnAmt" maxlength="30" autocomplete="off" value="' + esc(D.amt || '') + '">' +
       '<label for="dnRef">' + esc(refRule().hint) + '</label><input type="text" id="dnRef" maxlength="200" autocomplete="off" value="' + esc(D.ref || '') + '">' +
-      '<div style="margin-top:12px;"><button type="button" id="dnSend">I\'ve donated</button></div><div class="hint" id="dnMsg" aria-live="polite" style="min-height:1.4em;margin-top:8px;">' + esc(D.msg) + '</div></div>';
+      '<div style="margin-top:12px;"><button type="button" id="dnSend">\u2705 I\'ve donated</button></div><div class="hint" id="dnMsg" aria-live="polite" style="min-height:1.4em;margin-top:8px;">' + esc(D.msg) + '</div></div>';
   }
   function mineCard(){
     if(!loggedIn() || !D.mine.length) return '';
@@ -115,9 +135,9 @@
   function draw(){
     if(scr.style.display !== 'block') return;
     var none = !hasUpi() && !cryptoList().length;
-    scr.innerHTML = '<div class="card"><h2>Support Pawniac</h2>' +
+    scr.innerHTML = '<div class="card"><h2>\u265F\uFE0F Support Pawniac</h2>' +
       '<p class="desc">Pawniac is free and has no ads. If you enjoy it and want to help with the running costs, you can donate. It is entirely optional and does not change how the site treats you.</p>' +
-      '<p class="desc" style="margin-bottom:0;"><b>Thank-you perk:</b> a gradient colour on your username that everyone sees, everywhere on the site, and a "Donator" tag.</p></div>' +
+      '<p class="desc" style="margin-bottom:0;">\u2728 <b>Thank-you perk:</b> a gradient colour on your username that everyone sees, everywhere on the site, and a "Donator" tag.</p></div>' +
       (none ? '<div class="card"><h2>Payment details</h2><p class="desc">Payment details are not set up yet. To donate now, email <a href="mailto:' + CONTACT + '">' + CONTACT + '</a>.</p></div>' : payCard()) +
       mineCard() + adminCard() +
       '<div class="card"><div class="hint">Donations are non-refundable and a thank-you, not a purchase. See section 9 of the <a data-go="tos" style="cursor:pointer;">Terms of Service</a>. Questions? Email <a href="mailto:' + CONTACT + '">' + CONTACT + '</a>.</div></div>';
@@ -133,8 +153,8 @@
       };
     });
     var tos = scr.querySelector('[data-go=tos]'); if(tos) tos.onclick = function(){ if(typeof window.renderTerms === 'function') window.renderTerms(); };
-    var kd = $('dnKind'); if(kd) kd.onchange = function(){ D.kind = kd.value; D.msg = ''; draw(); };
-    var cn = $('dnCoin'); if(cn) cn.onchange = function(){ D.ci = +cn.value; D.msg = ''; draw(); };
+    scr.querySelectorAll('.dn-tab').forEach(function(b){ b.onclick = function(){ D.kind = b.getAttribute('data-kind'); D.msg = ''; draw(); }; });
+    scr.querySelectorAll('.dn-chip').forEach(function(b){ b.onclick = function(){ D.ci = +b.getAttribute('data-ci'); D.msg = ''; draw(); }; });
     var ia = $('dnAmt'), ir = $('dnRef');
     if(ia) ia.oninput = function(){ D.amt = ia.value; };
     if(ir) ir.oninput = function(){ D.ref = ir.value; };
