@@ -18,7 +18,7 @@
   // first parts of the address that really are pages of the site
   var KNOWN = ['analyze','auction','bot','game','handandbrain','help','leaderboard','minigames',
                'privacy','profile','quiz','settings','standard','terms','watch','doublemove',
-               'play','reports','achievements'];
+               'play','reports','achievements','donate'];
 
   function isHome(p){ return p === '' || p === '/' || /^\/index\.html$/i.test(p); }
   function firstPart(h){ return String(h || '').replace(/^#?\/*/, '').split(/[\/?#]/)[0].toLowerCase(); }
