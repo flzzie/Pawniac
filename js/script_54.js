@@ -74,7 +74,7 @@
     // flag fell before the move landed: the mover loses on time
     if(g.clock && g.clock.initialSec > 0 && g.clock.turnStartedAt){
       var mine = mover === 'w' ? g.clock.whiteMs : g.clock.blackMs;
-      if(serverNow() - g.clock.turnStartedAt >= mine){
+      if(window.turnElapsedMs(g) >= mine){
         var fr = PD.flagResult(st);
         g.status = 'finished'; g.winner = fr.winner; g.statusNote = fr.note;
         if(mover === 'w') g.clock.whiteMs = 0; else g.clock.blackMs = 0;
@@ -99,7 +99,7 @@
     // the clock only changes hands (and the increment is only paid) when the turn is over
     if((r.ended || r.over) && g.clock && g.clock.initialSec > 0){
       var now = serverNow();
-      var elapsed = g.clock.turnStartedAt ? Math.max(0, now - g.clock.turnStartedAt) : 0;
+      var elapsed = g.clock.turnStartedAt ? window.turnElapsedMs(g) : 0;
       var incMs = (g.clock.incrementSec || 0) * 1000;
       if(mover === 'w') g.clock.whiteMs = Math.max(0, g.clock.whiteMs - elapsed) + incMs;
       else g.clock.blackMs = Math.max(0, g.clock.blackMs - elapsed) + incMs;
