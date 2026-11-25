@@ -933,10 +933,32 @@ function clearLastGame(){
   kset('hb:lastgame', null, false);
 }
 
-// Remaining ms for a side, using server time so both players see the same clock.
+// How long the side to move has been on the clock, measured on THIS device only.
+// turnStartedAt is written by whichever device made the last move, and two devices' idea of
+// "server time" can differ by seconds, so subtracting it from our own clock charged (or paid)
+// someone that difference on every move. Instead we note when this device first saw the turn
+// start and count from there; both players then lose only real elapsed time.
+const turnSeenAt = {};
+function turnElapsedMs(g){
+  const T = g && g.clock && g.clock.turnStartedAt;
+  if(!T) return 0;
+  const gid = currentGameId || '';
+  const key = gid + ':' + T;
+  if(!(key in turnSeenAt)){
+    const known = Object.keys(turnSeenAt).some(k => k.indexOf(gid + ':') === 0);
+    // opening a game (or reloading) mid-turn: best estimate from server time. A move arriving
+    // live, or a game that has not started, starts counting now.
+    const fresh = known || !(g.moveLog && g.moveLog.length);
+    turnSeenAt[key] = fresh ? Date.now() : Date.now() - Math.max(0, serverNow() - T);
+  }
+  return Math.max(0, Date.now() - turnSeenAt[key]);
+}
+window.turnElapsedMs = turnElapsedMs;
+
+// Remaining ms for a side.
 function clockMs(g, side){
   const base = side==='w' ? g.clock.whiteMs : g.clock.blackMs;
-  if(g.status==='active' && g.turn===side && g.clock.turnStartedAt) return base - Math.max(0, serverNow() - g.clock.turnStartedAt);
+  if(g.status==='active' && g.turn===side && g.clock.turnStartedAt) return base - turnElapsedMs(g);
   return base;
 }
 
@@ -1322,7 +1344,7 @@ async function makeMove(from, to, promotion){
   // (or draw, per FIDE 6.9, if the opponent has insufficient mating material).
   if(g.clock && g.clock.initialSec>0 && g.clock.turnStartedAt){
     const mine = moverColor==='w' ? g.clock.whiteMs : g.clock.blackMs;
-    if(serverNow() - g.clock.turnStartedAt >= mine){
+    if(turnElapsedMs(g) >= mine){
       const isDraw = window.PawniacMate.flagIsDraw(g.fen, moverColor, g.variant);
       g.status = 'finished';
       g.winner = isDraw ? 'draw' : (moverColor==='w' ? 'b' : 'w');
@@ -1348,7 +1370,7 @@ async function makeMove(from, to, promotion){
   if(g.clock && g.clock.initialSec>0){
     const now = serverNow();
     // never negative: if two devices' clocks disagree by a second or two, an instant (pre)move would otherwise ADD time
-    const elapsed = g.clock.turnStartedAt ? Math.max(0, now - g.clock.turnStartedAt) : 0;
+    const elapsed = g.clock.turnStartedAt ? turnElapsedMs(g) : 0;
     const incMs = (g.clock.incrementSec||0)*1000;
     if(moverColor==='w') g.clock.whiteMs = Math.max(0, g.clock.whiteMs - elapsed) + incMs;
     else g.clock.blackMs = Math.max(0, g.clock.blackMs - elapsed) + incMs;
