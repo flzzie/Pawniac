@@ -117,6 +117,8 @@ ROUTES = [
          desc="The Pawniac Privacy Policy.", h=None, text=[]),
     dict(path="donate", nav=None, sitemap=False, title="Donate | Pawniac",
          desc="Support Pawniac, the free chess variants site, and get a gradient name.", h=None, text=[]),
+    dict(path="puzzle", nav=None, sitemap=False, title="Daily Puzzle | Pawniac",
+         desc="A new chess mate puzzle every day on Pawniac, with a streak that shows on your profile.", h=None, text=[]),
 ]
 
 HOME_H = "Free chess variants, with analysis that explains your moves"

@@ -60,6 +60,8 @@
     {id:'std', title:'Standard Chess', sub:'Normal chess',
      items:[
       ['What are the rules?', `<p>Normal chess rules, including castling, en passant, promotion, check, checkmate, stalemate, insufficient material, threefold repetition and the 50-move rule.</p>`],
+      ['How do I find a game without challenging someone?', `<p>On the Play page, use <b>Open games</b>. Pick a game type and time control and press <b>Post my game</b>. Your game shows up for everyone, with your name and rating. To join someone else's game, press <b>Play</b> next to it. The game starts straight away, and you get a random colour. Stay on Pawniac while your game is posted. It disappears when you close the tab, start another game or press <b>Remove my game</b>.</p>`],
+      ['What is the daily puzzle and the streak?', `<p>Open <b>Puzzle</b> in the top bar. There is one mate puzzle a day, the same for everyone, and it changes at midnight India time. Solve it to add a day to your <b>streak</b>. Miss a day and the streak starts again. Showing the move or giving up does not count. After you solve it you can keep going with practice puzzles, which do not count for the streak. Your streak is shown on your profile. To hide it, tick <b>Hide my streak from my profile</b> on the Puzzle page.</p>`],
       ['Is Standard Chess rated?', `<p>Yes, with its own rating and leaderboard tab, separate from Hand &amp; Brain. Quick matches and challenges both count.</p>`],
       ['Can I use drag and drop and premoves?', `<p>Yes to both. Drag a piece or click it and click a square. You can queue several premoves while it is your opponent's turn (see "What are premoves?"). You can turn either off in Settings.</p>`]
      ]},
