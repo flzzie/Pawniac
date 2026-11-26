@@ -36,6 +36,35 @@
     return r;
   };
 
+
+  // bot game finished, minigame / quiz played, analysis opened
+  function shownScreen(id){ var e = $(id); return !!e && e.style.display === 'block'; }
+  ['playWinSound', 'playLossSound'].forEach(function(fn){
+    var orig = window[fn];
+    if(typeof orig !== 'function') return;
+    window[fn] = function(){
+      try{ if(shownScreen('screen-minigames') || shownScreen('screen-quiz')) touch(); }catch(e){}
+      return orig.apply(this, arguments);
+    };
+  });
+  var botSeen = false;
+  setInterval(function(){
+    try{
+      var scr = $('screen-bot');
+      if(!scr || !loggedIn()) return;
+      var has = !!scr.querySelector('.result-banner');
+      if(!has){ botSeen = false; return; }
+      if(!botSeen){ botSeen = true; touch(); }
+    }catch(e){}
+  }, 1500);
+  var lastAn = null, anScr = $('screen-analyze');
+  if(anScr) new MutationObserver(function(){
+    try{
+      var A = window.__anHook && window.__anHook.data();
+      if(A && A.stats && A.stats.length && A !== lastAn){ lastAn = A; touch(); }
+    }catch(e){}
+  }).observe(anScr, {childList:true, subtree:true});
+
   // profile badge
   async function decorate(name){
     var sc = $('screen-profile'), head = sc && sc.querySelector('.pf-head');
