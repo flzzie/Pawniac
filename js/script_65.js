@@ -88,6 +88,7 @@
     try{
       await db.ref('hb/puzzle/' + ME.username).update(upd);
       ST.mine = Object.assign({}, d, upd);
+      try{ if(window.PawniacStreak) window.PawniacStreak.touch(); }catch(e){}
       P.msg = 'Solved! Your streak is now ' + streak + ' day' + (streak === 1 ? '' : 's') + '.';
     }catch(e){ console.error('streak save failed', e); P.msg = 'Solved! (Your streak could not be saved right now.)'; }
   }
@@ -268,28 +269,6 @@
       }
     });
   }catch(e){ console.error(e); }
-
-  // ---------- streak on profiles ----------
-  async function decorateProfile(name){
-    var sc = $('screen-profile'), nameEl = sc && sc.querySelector('.pf-name');
-    if(!sc || sc.style.display !== 'block' || !nameEl || nameEl.textContent.indexOf(name) !== 0 || sc.querySelector('.pf-streak')) return;
-    var d = null;
-    try{ d = (await db.ref('hb/puzzle/' + name).once('value')).val(); }catch(e){}
-    if(!d || sc.querySelector('.pf-streak')) return;
-    var own = loggedIn() && ME.username === name, n = shownStreak(d);
-    if(!n || (d.hide && !own)) return;
-    var row = document.createElement('div'); row.className = 'pf-streak';
-    row.style.cssText = 'font-size:13px;opacity:.9;margin:4px 0;';
-    row.innerHTML = 'Puzzle streak: <b>' + n + ' day' + (n === 1 ? '' : 's') + '</b>' + (d.best > n ? ' &middot; best ' + d.best : '') + (d.hide && own ? ' <span style="opacity:.7;">(hidden from others)</span>' : '');
-    var after = sc.querySelector('.pf-status') || nameEl;
-    after.after(row);
-  }
-  var prevOpen = window.openProfile;
-  if(typeof prevOpen === 'function') window.openProfile = async function(name){
-    var r = await prevOpen.apply(this, arguments);
-    try{ decorateProfile(name); }catch(e){ console.error('puzzle streak failed', e); }
-    return r;
-  };
 
   window.PawniacDaily = {dayKey:dayKey, _P:function(){ return P; }, _go:function(off){ start(off); draw(); }, _solutions:function(){ return solutions().map(function(m){ return m.from + m.to; }); }};
 })();
