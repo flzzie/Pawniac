@@ -1,5 +1,6 @@
-// Open games: post a game (variant + time control) and see everyone else's posted games in the Play lobby.
-// One click on "Play" starts the game. It uses the same queue as Quick match (hb/queue/random), so nobody
+// Lobby: a live list, at the top of the Play tab, of everyone looking for a game (like the Lichess / chess.com lobby).
+// Click a row to join it. "Create a game" adds you to the list using the game type and time control chosen on the page.
+// Quick match searchers show up here too. It uses the same queue as Quick match (hb/queue/random), so nobody
 // needs a challenge, and Quick match players can still be paired with a posted game automatically.
 (function(){
   'use strict';
@@ -35,8 +36,15 @@
   function save(){ try{ localStorage.setItem(PREF, JSON.stringify({v:S.v, tc:S.tc})); }catch(e){} }
 
   // ---------- posting my own game ----------
+  function pageChoice(){
+    var a = document.querySelector('#screen-lobby [data-variant].active');
+    var v = a && VNAME[a.getAttribute('data-variant')] ? a.getAttribute('data-variant') : 'hb';
+    var tc = (typeof selectedTC !== 'undefined' && selectedTC) ? selectedTC : '5+3';
+    return {v:v, tc:tc};
+  }
   async function post(){
     if(!ME || S.busy) return;
+    var ch = pageChoice(); S.v = ch.v; S.tc = ch.tc;
     if(inGame()){ note('Finish your current game first.'); return; }
     S.busy = true;
     try{
@@ -165,41 +173,44 @@
     paint();
   }
 
+  function tcShow(key){ return key === 'none' ? 'No clock' : tcLabel(key); }
   function paint(){
     var card = document.getElementById('ogCard');
     if(!card) return;
-    var m = S.mine, tcs = (typeof TIME_CONTROLS !== 'undefined') ? TIME_CONTROLS : [{key:'5+3', label:'5+3'}];
-    var h = '<h2>Open games</h2>';
+    var m = S.mine, ch = pageChoice();
+    var h = '<div class="og-head"><h2>Lobby</h2>';
+    if(loggedInNow()) h += m ? '' : '<button type="button" id="ogPost">Create a game: ' + esc(VNAME[ch.v]) + ', ' + esc(tcShow(ch.tc)) + '</button>';
+    h += '</div>' + (loggedInNow() && !m ? '<p class="desc" style="margin:-4px 0 10px;">Click a game to join it. To create one, choose a game type and time control below, then press Create a game.</p>' : '<p class="desc" style="margin:-4px 0 10px;">Click a game to join it.</p>');
+    h += '<div class="og-table"><div class="og-tr og-th"><span>Player</span><span>Rating</span><span>Time</span><span>Game</span></div>';
     if(m){
-      h += '<div class="og-mine"><span class="live-dot"></span> Your game is posted: <b>' + esc(VNAME[m.v]) + '</b>, <b>' + esc(tcLabel(m.tc)) + '</b>. Waiting for someone to join. Stay on Pawniac while you wait.</div>' +
-        '<div style="margin-top:10px;"><button type="button" class="secondary" id="ogCancel">Remove my game</button></div>';
-    } else {
-      h += '<p class="desc" style="margin:0 0 8px;">Post a game, then anyone can join it with one click.</p>' +
-        '<div class="og-pick"><select id="ogVar" aria-label="Variant">' + VKEYS.map(function(k){ return '<option value="' + k + '"' + (k === S.v ? ' selected' : '') + '>' + esc(VNAME[k]) + '</option>'; }).join('') + '</select>' +
-        '<select id="ogTc" aria-label="Time control">' + tcs.map(function(t){ return '<option value="' + esc(t.key) + '"' + (t.key === S.tc ? ' selected' : '') + '>' + esc(t.label) + '</option>'; }).join('') + '</select></div>' +
-        '<div style="margin-top:10px;"><button type="button" id="ogPost">Post my game</button></div>';
+      h += '<div class="og-tr og-me"><span><b>You</b> <i>waiting for an opponent</i></span><span>&nbsp;</span><span>' + esc(tcShow(m.tc)) + '</span><span>' + esc(VNAME[m.v]) + ' <a id="ogCancel" role="button" tabindex="0">cancel</a></span></div>';
     }
-    h += '<div class="hint" id="ogNote" style="min-height:1.3em;margin-top:8px;">' + esc(Date.now() - noteAt < 8000 ? noteText : '') + '</div><div class="og-list">';
-    if(!S.list.length) h += '<p class="desc" style="margin:4px 0 0;">Nobody has posted a game right now.</p>';
     S.list.forEach(function(x){
-      h += '<div class="og-item"><div class="og-who"><b data-user="' + esc(x.name) + '">' + esc(x.name) + '</b><span class="og-meta">' + esc(x.rating) + ' &middot; ' + esc(VNAME[x.v]) + ' &middot; ' + esc(tcLabel(x.tc)) + ' &middot; ' + waited(x.at) + '</span></div>' +
-        '<button type="button" class="og-play" data-name="' + esc(x.name) + '">Play</button></div>';
+      h += '<div class="og-tr og-row" role="button" tabindex="0" data-name="' + esc(x.name) + '"><span><b data-user="' + esc(x.name) + '">' + esc(x.name) + '</b></span><span>' + esc(x.rating) + '</span><span>' + esc(tcShow(x.tc)) + '</span><span>' + esc(VNAME[x.v]) + '</span></div>';
     });
-    h += '</div>';
+    if(!S.list.length && !m) h += '<div class="og-empty">Nobody is looking for a game right now.' + (loggedInNow() ? ' Press <b>Create a game</b> and the next person who opens this page can join you.' : ' Log in to create one.') + '</div>';
+    h += '</div><div class="hint" id="ogNote" style="min-height:1.3em;margin-top:8px;">' + esc(Date.now() - noteAt < 8000 ? noteText : '') + '</div>';
     card.innerHTML = h;
     var pb = document.getElementById('ogPost'); if(pb) pb.onclick = post;
     var cb = document.getElementById('ogCancel'); if(cb) cb.onclick = function(){ dropMine(); };
-    var vs = document.getElementById('ogVar'); if(vs) vs.onchange = function(){ S.v = vs.value; save(); };
-    var ts = document.getElementById('ogTc'); if(ts) ts.onchange = function(){ S.tc = ts.value; save(); };
-    card.querySelectorAll('.og-play').forEach(function(b){ b.onclick = function(){ accept(b.getAttribute('data-name')); }; });
+    card.querySelectorAll('.og-row').forEach(function(r){
+      var go = function(){ if(!loggedInNow()){ note('Log in to join a game.'); return; } accept(r.getAttribute('data-name')); };
+      r.onclick = go; r.onkeydown = function(e){ if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); go(); } };
+    });
   }
+  function loggedInNow(){ return typeof ME !== 'undefined' && !!ME && !!ME.username; }
 
   // ---------- put the card in the lobby ----------
-  var css = '#ogCard .og-pick{display:flex;gap:8px;flex-wrap:wrap}#ogCard .og-pick select{flex:1;min-width:110px;border:1px solid #d8d1bf;border-radius:7px;padding:9px 10px;font-size:13.5px;font-family:inherit;background:#fff;color:inherit}' +
-    '[data-theme=dark] #ogCard .og-pick select{background:#1b1a17;border-color:#4a463b;color:#e8e4d8}' +
-    '#ogCard .og-item{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 0;border-top:1px solid rgba(127,127,127,.22)}' +
-    '#ogCard .og-list{margin-top:6px}#ogCard .og-who b{display:block;font-size:15px}#ogCard .og-meta{display:block;font-size:12px;opacity:.75;margin-top:2px}' +
-    '#ogCard .og-play{padding:7px 16px;flex:none}#ogCard .og-mine{font-size:14px;line-height:1.4}';
+  var css = '#ogCard .og-head{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:10px}#ogCard .og-head h2{margin:0}' +
+    '#ogCard .og-tr{display:grid;grid-template-columns:minmax(0,1.7fr) .7fr .8fr 1.3fr;gap:8px;align-items:center;padding:10px 12px;font-size:14px}' +
+    '#ogCard .og-tr span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}' +
+    '#ogCard .og-th{font-size:12px;text-transform:uppercase;letter-spacing:.04em;opacity:.65;border-bottom:1px solid rgba(127,127,127,.3)}' +
+    '#ogCard .og-row{cursor:pointer;border-bottom:1px solid rgba(127,127,127,.15);transition:background .12s}' +
+    '#ogCard .og-row:hover,#ogCard .og-row:focus{background:rgba(42,163,122,.16);outline:none}' +
+    '#ogCard .og-me{background:rgba(42,163,122,.12);border-bottom:1px solid rgba(127,127,127,.15)}#ogCard .og-me i{opacity:.75;font-style:normal;font-size:13px}' +
+    '#ogCard .og-me a{margin-left:8px;cursor:pointer;text-decoration:underline;font-size:13px}' +
+    '#ogCard .og-empty{padding:18px 12px;opacity:.8;font-size:14px}' +
+    '@media(max-width:560px){#ogCard .og-tr{grid-template-columns:1.4fr .7fr .7fr 1fr;padding:9px 6px;font-size:13px;gap:4px}}';
   var st = document.createElement('style'); st.textContent = css; document.head.appendChild(st);
 
   function mount(){
@@ -207,9 +218,8 @@
     if(!lob || !ME) return;
     var old = document.getElementById('ogCard'); if(old) old.remove();
     var card = document.createElement('div'); card.className = 'card'; card.id = 'ogCard';
-    var qb = lob.querySelector('#btnQuick'), qcard = qb && qb.closest('.card');   // goes just above Quick match
-    if(qcard && qcard.parentNode) qcard.parentNode.insertBefore(card, qcard);
-    else (lob.querySelector('.lobby-left') || lob).appendChild(card);
+    var left = lob.querySelector('.lobby-left');
+    if(left) left.insertBefore(card, left.firstChild); else lob.appendChild(card);
     paint();
     listen();
   }
