@@ -201,7 +201,9 @@
   // ---------- the screen, the nav link, the route ----------
   var css = '#screen-puzzle .dp-wrap{display:grid;grid-template-columns:1fr;gap:0 18px;align-items:start}' +
     '@media(min-width:900px){#screen-puzzle .dp-wrap{grid-template-columns:minmax(0,1fr) 280px}}' +
-    '#screen-puzzle .an-main > div:first-child{max-width:560px;margin:0 auto;width:100%}' +
+    '#screen-puzzle{--sq:clamp(30px,calc((100vw - 520px) / 8),60px)}' +
+    '@media(max-width:819px){#screen-puzzle{--sq:clamp(30px,9vw,70px)}}' +
+    '@media(min-width:820px){#screen-puzzle .an-main{flex-wrap:nowrap;align-items:flex-start}#screen-puzzle .an-main > div:first-child{flex:0 0 auto}#screen-puzzle .an-side{flex:1 1 0;min-width:0;max-width:none}}' +
     '#screen-puzzle .dp-streak{display:flex;align-items:center;gap:14px}#screen-puzzle .dp-big{font-size:42px;font-weight:800;line-height:1;min-width:48px;text-align:center}' +
     '#screen-puzzle .dp-hide{display:flex;align-items:center;gap:8px;font-size:13px;margin:4px 2px 12px;cursor:pointer}#screen-puzzle .dp-hide input{width:auto;margin:0}';
   var st = document.createElement('style'); st.textContent = css; document.head.appendChild(st);
