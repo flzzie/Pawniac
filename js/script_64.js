@@ -189,7 +189,7 @@
       h += '<div class="og-tr og-row" role="button" tabindex="0" data-name="' + esc(x.name) + '"><span><b data-user="' + esc(x.name) + '">' + esc(x.name) + '</b></span><span>' + esc(x.rating) + '</span><span>' + esc(tcShow(x.tc)) + '</span><span>' + esc(VNAME[x.v]) + '</span></div>';
     });
     if(!S.list.length && !S.me) h += '<div class="og-empty">Nobody is looking for a game.</div>';
-    h += '</div><div class="hint" id="ogNote" style="min-height:1.3em;margin-top:8px;">' + esc(Date.now() - noteAt < 8000 ? noteText : '') + '</div>';
+    h += '</div><div class="hint" id="ogNote" style="min-height:0;margin-top:6px;">' + esc(Date.now() - noteAt < 8000 ? noteText : '') + '</div>';
     card.innerHTML = h;
     card.querySelectorAll('.og-row').forEach(function(r){
       var go = function(){ if(!loggedInNow()){ note('Log in to join a game.'); return; } accept(r.getAttribute('data-name')); };
@@ -199,7 +199,7 @@
   function loggedInNow(){ return typeof ME !== 'undefined' && !!ME && !!ME.username; }
 
   // ---------- put the card in the lobby ----------
-  var css = '#ogCard .og-head{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:10px}#ogCard .og-head h2{margin:0}' +
+  var css = '#ogCard{padding:16px 20px;margin-bottom:16px;width:100%;max-width:none;box-sizing:border-box;align-self:stretch}#ogCard .og-head{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:10px}#ogCard .og-head h2{margin:0}' +
     '#ogCard .og-tr{display:grid;grid-template-columns:minmax(0,1.7fr) .7fr .8fr 1.3fr;gap:8px;align-items:center;padding:10px 12px;font-size:14px}' +
     '#ogCard .og-tr span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}' +
     '#ogCard .og-th{font-size:12px;text-transform:uppercase;letter-spacing:.04em;opacity:.65;border-bottom:1px solid rgba(127,127,127,.3)}' +
@@ -207,7 +207,7 @@
     '#ogCard .og-row:hover,#ogCard .og-row:focus{background:rgba(42,163,122,.16);outline:none}' +
     '#ogCard .og-me{background:rgba(42,163,122,.12);border-bottom:1px solid rgba(127,127,127,.15)}#ogCard .og-me i{opacity:.75;font-style:normal;font-size:13px}' +
     '#ogCard .og-me a{margin-left:8px;cursor:pointer;text-decoration:underline;font-size:13px}' +
-    '#ogCard .og-empty{padding:18px 12px;opacity:.8;font-size:14px}' +
+    '#ogCard .og-empty{padding:10px 12px;opacity:.8;font-size:14px}' +
     '@media(max-width:560px){#ogCard .og-tr{grid-template-columns:1.4fr .7fr .7fr 1fr;padding:9px 6px;font-size:13px;gap:4px}}';
   var st = document.createElement('style'); st.textContent = css; document.head.appendChild(st);
 
@@ -216,8 +216,10 @@
     if(!lob || !ME) return;
     var old = document.getElementById('ogCard'); if(old) old.remove();
     var card = document.createElement('div'); card.className = 'card'; card.id = 'ogCard';
+    // NOT inside .lobby-left: the page's layout styles address its children by position (nth-child), so an extra
+    // child there turned the time control and friends cards into oversized boxes. It goes just above that column.
     var left = lob.querySelector('.lobby-left');
-    if(left) left.insertBefore(card, left.firstChild); else lob.appendChild(card);
+    if(left && left.parentNode) left.parentNode.insertBefore(card, left); else lob.appendChild(card);
     paint();
     listen();
   }
