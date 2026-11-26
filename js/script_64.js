@@ -12,7 +12,7 @@
   var BEAT_MS = 25000;
   var PREF = 'pawniac-opengame-v1';
 
-  var S = {v:'standard', tc:'5+3', mine:null, list:[], qCb:null, qRef:null, beat:0, busy:false, cache:{}};
+  var S = {v:'standard', tc:'5+3', mine:null, me:null, list:[], qCb:null, qRef:null, beat:0, busy:false, cache:{}};
   try{ var p = JSON.parse(localStorage.getItem(PREF) || 'null'); if(p){ if(VNAME[p.v]) S.v = p.v; if(p.tc) S.tc = p.tc; } }catch(e){}
 
   function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;'}[c]; }); }
@@ -119,6 +119,7 @@
       }
       await dropMine(false);
       try{ stopPoll(); }catch(e3){}
+      try{ await db.ref(QP + '/' + ME.username).remove(); }catch(e4){}   // I was searching myself: stop
       S.busy = false;
       currentGameId = code;
       enterGameScreen(code);
@@ -152,6 +153,8 @@
   }
   async function refresh(snapVal){
     var now = serverNow(), arr = [];
+    var mine = ME && snapVal && snapVal[ME.username];
+    S.me = (mine && !mine.gameId && typeof mine.joinedAt === 'number' && now - mine.joinedAt <= STALE_MS && VNAME[mine.variant || 'hb']) ? {tc:mine.tc, v:mine.variant || 'hb'} : null;
     Object.keys(snapVal || {}).forEach(function(n){
       var e = snapVal[n];
       if(!e || e.gameId || n === (ME && ME.username)) return;
@@ -177,22 +180,17 @@
   function paint(){
     var card = document.getElementById('ogCard');
     if(!card) return;
-    var m = S.mine, ch = pageChoice();
-    var h = '<div class="og-head"><h2>Lobby</h2>';
-    if(loggedInNow()) h += m ? '' : '<button type="button" id="ogPost">Create a game: ' + esc(VNAME[ch.v]) + ', ' + esc(tcShow(ch.tc)) + '</button>';
-    h += '</div>' + (loggedInNow() && !m ? '<p class="desc" style="margin:-4px 0 10px;">Click a game to join it. To create one, choose a game type and time control below, then press Create a game.</p>' : '<p class="desc" style="margin:-4px 0 10px;">Click a game to join it.</p>');
+    var h = '<div class="og-head"><h2>Lobby</h2></div><p class="desc" style="margin:-4px 0 10px;">Click a game to join it.</p>';
     h += '<div class="og-table"><div class="og-tr og-th"><span>Player</span><span>Rating</span><span>Time</span><span>Game</span></div>';
-    if(m){
-      h += '<div class="og-tr og-me"><span><b>You</b> <i>waiting for an opponent</i></span><span>&nbsp;</span><span>' + esc(tcShow(m.tc)) + '</span><span>' + esc(VNAME[m.v]) + ' <a id="ogCancel" role="button" tabindex="0">cancel</a></span></div>';
+    if(S.me){
+      h += '<div class="og-tr og-me"><span><b>You</b> <i>waiting for an opponent</i></span><span>&nbsp;</span><span>' + esc(tcShow(S.me.tc)) + '</span><span>' + esc(VNAME[S.me.v]) + '</span></div>';
     }
     S.list.forEach(function(x){
       h += '<div class="og-tr og-row" role="button" tabindex="0" data-name="' + esc(x.name) + '"><span><b data-user="' + esc(x.name) + '">' + esc(x.name) + '</b></span><span>' + esc(x.rating) + '</span><span>' + esc(tcShow(x.tc)) + '</span><span>' + esc(VNAME[x.v]) + '</span></div>';
     });
-    if(!S.list.length && !m) h += '<div class="og-empty">Nobody is looking for a game right now.' + (loggedInNow() ? ' Press <b>Create a game</b> and the next person who opens this page can join you.' : ' Log in to create one.') + '</div>';
+    if(!S.list.length && !S.me) h += '<div class="og-empty">Nobody is looking for a game.</div>';
     h += '</div><div class="hint" id="ogNote" style="min-height:1.3em;margin-top:8px;">' + esc(Date.now() - noteAt < 8000 ? noteText : '') + '</div>';
     card.innerHTML = h;
-    var pb = document.getElementById('ogPost'); if(pb) pb.onclick = post;
-    var cb = document.getElementById('ogCancel'); if(cb) cb.onclick = function(){ dropMine(); };
     card.querySelectorAll('.og-row').forEach(function(r){
       var go = function(){ if(!loggedInNow()){ note('Log in to join a game.'); return; } accept(r.getAttribute('data-name')); };
       r.onclick = go; r.onkeydown = function(e){ if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); go(); } };
