@@ -16,6 +16,11 @@
           for(var i = 0; i < n - 1; i++) arr.push(old && typeof old[i] === 'number' ? old[i] : -1);
           arr.push(n > 1 && typeof value.moveAt === 'number' ? Math.max(0, Math.round(serverNow() - value.moveAt)) : -1);
           value.moveTimes = arr;
+          // the mover's real remaining clock after this move (increment included), so the PGN carries true [%clk] values
+          var oc = value.moveClk, carr = [], mc = value.clock, mover = value.turn === 'w' ? 'b' : 'w';
+          for(var j = 0; j < n - 1; j++) carr.push(oc && typeof oc[j] === 'number' ? oc[j] : -1);
+          carr.push(mc && mc.initialSec > 0 && typeof mc[mover === 'w' ? 'whiteMs' : 'blackMs'] === 'number' ? Math.round(mc[mover === 'w' ? 'whiteMs' : 'blackMs']) : -1);
+          value.moveClk = carr;
         }
       }
     }catch(e){ console.error('move time failed', e); }
@@ -33,7 +38,7 @@
     var b = g.mode === 'team' ? (s.blackBrain + ' & ' + s.blackHand) : s.black;
     var res = g.winner === 'w' ? '1-0' : g.winner === 'b' ? '0-1' : g.winner === 'draw' ? '1/2-1/2' : '*';
     var c = g.clock && g.clock.initialSec > 0 ? g.clock : null;
-    var times = g.moveTimes || [];
+    var times = g.moveTimes || [], real = g.moveClk || [];
     var rem = {w: c ? c.initialSec * 1000 : 0, b: c ? c.initialSec * 1000 : 0};
     var mt = '';
     (g.moveLog || []).forEach(function(san, i){
@@ -44,7 +49,8 @@
       if(c){
         // same accounting as the Pawniac clock: White's first move is free, the increment is added after every move
         rem[side] = Math.max(0, rem[side] - (i === 0 || spent === null ? 0 : spent)) + (c.incrementSec || 0) * 1000;
-        if(spent !== null || i === 0) tags += ' {[%clk ' + hms(rem[side]) + ']}';
+        if(typeof real[i] === 'number' && real[i] >= 0){ rem[side] = real[i]; tags += ' {[%clk ' + hms(real[i]) + ']}'; }
+        else if(spent !== null || i === 0) tags += ' {[%clk ' + hms(rem[side]) + ']}';
       }
       mt += (i % 2 === 0 ? (i / 2 + 1) + '. ' : '') + san + tags + ' ';
     });
