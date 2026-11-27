@@ -76,8 +76,8 @@
     if(!d || (d.hide && !own) || (!n && !own)) return;
     var box = document.createElement('div'); box.className = 'pf-streak';
     box.style.cssText = 'margin-left:auto;text-align:center;padding:6px 14px;border:1px solid rgba(128,128,128,.3);border-radius:10px;min-width:84px;';
-    box.innerHTML = '<div style="font-size:26px;font-weight:700;line-height:1.1;">' + n + '</div><div class="hint" style="margin:0;">day streak</div>' +
-      (d.best > n ? '<div class="hint" style="margin:2px 0 0;font-size:11px;">best ' + d.best + '</div>' : '') +
+    box.innerHTML = '<div style="font-size:26px;font-weight:700;line-height:1.1;">' + (Number(n) || 0) + '</div><div class="hint" style="margin:0;">day streak</div>' +
+      (d.best > n ? '<div class="hint" style="margin:2px 0 0;font-size:11px;">best ' + (Number(d.best) || 0) + '</div>' : '') +
       (own ? '<label class="hint" style="display:block;margin:4px 0 0;font-size:11px;cursor:pointer;"><input type="checkbox" id="pfStreakHide"' + (d.hide ? ' checked' : '') + '> hide</label>' : '');
     head.appendChild(box);
     var cb = box.querySelector('#pfStreakHide');

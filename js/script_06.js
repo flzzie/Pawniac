@@ -242,7 +242,7 @@
         .slice(0, 50);
       body = rows.length ? rows.map(function(u, i){
         return '<div class="seat"><span class="who">#' + (i+1) + ' ' + esc(u.username) + (u.username === ME.username ? ' (you)' : '') +
-               '</span><span class="taken">' + u.rating + ' &middot; ' + u.games + ' games</span></div>';
+               '</span><span class="taken">' + (Number(u.rating) || 0) + ' &middot; ' + (Number(u.games) || 0) + ' games</span></div>';
       }).join('') : '<p class="desc">No rated games yet. Play a Quick match to get on the board.</p>';
     }catch(e){
       console.error(e);

@@ -555,15 +555,15 @@
       h += '<div><b>Recent games</b> (' + flagged + ' of ' + rows.length + ' flagged)</div>';
       rows.forEach(function(r){
         var f = flagsOf(r), res = r.res === 'w' ? 'win' : (r.res === 'l' ? 'loss' : 'draw');
-        h += '<div class="sg-row"><span class="' + (f.length ? '' : 'sg-ok') + '">' + (r.num ? '<span class="gh-n" data-gn="' + r.num + '">#' + r.num + '</span>' : esc(r.key)) + ' &middot; ' + res + ' &middot; ' + r.pl + ' plies &middot; left tab ' + r.tabs + 'x' +
-          (r.k ? ' &middot; avg ' + r.mean + 's/move, spread ' + r.cv : '') + '</span> ' + f.map(function(x){ return '<span class="sg-flag">' + esc(x) + '</span>'; }).join('') + '</div>';
+        h += '<div class="sg-row"><span class="' + (f.length ? '' : 'sg-ok') + '">' + (r.num ? '<span class="gh-n" data-gn="' + (Number(r.num) || 0) + '">#' + (Number(r.num) || 0) + '</span>' : esc(r.key)) + ' &middot; ' + res + ' &middot; ' + (Number(r.pl) || 0) + ' plies &middot; left tab ' + (Number(r.tabs) || 0) + 'x' +
+          (r.k ? ' &middot; avg ' + (Number(r.mean) || 0) + 's/move, spread ' + (Number(r.cv) || 0) : '') + '</span> ' + f.map(function(x){ return '<span class="sg-flag">' + esc(x) + '</span>'; }).join('') + '</div>';
       });
     }
     if(eng.length){
       h += '<div style="margin-top:8px;"><b>Engine match</b> (from analyzed games)</div>';
       eng.forEach(function(e){
         var hi = e.top1 >= 70 && e.n >= 20;
-        h += '<div class="sg-row"><span class="' + (hi ? '' : 'sg-ok') + '">' + esc(e.ev || 'game') + ' as ' + (e.side === 'w' ? 'White' : 'Black') + ': top move ' + e.top1 + '%, top 3 ' + e.top3 + '% over ' + e.n + ' moves</span> ' +
+        h += '<div class="sg-row"><span class="' + (hi ? '' : 'sg-ok') + '">' + esc(e.ev || 'game') + ' as ' + (e.side === 'w' ? 'White' : 'Black') + ': top move ' + (Number(e.top1) || 0) + '%, top 3 ' + (Number(e.top3) || 0) + '% over ' + (Number(e.n) || 0) + ' moves</span> ' +
           (hi ? '<span class="sg-flag">unusually high top-move match</span>' : '') + '</div>';
       });
       h += '<div class="hint" style="margin-top:6px;">Typical human play matches the engine\'s first choice about 40 to 60% of the time. Strong players run higher, so this means little by itself.</div>';

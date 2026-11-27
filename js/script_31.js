@@ -135,7 +135,8 @@
           if(banner){
             var d = document.createElement('div');
             d.className = 'rc gh-gn';
-            d.innerHTML = 'Game <span class="gh-n" data-gn="' + g.num + '">#' + g.num + '</span>';
+            var gnum = Number(g.num) || 0;
+            d.innerHTML = 'Game <span class="gh-n" data-gn="' + gnum + '">#' + gnum + '</span>';
             banner.appendChild(d);
           }
         }

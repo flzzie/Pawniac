@@ -195,9 +195,9 @@
   function pieceSpan(t,side){return '<span class="au-g '+(side==='w'?'wh':'bk')+'">'+GL[t]+'</span>';}
   function panel(g,au,s,my,isMe){
     var b=au.bought[s];
-    var army=['q','r','b','n','p'].map(function(t){return b[t]?'<span class="au-pc">'+GL[t]+'<b>\u00d7'+b[t]+'</b></span>':'';}).join('')||'<span class="hint">no pieces yet</span>';
-    return '<div class="au-p'+(isMe?' me':'')+'"><div class="au-nm">'+esc(nm(g,s))+(isMe?' (you)':'')+'</div><div class="au-coins">'+au.coins[s]+' <small>coins</small></div>'+
-      '<div class="au-army">'+army+'</div><div class="hint">'+(b.n+b.b+b.r+b.q)+'/7 pieces &middot; '+b.p+'/8 pawns'+(au.done[s]?' &middot; stopped buying':'')+'</div></div>';
+    var army=['q','r','b','n','p'].map(function(t){return b[t]?'<span class="au-pc">'+GL[t]+'<b>\u00d7'+(Number(b[t])||0)+'</b></span>':'';}).join('')||'<span class="hint">no pieces yet</span>';
+    return '<div class="au-p'+(isMe?' me':'')+'"><div class="au-nm">'+esc(nm(g,s))+(isMe?' (you)':'')+'</div><div class="au-coins">'+(Number(au.coins[s])||0)+' <small>coins</small></div>'+
+      '<div class="au-army">'+army+'</div><div class="hint">'+((Number(b.n)||0)+(Number(b.b)||0)+(Number(b.r)||0)+(Number(b.q)||0))+'/7 pieces &middot; '+(Number(b.p)||0)+'/8 pawns'+(au.done[s]?' &middot; stopped buying':'')+'</div></div>';
   }
   function slotRow(strOrArr,isPawn,my,editable){
     var h='<div class="au-row">';
@@ -235,7 +235,7 @@
     var el=document.getElementById('screen-game'),au=g.auction,me=myRole(g),my=me?me.side:'w',o=opp(my);
     var timer=' <span class="hint">(<span id="auTimer"></span>)</span>';
     var mine=!!me&&au.turn===my,turnName=esc(nm(g,au.turn)),body='';
-    var last=au.lastT?(au.lastW?esc(nm(g,au.lastW))+' bought a '+NM[au.lastT].toLowerCase()+' for '+au.lastBid+' coins.':'The '+NM[au.lastT].toLowerCase()+' went unsold.'):'';
+    var last=au.lastT?(au.lastW?esc(nm(g,au.lastW))+' bought a '+NM[au.lastT].toLowerCase()+' for '+(Number(au.lastBid)||0)+' coins.':'The '+NM[au.lastT].toLowerCase()+' went unsold.'):'';
     if(au.phase==='nominate'){
       if(mine) body='<div class="au-lot">Your turn: put a piece up for auction.'+timer+'<div class="au-acts">'+
         T.slice().reverse().map(function(t){return '<button data-nom="'+t+'"'+(nomOk(au,t)?'':' disabled')+'>'+GL[t]+' '+NM[t]+' <small>('+VALS[t]+')</small></button>';}).join('')+
@@ -243,16 +243,16 @@
       else body='<div class="au-lot">'+turnName+' is choosing a piece...'+timer+'</div>';
     }else if(au.phase==='bid'){
       body='<div class="au-lot"><div class="au-big">'+GL[au.item]+'</div><div><b>'+NM[au.item]+'</b> (standard value '+VALS[au.item]+')</div><div style="margin:6px 0;">'+
-        (au.bidder?'Current bid: <b>'+au.bid+'</b> by '+esc(nm(g,au.bidder)):'No bids yet')+'</div>';
+        (au.bidder?'Current bid: <b>'+(Number(au.bid)||0)+'</b> by '+esc(nm(g,au.bidder)):'No bids yet')+'</div>';
       if(mine){
-        var min=au.bid+1;
-        body+='<div class="au-acts"><input type="number" id="auBid" min="'+min+'" max="'+au.coins[my]+'" value="'+min+'"><button id="auBidBtn">Bid</button><button class="secondary" id="auPass">'+(au.bidder?'Drop out':'Pass')+'</button></div><div class="hint">Your move'+timer+'</div>';
+        var min=(Number(au.bid)||0)+1;
+        body+='<div class="au-acts"><input type="number" id="auBid" min="'+min+'" max="'+(Number(au.coins[my])||0)+'" value="'+min+'"><button id="auBidBtn">Bid</button><button class="secondary" id="auPass">'+(au.bidder?'Drop out':'Pass')+'</button></div><div class="hint">Your move'+timer+'</div>';
       }else body+='<div class="hint">Waiting for '+turnName+timer+'</div>';
       body+='</div>';
     }else if(au.phase==='place'){
       body=me?placeHtml(au,my):'<div class="au-lot">The players are placing their armies...'+timer+'</div>';
     }
-    el.innerHTML='<div class="card"><h2>Piece Auction</h2><p class="desc">Everyone always has a king. Bid coins for pieces one at a time ('+au.budget+' coins each this game). Pawns go on the 2nd rank and everything else shares the back rank with the king, so you can hold at most 8 pawns and 7 other pieces.</p>'+
+    el.innerHTML='<div class="card"><h2>Piece Auction</h2><p class="desc">Everyone always has a king. Bid coins for pieces one at a time ('+(Number(au.budget)||0)+' coins each this game). Pawns go on the 2nd rank and everything else shares the back rank with the king, so you can hold at most 8 pawns and 7 other pieces.</p>'+
       '<div class="au-top">'+panel(g,au,my,my,!!me)+panel(g,au,o,my,false)+'</div>'+(last?'<p class="au-last">'+last+'</p>':'')+body+
       ''+'</div>';
 
