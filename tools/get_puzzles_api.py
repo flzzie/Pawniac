@@ -14,7 +14,7 @@ ANGLES = [("mateIn5", "mate"), ("mateIn4", "mate"),
           ("sacrifice", "calc"), ("quietMove", "calc"), ("deflection", "calc"), ("attraction", "calc"),
           ("clearance", "calc"), ("interference", "calc"), ("intermezzo", "calc"),
           ("defensiveMove", "calc"), ("zugzwang", "calc"), ("exposedKing", "calc")]
-ROUNDS = 2                          # requests per theme (each returns up to 50 different puzzles)
+LEVELS = ("normal", "harder", "hardest")   # a spread, so not every puzzle is brutal
 BAD = {"mateIn1", "mateIn2", "mateIn3", "oneMove", "short"}
 
 
@@ -45,16 +45,15 @@ def convert(item, kind):
 def collect(fetcher=fetch, sleep=time.sleep):
     got = {}
     for angle, kind in ANGLES:
-        for rnd in range(ROUNDS):
-            for diff in ("hardest",) if rnd == 0 else ("harder",):
-                data = fetcher(angle, diff)
-                n0 = len(got)
-                for item in (data or {}).get("puzzles", []):
-                    c = convert(item, kind)
-                    if c and c["i"] not in got:
-                        got[c["i"]] = c
-                print("%-14s %-8s +%d  (total %d)" % (angle, diff, len(got) - n0, len(got)), flush=True)
-                sleep(2)
+        for diff in LEVELS:
+            data = fetcher(angle, diff)
+            n0 = len(got)
+            for item in (data or {}).get("puzzles", []):
+                c = convert(item, kind)
+                if c and c["i"] not in got:
+                    got[c["i"]] = c
+            print("%-14s %-8s +%d  (total %d)" % (angle, diff, len(got) - n0, len(got)), flush=True)
+            sleep(2)
     return sorted(got.values(), key=lambda x: x["r"])
 
 
