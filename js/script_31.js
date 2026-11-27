@@ -260,7 +260,7 @@
     var w = g.mode === 'team' ? (s.whiteBrain + ' & ' + s.whiteHand) : s.white;
     var b = g.mode === 'team' ? (s.blackBrain + ' & ' + s.blackHand) : s.black;
     var res = g.winner === 'w' ? '1-0' : g.winner === 'b' ? '0-1' : g.winner === 'draw' ? '1/2-1/2' : '*';
-    var c = g.clock && g.clock.initialSec > 0 ? g.clock : null, times = g.moveTimes || [];
+    var c = g.clock && g.clock.initialSec > 0 ? g.clock : null, times = g.moveTimes || [], real = g.moveClk || [];
     var sf = startFen(g), off = (sf && sf.split(' ')[1] === 'b') ? 1 : 0;
     var rem = {w:c ? c.initialSec * 1000 : 0, b:c ? c.initialSec * 1000 : 0}, mt = '';
     (g.moveLog || []).forEach(function(san, i){
@@ -268,7 +268,8 @@
       if(spent !== null) tags += ' {[%emt ' + hms(spent) + ']}';
       if(c){
         rem[side] = Math.max(0, rem[side] - (i === 0 || spent === null ? 0 : spent)) + (c.incrementSec || 0) * 1000;
-        if(spent !== null || i === 0) tags += ' {[%clk ' + hms(rem[side]) + ']}';
+        if(typeof real[i] === 'number' && real[i] >= 0){ rem[side] = real[i]; tags += ' {[%clk ' + hms(real[i]) + ']}'; }
+        else if(spent !== null || i === 0) tags += ' {[%clk ' + hms(rem[side]) + ']}';
       }
       var num = Math.floor((i + off) / 2) + 1;
       mt += (side === 'w' ? num + '. ' : (i === 0 ? num + '... ' : '')) + san + tags + ' ';
