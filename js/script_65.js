@@ -1,10 +1,11 @@
-// Daily puzzle: one mate puzzle a day, the same for everyone, with a streak.
-// The puzzles are in js/puzzle_data.js (window.PAWNIAC_PUZZLES = [{f: fen, n: mate in n, s: first move}]).
+// Daily puzzle: one hard puzzle a day, the same for everyone, with a streak.
+// The puzzles are real Lichess puzzles (CC0) in js/puzzle_lichess.js: [{f: fen, s: [your move, reply, your move, ...], r: rating, t: themes}].
+// A move is right if it is the stored move, or if it checkmates (like Lichess).
 // The streak lives at hb/puzzle/<username> = {last, streak, best, hide} and shows on the profile unless the player hides it.
 (function(){
   'use strict';
   var DAY_SHIFT_MIN = 330;            // the puzzle changes at midnight India time (UTC+5:30). Change this to move it.
-  var DATA = window.PAWNIAC_PUZZLES || [];
+  var DATA = window.PAWNIAC_LICHESS_SET || [];
   function $(id){ return document.getElementById(id); }
   function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;'}[c]; }); }
   function loggedIn(){ return typeof ME !== 'undefined' && !!ME && !!ME.username; }
@@ -14,58 +15,17 @@
   function dayNo(off){ return Math.floor((serverNow() + DAY_SHIFT_MIN * 60000) / 86400000) + (off || 0); }
   function dayKey(off){ return new Date(dayNo(off) * 86400000).toISOString().slice(0, 10); }
 
-  // ---------- tiny mate solver (attacker to move) ----------
-  // wins(c, n, co): can the side to move force mate in at most n? co = the attacker may only give checks (fast).
-  function wins(c, n, co){
-    var ms = c.moves({verbose:true});
-    for(var i = 0; i < ms.length; i++){
-      c.move(ms[i]);
-      var ok = false;
-      if(c.in_checkmate()) ok = true;
-      else if(n > 1 && !c.game_over() && (c.in_check() || !co)){
-        var ds = c.moves({verbose:true});
-        ok = ds.length > 0;
-        for(var j = 0; ok && j < ds.length; j++){ c.move(ds[j]); if(!wins(c, n - 1, co)) ok = false; c.undo(); }
-      }
-      c.undo();
-      if(ok) return true;
-    }
-    return false;
-  }
-  // does this move keep a forced mate within `rem` moves?
-  function goodMove(c, mv, rem){
-    c.move(mv);
-    var ok = false;
-    if(c.in_checkmate()) ok = true;
-    else if(rem > 1 && !c.game_over()){
-      var co = rem - 1 >= 2, ds = c.moves({verbose:true});
-      ok = ds.length > 0;
-      for(var j = 0; ok && j < ds.length; j++){ c.move(ds[j]); if(!wins(c, rem - 1, co)) ok = false; c.undo(); }
-    }
-    c.undo();
-    return ok;
-  }
-  // the defender's most stubborn reply (the one that delays mate longest)
-  function bestDefence(c, rem){
-    var ds = c.moves({verbose:true}), best = null, bestK = -1;
-    for(var i = 0; i < ds.length; i++){
-      c.move(ds[i]);
-      var k = 0;
-      for(var t = 1; t <= rem - 1 && !k; t++) if(wins(c, t, t >= 2)) k = t;
-      c.undo();
-      if(k > bestK){ bestK = k; best = ds[i]; }
-    }
-    return best;
-  }
-
   // ---------- state ----------
   var P = null, root = null, ST = {mine:null, loaded:false};
-  function puzzleAt(off){ return DATA.length ? DATA[((dayNo(off) % DATA.length) + DATA.length) % DATA.length] : null; }
+  // a fixed shuffle (stride 97 is coprime with the set size) so the ratings are mixed from day to day
+  function puzzleAt(off){ var n = DATA.length; if(!n) return null; var st = 97; while(n % st === 0) st += 2; return DATA[(((dayNo(off) * st) % n) + n) % n]; }
+  function uci(m){ return m.from + m.to + (m.promotion || ''); }
+  function expected(){ var u = P.pz.s[P.step]; return u ? P.c.moves({verbose:true}).filter(function(m){ return m.from === u.slice(0, 2) && m.to === u.slice(2, 4) && (!u[4] || m.promotion === u[4]); })[0] : null; }
   function start(off){
     var pz = puzzleAt(off);
     if(!pz){ P = null; return; }
     var c = new Chess(pz.f), side = c.turn();
-    P = {off:off || 0, pz:pz, c:c, side:side, rem:pz.n, sel:null, state:'ask', msg:'', cls:'', hint:0, busy:false, last:null, stepFen:pz.f};
+    P = {off:off || 0, pz:pz, c:c, side:side, step:0, sel:null, state:'ask', msg:'', cls:'', hint:0, busy:false, last:null, stepFen:pz.f};
   }
 
   // ---------- streak ----------
@@ -107,9 +67,11 @@
     if(P.state === 'shown' && P.show) arrows = [{from:P.show.from, to:P.show.to, color:'#1f9d55'}];
     var opts = {sel:P.sel, dests:dests, hintFrom:(P.hint >= 2 && P.state === 'ask') ? hintMove().from : null};
     var title = today ? 'Daily puzzle' : 'Practice puzzle';
+    var mine = Math.ceil(P.pz.s.length / 2), left = Math.ceil((P.pz.s.length - P.step) / 2);
     var info = '<div class="an-title">' + title + '</div>' +
-      '<p class="an-note" style="margin-top:8px;">' + (P.side === 'w' ? 'White' : 'Black') + ' to move and mate in <b>' + P.pz.n + '</b>' +
-      (P.pz.n > 1 && P.state === 'ask' ? ' (' + P.rem + ' to go)' : '') + '. Click a piece, then where it goes.</p>';
+      '<p class="an-note" style="margin-top:8px;">' + (P.side === 'w' ? 'White' : 'Black') + ' to move. Find the best continuation: <b>' + mine + ' moves</b> of yours' +
+      (mine > 1 && P.state === 'ask' ? ' (' + left + ' to go)' : '') + '. Click a piece, then where it goes.</p>' +
+      '<div class="hint" style="margin:0 0 6px;">Rated about ' + esc(P.pz.r) + ' on Lichess</div>';
     if(P.state === 'ask'){
       if(P.hint >= 1) info += '<div class="an-fb"><b>Hint:</b> ' + esc(hintText()) + '</div>';
       if(P.msg) info += '<div class="an-fb ' + P.cls + '">' + esc(P.msg) + '</div>';
@@ -132,13 +94,7 @@
     wire();
   }
   function hintMove(){
-    var sols = solutions();
-    return sols[0] || {from:'a1', to:'a1', piece:'p'};
-  }
-  function solutions(){
-    var out = [], ms = P.c.moves({verbose:true});
-    ms.forEach(function(m){ if(m.promotion && m.promotion !== 'q') return; if(goodMove(P.c, m, P.rem)) out.push(m); });
-    return out;
+    return expected() || {from:'a1', to:'a1', piece:'p'};
   }
   function hintText(){
     var m = hintMove();
@@ -178,24 +134,24 @@
 
   async function attempt(from, to){
     if(P.busy) return;
-    var c = P.c, mv = c.move({from:from, to:to, promotion:'q'});
+    var c = P.c, exp = expected(), mv = c.move({from:from, to:to, promotion:(exp && exp.from === from && exp.to === to && exp.promotion) || 'q'});
     if(!mv) return;
-    c.undo();
-    P.sel = null; P.busy = true; P.msg = ''; draw();
-    await new Promise(function(r){ setTimeout(r, 20); });          // let the "checking" paint
-    var ok = goodMove(c, mv, P.rem);
-    if(!ok){ P.busy = false; P.msg = mv.san + ' is not it. Try again.'; P.cls = 'wrong'; draw(); return; }
-    c.move(mv);
-    if(c.in_checkmate()){
-      P.busy = false; P.state = 'solved'; P.msg = 'Checkmate!';
+    var mate = c.in_checkmate();
+    var ok = mate || !!(exp && exp.from === mv.from && exp.to === mv.to && (exp.promotion || '') === (mv.promotion || ''));
+    if(!ok){ c.undo(); P.sel = null; P.msg = mv.san + ' is not it. Try again.'; P.cls = 'wrong'; draw(); return; }
+    P.sel = null; P.busy = true; P.msg = '';
+    var done = mate || P.step + 1 >= P.pz.s.length;
+    if(done){
+      P.busy = false; P.state = 'solved'; P.msg = mate ? 'Checkmate!' : 'Solved!';
       await recordSolve();
-      if(P.off !== 0) P.msg = 'Checkmate! Well done.';
-      else if(!loggedIn()) P.msg = 'Checkmate! Log in to keep a streak.';
+      if(P.off !== 0) P.msg = (mate ? 'Checkmate! ' : '') + 'Well done.';
+      else if(!loggedIn()) P.msg = (mate ? 'Checkmate! ' : 'Solved! ') + 'Log in to keep a streak.';
+      var th = (P.pz.t || '').split(' ').filter(Boolean).slice(0, 4).join(', ');
+      if(th) P.msg += ' Themes: ' + th + '.';
       draw(); return;
     }
-    P.rem--;
-    var def = bestDefence(c, P.rem + 1);
-    if(def){ c.move(def); P.msg = 'Correct. The reply is ' + def.san + '.'; }
+    var rep = P.pz.s[P.step + 1], rm = c.move({from:rep.slice(0, 2), to:rep.slice(2, 4), promotion:rep[4] || undefined});
+    P.step += 2; P.msg = 'Correct. The reply is ' + (rm ? rm.san : rep) + '.';
     P.busy = false; P.cls = 'good'; P.hint = 0; draw();
   }
 
@@ -270,5 +226,5 @@
     });
   }catch(e){ console.error(e); }
 
-  window.PawniacDaily = {dayKey:dayKey, _P:function(){ return P; }, _go:function(off){ start(off); draw(); }, _solutions:function(){ return solutions().map(function(m){ return m.from + m.to; }); }};
+  window.PawniacDaily = {dayKey:dayKey, _P:function(){ return P; }, _go:function(off){ start(off); draw(); }, _solutions:function(){ var m = expected(); return m ? [m.from + m.to] : []; }};
 })();
