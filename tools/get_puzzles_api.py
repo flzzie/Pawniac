@@ -10,7 +10,7 @@ import json, os, sys, time, urllib.request, urllib.error
 
 OUT = os.path.join(os.getcwd(), "lichess_puzzles.js")
 # Optional, makes Lichess allow many more requests: lichess.org > your profile > Preferences > API access tokens >
-# "+" > give it any name, tick NOTHING > Create > copy the token and paste it between the quotes.
+# "+" > any name, tick only "Read puzzle activity" (puzzle:read) > Create > paste the token (lip_...) between the quotes.
 TOKEN = ""
 # (theme, kind). Long mates first, then non-obvious calculation themes.
 ANGLES = [("mateIn5", "mate"), ("mateIn4", "mate"),
