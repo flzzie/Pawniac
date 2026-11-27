@@ -118,7 +118,7 @@
         var v=(await db.ref('hb/leaderboardAuc/'+name).once('value')).val();
         if(!gr.querySelector('[data-auc]')){
           var d=document.createElement('div');d.className='pf-box';d.dataset.auc='1';
-          d.innerHTML='<div class="hint">Piece Auction</div><div class="pf-big">'+(v?v.rating:'-')+'</div><div class="hint">'+(v?v.games:0)+' games</div>';
+          d.innerHTML='<div class="hint">Piece Auction</div><div class="pf-big">'+(v?(Number(v.rating)||0):'-')+'</div><div class="hint">'+(v?(Number(v.games)||0):0)+' games</div>';
           gr.appendChild(d);
         }
       }

@@ -83,8 +83,8 @@
     return db.ref(p).once('value').then(function(s){ return s.exists() ? s.val() : null; }).catch(function(){ return null; });
   }
   function ratingBox(label, r){
-    return '<div class="pf-box"><div class="hint">' + label + '</div><div class="pf-big">' + (r ? r.rating : '-') +
-           '</div><div class="hint">' + (r ? r.games : 0) + ' games</div></div>';
+    return '<div class="pf-box"><div class="hint">' + label + '</div><div class="pf-big">' + (r ? (Number(r.rating) || 0) : '-') +
+           '</div><div class="hint">' + (r ? (Number(r.games) || 0) : 0) + ' games</div></div>';
   }
 
   window.openProfile = async function(name){
@@ -125,7 +125,7 @@
     var recordRows = ['hb','team','std'].map(function(v){
       var s = stats[v] || {w:0, l:0, d:0};
       return '<div class="seat"><span class="who">' + esc(VNAME[v]) + '</span><span class="taken">' +
-             (s.w||0) + 'W &middot; ' + (s.l||0) + 'L &middot; ' + (s.d||0) + 'D</span></div>';
+             (Number(s.w)||0) + 'W &middot; ' + (Number(s.l)||0) + 'L &middot; ' + (Number(s.d)||0) + 'D</span></div>';
     }).join('');
 
     var ktText = (kt && typeof kt.sq === 'number') ? kt.sq + '/64 in ' + fmtMs(kt.ms) : 'No runs yet';

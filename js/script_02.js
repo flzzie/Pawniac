@@ -45,7 +45,7 @@ const FIGURINE = {
 function sanToFigurine(san, color){
   if(!san) return '';
   const map = FIGURINE[color];
-  return san
+  return escHtml(san)
     .replace(/^([NBRQK])/, (m,p)=>map[p]||p)
     .replace(/=([NBRQK])/, (m,p)=>'='+(map[p]||p));
 }
@@ -242,8 +242,8 @@ async function handleSignedIn(user){
 
 function renderUserbox(profile){
   document.getElementById('userbox').innerHTML =
-    '<div class="name">'+ME.username+'</div>'+
-    '<div class="rating">rating '+profile.rating+' &middot; '+profile.games+' games</div>'+
+    '<div class="name">'+escHtml(ME.username)+'</div>'+
+    '<div class="rating">rating '+(Number(profile.rating)||0)+' &middot; '+(Number(profile.games)||0)+' games</div>'+
     '<div style="margin-top:6px;font-size:12px;"><span class="backlink" id="btnLeaderboard">leaderboard</span> &middot; <span class="backlink" id="btnLogout">log out</span></div>';
   const lb = document.getElementById('btnLeaderboard');
   if(lb) lb.onclick = renderLeaderboard;
@@ -526,7 +526,7 @@ async function renderLeaderboard(){
   const rowsHtml = loadError
     ? '<p class="desc">Could not load the leaderboard right now - try again in a moment.</p>'
     : (rows.length ? rows.map((u,i)=>`
-    <div class="seat"><span class="who">#${i+1} ${u.username}${u.username===ME.username?' (you)':''}</span><span class="taken">${u.rating} &middot; ${u.games} games</span></div>
+    <div class="seat"><span class="who">#${i+1} ${escHtml(u.username)}${u.username===ME.username?' (you)':''}</span><span class="taken">${Number(u.rating)||0} &middot; ${Number(u.games)||0} games</span></div>
   `).join('') : '<p class="desc">No rated games played yet - play a Quick match to get on the board.</p>');
   el.innerHTML = `
     <div class="card">
@@ -642,7 +642,7 @@ function renderLobby(){
       <div class="lobby-side">
         <div class="card account-card">
           <div>
-            <div class="account-name">${ME.username}</div>
+            <div class="account-name">${escHtml(ME.username)}</div>
             <div class="account-rating" id="lobbyAccountLine">rating - &middot; - games</div>
           </div>
           <span class="backlink" id="lobbyLogout">Log out</span>
@@ -695,7 +695,7 @@ async function loadLobbySidebar(){
     } else {
       el2.className = '';
       el2.innerHTML = rows.map((u,i)=>`
-        <div class="lb-row"><span class="lb-rank">#${i+1}</span><span class="lb-name">${u.username}${u.username===ME.username?' (you)':''}</span><span class="lb-rating">${u.rating}</span></div>
+        <div class="lb-row"><span class="lb-rank">#${i+1}</span><span class="lb-name">${escHtml(u.username)}${u.username===ME.username?' (you)':''}</span><span class="lb-rating">${Number(u.rating)||0}</span></div>
       `).join('');
     }
   } catch(e){
@@ -845,11 +845,11 @@ function drawWaiting(code, game){
   const rows = seatKeys.map(k=>{
     const occ = game.seats[k];
     if(occ===ME.username){
-      return `<div class="seat"><span class="taken">${seatLabel(game.mode,k)} (you)</span><span class="backlink" data-leave="${k}">leave</span></div>`;
+      return `<div class="seat"><span class="taken">${seatLabel(game.mode,k)} (you)</span><span class="backlink" data-leave="${escHtml(k)}">leave</span></div>`;
     } else if(occ){
-      return `<div class="seat"><span class="who">${seatLabel(game.mode,k)}</span><span class="taken">${occ}</span></div>`;
+      return `<div class="seat"><span class="who">${seatLabel(game.mode,k)}</span><span class="taken">${escHtml(occ)}</span></div>`;
     } else {
-      return `<div class="seat"><span class="who">${seatLabel(game.mode,k)}</span><button class="secondary" data-take="${k}">Take seat</button></div>`;
+      return `<div class="seat"><span class="who">${seatLabel(game.mode,k)}</span><button class="secondary" data-take="${escHtml(k)}">Take seat</button></div>`;
     }
   }).join('');
   el.innerHTML = `
@@ -876,6 +876,7 @@ let tickLastSecond = null;
 let endSoundPlayed = false;   // guards against replaying win/loss/draw on every later snapshot
 
 function enterGameScreen(code){
+  if(!/^[A-Za-z0-9_-]{1,40}$/.test(String(code||''))) return;   // an id from the database must never contain a path
   currentGameId = code;
   showScreen('game');
   selectedSquare = null;
@@ -1126,7 +1127,7 @@ function drawGame(){
   if(g.status==='finished'){
     let resultText = g.winner==='draw' ? 'Draw' : (g.winner==='w'?'White wins':'Black wins');
     let extra = '';
-    if(g.statusNote) extra += '<div class="rc">'+g.statusNote+'</div>';
+    if(g.statusNote) extra += '<div class="rc">'+escHtml(g.statusNote)+'</div>';
     if(g.mode==='random'){
       const rc = myRatingChangeCache[currentGameId];
       if(rc) extra += `<div class="rc">You: ${rc.change>=0?'+':''}${rc.change} (now ${rc.newRating})</div>`;

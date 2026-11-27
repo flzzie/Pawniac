@@ -359,7 +359,7 @@
         var v = (await db.ref('hb/leaderboardDbl/' + name).once('value')).val();
         if(!gr.querySelector('[data-dbl]')){
           var d = document.createElement('div'); d.className = 'pf-box'; d.dataset.dbl = '1';
-          d.innerHTML = '<div class="hint">Double Move</div><div class="pf-big">' + (v ? v.rating : '-') + '</div><div class="hint">' + (v ? v.games : 0) + ' games</div>';
+          d.innerHTML = '<div class="hint">Double Move</div><div class="pf-big">' + (v ? (Number(v.rating) || 0) : '-') + '</div><div class="hint">' + (v ? (Number(v.games) || 0) : 0) + ' games</div>';
           gr.appendChild(d);
         }
       }
