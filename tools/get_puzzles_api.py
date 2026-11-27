@@ -9,6 +9,9 @@ In PyCharm: put this in a .py file, click Run. Then attach lichess_puzzles.js.
 import json, os, sys, time, urllib.request, urllib.error
 
 OUT = os.path.join(os.getcwd(), "lichess_puzzles.js")
+# Optional, makes Lichess allow many more requests: lichess.org > your profile > Preferences > API access tokens >
+# "+" > give it any name, tick NOTHING > Create > copy the token and paste it between the quotes.
+TOKEN = ""
 # (theme, kind). Long mates first, then non-obvious calculation themes.
 ANGLES = [("mateIn5", "mate"), ("mateIn4", "mate"),
           ("sacrifice", "calc"), ("quietMove", "calc"), ("deflection", "calc"), ("attraction", "calc"),
@@ -20,14 +23,17 @@ BAD = {"mateIn1", "mateIn2", "mateIn3", "oneMove", "short"}
 
 def fetch(angle, difficulty):
     url = "https://lichess.org/api/puzzle/batch/%s?nb=50&difficulty=%s" % (angle, difficulty)
-    req = urllib.request.Request(url, headers={"Accept": "application/json", "User-Agent": "pawniac-puzzle-maker"})
-    for attempt in range(4):
+    hdr = {"Accept": "application/json", "User-Agent": "pawniac-puzzle-maker"}
+    if TOKEN.strip():
+        hdr["Authorization"] = "Bearer " + TOKEN.strip()
+    req = urllib.request.Request(url, headers=hdr)
+    for attempt in range(2):
         try:
             with urllib.request.urlopen(req, timeout=40) as r:
                 return json.loads(r.read().decode("utf-8"))
         except urllib.error.HTTPError as e:
             if e.code == 429:
-                print("    Lichess says slow down, waiting 65 s...", flush=True); time.sleep(65); continue
+                print("    Lichess says slow down, waiting 70 s...", flush=True); time.sleep(70); continue
             print("    HTTP", e.code, "for", angle); return None
         except Exception as e:
             print("    problem:", e); time.sleep(3)
@@ -42,6 +48,16 @@ def convert(item, kind):
     return {"i": p.get("id"), "p": g["pgn"], "s": sol, "r": p.get("rating", 0), "t": " ".join(themes), "k": kind}
 
 
+def save(got):
+    if not got:
+        return
+    try:
+        with open(OUT, "w", encoding="utf-8") as f:
+            f.write("window.PAWNIAC_LICHESS_PGN = " + json.dumps(sorted(got.values(), key=lambda x: x["r"]), separators=(",", ":")) + ";\n")
+    except OSError:
+        pass
+
+
 def collect(fetcher=fetch, sleep=time.sleep):
     got = {}
     for angle, kind in ANGLES:
@@ -53,7 +69,8 @@ def collect(fetcher=fetch, sleep=time.sleep):
                 if c and c["i"] not in got:
                     got[c["i"]] = c
             print("%-14s %-8s +%d  (total %d)" % (angle, diff, len(got) - n0, len(got)), flush=True)
-            sleep(2)
+            save(got)                      # keep what we have so far, even if we get stopped
+            sleep(6)
     return sorted(got.values(), key=lambda x: x["r"])
 
 
