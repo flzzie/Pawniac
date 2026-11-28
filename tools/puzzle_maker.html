@@ -8,13 +8,13 @@ button{padding:10px 18px;font-size:16px;cursor:pointer;margin:8px 8px 8px 0}
 pre{background:#111;color:#cfe;padding:12px;border-radius:8px;height:300px;overflow:auto;font-size:13px;white-space:pre-wrap}
 </style></head><body>
 <h2>Pawniac puzzle maker</h2>
-<p>Takes about 15 minutes (it waits between requests so Lichess does not block you). Asks Lichess for hard puzzles from your own browser, then lets you download <b>lichess_puzzles.js</b>.</p>
+<p>Takes about 12 minutes (it waits between requests so Lichess does not block you). Asks Lichess for hard puzzles from your own browser, then lets you download <b>lichess_puzzles.js</b>.</p>
 <label>Lichess token (optional, starts with lip_)</label>
 <input id="tok" placeholder="leave empty to try without">
 <button id="go">Start</button><button id="dl" disabled>Download lichess_puzzles.js</button>
 <pre id="log">Press Start.</pre>
 <script>
-var ANGLES=[["mateIn5","mate"],["mateIn4","mate"]].concat(["sacrifice", "quietMove", "deflection", "attraction", "clearance", "interference", "intermezzo", "defensiveMove", "zugzwang", "exposedKing", "trappedPiece", "discoveredAttack", "doubleCheck", "xRayAttack", "skewer", "pin", "capturingDefender", "kingsideAttack", "queensideAttack", "attackingF2F7", "advancedPawn", "promotion", "underPromotion", "smotheredMate", "arabianMate", "anastasiaMate", "bodenMate", "hookMate", "doubleBishopMate", "dovetailMate", "vukovicMate", "rookEndgame", "pawnEndgame", "queenEndgame", "bishopEndgame", "knightEndgame", "endgame", "middlegame", "opening"].map(function(t){return [t,"calc"];}));
+var ANGLES=[["mateIn5","mate"],["veryLong","calc"],["sacrifice","calc"],["quietMove","calc"],["deflection","calc"],["attraction","calc"],["clearance","calc"],["interference","calc"],["intermezzo","calc"],["defensiveMove","calc"],["zugzwang","calc"],["exposedKing","calc"]], REPEATS=3;
 var LEVELS=["normal","harder","hardest"], BAD={mateIn1:1,mateIn2:1,mateIn3:1,oneMove:1,short:1};
 var got={}, log=document.getElementById('log');
 function say(t){log.textContent+="\n"+t; log.scrollTop=log.scrollHeight;}
@@ -34,16 +34,16 @@ async function fetchBatch(angle,diff,tok){
 }
 document.getElementById('go').onclick=async function(){
   var tok=document.getElementById('tok').value.trim(); this.disabled=true; log.textContent="Working...";
-  for(var i=0;i<ANGLES.length;i++){ for(var j=0;j<LEVELS.length;j++){
+  for(var rep=0;rep<REPEATS;rep++){ for(var i=0;i<ANGLES.length;i++){ for(var j=0;j<LEVELS.length;j++){
     var d=await fetchBatch(ANGLES[i][0],LEVELS[j],tok), n0=Object.keys(got).length;
     ((d&&d.puzzles)||[]).forEach(function(it){
       var p=it.puzzle||{}, g=it.game||{}, th=p.themes||[], bad=th.some(function(t){return BAD[t];});
-      if(g.pgn&&(p.solution||[]).length>=(ANGLES[i][1]==='mate'?3:5)&&!bad&&!got[p.id]) got[p.id]={i:p.id,p:g.pgn,s:p.solution,r:p.rating||0,t:th.join(" "),k:ANGLES[i][1]};
+      if(g.pgn&&(p.solution||[]).length>=9&&!bad&&!got[p.id]) got[p.id]={i:p.id,p:g.pgn,s:p.solution,r:p.rating||0,t:th.join(" "),k:ANGLES[i][1]};
     });
-    say(ANGLES[i][0]+" "+LEVELS[j]+": +"+(Object.keys(got).length-n0)+" (total "+Object.keys(got).length+")");
+    say("round "+(rep+1)+"  "+ANGLES[i][0]+" "+LEVELS[j]+": +"+(Object.keys(got).length-n0)+" (total "+Object.keys(got).length+")");
     if(Object.keys(got).length) document.getElementById('dl').disabled=false;
     await sleep(6000);
-  }}
+  }}}
   say("DONE. Press Download."); 
 };
 document.getElementById('dl').onclick=function(){
