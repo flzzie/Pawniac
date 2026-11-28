@@ -11,7 +11,6 @@
   function emailKey(e){ return e.toLowerCase().replace(/\./g, ',').replace(/[#$\[\]\/]/g, '_'); }
   var EMAIL_RE = /^[^\s@]{1,64}@[^\s@]{1,190}\.[^\s@]{2,24}$/;
   var asVisitor = false, signups = null;
-  var PATH = [[1,7],[2,5],[4,4],[5,2],[3,1],[1,0]], STEP = 1.3;
 
   var css = '#screen-improve,#improvePublic{--bg:#f4f1ea;--ink:#22201b;--muted:#7a766c;--line:#d9d3c4;--accent:#1f6f5c}' +
     '[data-theme=dark] #screen-improve,[data-theme=dark] #improvePublic{--bg:#1b1a17;--ink:#e8e4d8;--muted:#a39c8c;--line:#3a372f;--accent:#4fb59a}' +
@@ -27,16 +26,29 @@
     '.imp-done{opacity:.6;text-decoration:line-through}' +
     '.imp-bar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;justify-content:space-between}';
 
-  var T = (PATH.length * STEP).toFixed(1), kf = '';
-  PATH.forEach(function(c, k){ var pc = (k / PATH.length * 100).toFixed(1); kf += pc + '%{left:' + c[0] * 12.5 + '%;top:' + c[1] * 12.5 + '%}'; });
-  kf += '100%{left:' + PATH[0][0] * 12.5 + '%;top:' + PATH[0][1] * 12.5 + '%}';
   css += '.ibd{position:relative;width:100%;max-width:340px;aspect-ratio:1;justify-self:center;border-radius:12px;overflow:hidden;box-shadow:0 24px 50px -18px rgba(0,0,0,.45);border:1px solid var(--line)}' +
   '.ibg8{display:grid;grid-template-columns:repeat(8,1fr);height:100%}.ibg8 i.l{background:#ecdcb8}.ibg8 i.d{background:#b58863}' +
-  '.ibd .g{position:absolute;width:12.5%;height:12.5%;background:var(--accent);opacity:0;animation:impSq ' + T + 's linear infinite;display:grid;place-items:center;color:#fff;font-style:normal;font-weight:800;font-size:22px}' +
-  '.ibd .g.q{background:var(--gold)}' +
-  '@keyframes impSq{0%{opacity:0}5%{opacity:.85}55%{opacity:.5}90%,100%{opacity:0}}' +
-  '.ibd .ikn{position:absolute;width:12.5%;height:12.5%;animation:impKn ' + T + 's cubic-bezier(.5,0,.3,1) infinite;filter:drop-shadow(0 3px 3px rgba(0,0,0,.4))}' +
-  '@keyframes impKn{' + kf + '}' +
+  '.ibd .pc{position:absolute;width:12.5%;height:12.5%;filter:drop-shadow(0 2px 2px rgba(0,0,0,.35))}' +
+  '.ibd .mv{animation:impMv 9s cubic-bezier(.6,0,.3,1) infinite;z-index:2}' +
+  '@keyframes impMv{0%,38%{left:62.5%;top:25%}46%,70%{left:37.5%;top:37.5%}80%,100%{left:62.5%;top:25%}}' +
+  '.ibd .cap{animation:impCap 9s linear infinite}' +
+  '@keyframes impCap{0%,44%{opacity:1}47%,72%{opacity:0}78%,100%{opacity:1}}' +
+  '.ibd .ibad{position:absolute;left:37.5%;top:37.5%;width:12.5%;height:12.5%;background:#d32f2f;opacity:0;animation:impBad 9s linear infinite}' +
+  '@keyframes impBad{0%,46%{opacity:0}50%{opacity:.55}68%{opacity:.55}74%,100%{opacity:0}}' +
+  '.ibd .ibq{position:absolute;left:44%;top:30%;width:11%;height:11%;border-radius:50%;background:#d32f2f;color:#fff;font-weight:900;font-size:clamp(12px,2.4vw,18px);display:grid;place-items:center;z-index:3;opacity:0;transform:scale(.3);animation:impQ 9s cubic-bezier(.3,1.6,.5,1) infinite;box-shadow:0 2px 6px rgba(0,0,0,.4)}' +
+  '@keyframes impQ{0%,47%{opacity:0;transform:scale(.3)}52%,68%{opacity:1;transform:scale(1)}73%,100%{opacity:0;transform:scale(.3)}}' +
+  '.ibd .itk{position:absolute;left:66%;top:6%;width:22%;height:11%;background:#fff;border-radius:999px;display:flex;gap:7%;align-items:center;justify-content:center;z-index:3;box-shadow:0 2px 8px rgba(0,0,0,.3);animation:impTk 9s linear infinite}' +
+  '.ibd .itk:after{content:"";position:absolute;left:14%;bottom:-24%;width:16%;height:30%;background:#fff;border-radius:50%}' +
+  '.ibd .itk span{width:12%;aspect-ratio:1;border-radius:50%;background:#444;animation:impDot 1.1s ease-in-out infinite}.ibd .itk span:nth-child(2){animation-delay:.18s}.ibd .itk span:nth-child(3){animation-delay:.36s}' +
+  '@keyframes impTk{0%,4%{opacity:0}9%,34%{opacity:1}39%,100%{opacity:0}}' +
+  '@keyframes impDot{0%,100%{transform:translateY(0);opacity:.4}50%{transform:translateY(-35%);opacity:1}}' +
+  '.imp.wide{position:relative}.imp.wide > *{position:relative;z-index:1}.imp.wide > .ibgp{position:absolute;inset:0;z-index:0;pointer-events:none;overflow:hidden}' +
+  '.ibgp img{position:absolute;opacity:.07;animation:impFloat 24s ease-in-out infinite}' +
+  '[data-theme=dark] .ibgp img{opacity:.09;filter:invert(.9)}' +
+  '@keyframes impFloat{0%,100%{transform:translateY(0) rotate(-4deg)}50%{transform:translateY(-28px) rotate(5deg)}}' +
+  '#improvePublic,#screen-improve{background-image:conic-gradient(rgba(0,0,0,.035) 25%,transparent 0 50%,rgba(0,0,0,.035) 0 75%,transparent 0);background-size:84px 84px}' +
+  '[data-theme=dark] #improvePublic,[data-theme=dark] #screen-improve{background-image:conic-gradient(rgba(255,255,255,.03) 25%,transparent 0 50%,rgba(255,255,255,.03) 0 75%,transparent 0)}' +
+  '@media(prefers-reduced-motion:reduce){.ibd .mv,.ibd .cap,.ibd .ibad,.ibd .ibq,.ibd .itk,.ibd .itk span,.ibgp img{animation:none}.ibd .itk{opacity:1}}' +
   '#improvePublic .imp.wide{min-height:calc(100vh - 48px);justify-content:center;gap:16px}.ih{padding:56px 36px}.ih h2{font-size:clamp(34px,5.6vw,62px)}.imp.wide{position:relative}.imp.wide > *{position:relative;z-index:1}.imp.wide > .ibgp{position:absolute;inset:0;z-index:0;pointer-events:none;overflow:hidden}' +
   '.ibgp img{position:absolute;opacity:.07;animation:impFloat 24s ease-in-out infinite}' +
   '[data-theme=dark] .ibgp img{opacity:.09;filter:invert(.9)}' +
@@ -102,15 +114,25 @@
     return '<form id="impForm"><input type="email" id="impMail" placeholder="you@example.com" autocomplete="email" maxlength="254" aria-label="Email address" required><button type="submit" id="impGo">Save my spot</button></form>' +
       '<div id="impMsg" class="hint" role="status"></div><div class="hint">One email when your spot opens. Nothing else.</div>';
   }
-  // a knight walks a short path and lights the squares it visits; the last square is a gold "?"
+  // a position, a player thinking, then a blunder with a red question mark, then it rewinds
+  var FEN = 'r1bqkb1r/ppp2ppp/2n2n2/3Pp1N1/2B5/8/PPPP1PPP/RNBQK2R';
   function boardHtml(){
-    var sq = '';
+    var sq = '', pcs = '', rows = FEN.split('/');
     for(var y = 0; y < 8; y++) for(var x = 0; x < 8; x++) sq += '<i class="' + ((x + y) % 2 ? 'd' : 'l') + '"></i>';
-    var glow = PATH.map(function(c, i){
-      var last = i === PATH.length - 1;
-      return '<b class="g' + (last ? ' q' : '') + '" style="left:' + c[0] * 12.5 + '%;top:' + c[1] * 12.5 + '%;animation-delay:' + (i * STEP).toFixed(1) + 's">' + (last ? '?' : '') + '</b>';
-    }).join('');
-    return '<div class="ibd" aria-hidden="true"><div class="ibg8">' + sq + '</div>' + glow + '<img class="ikn" src="/images/wN.svg" alt=""></div>';
+    rows.forEach(function(r, y){
+      var x = 0;
+      r.split('').forEach(function(c){
+        if(/\d/.test(c)){ x += +c; return; }
+        var w = c === c.toUpperCase(), code = (w ? 'w' : 'b') + c.toUpperCase(), cls = 'pc';
+        if(x === 5 && y === 2) cls += ' mv';       // black knight on f6: the one that moves
+        if(x === 3 && y === 3) cls += ' cap';      // white pawn on d5: the one that gets taken
+        pcs += '<img class="' + cls + '" src="/images/' + code + '.svg" alt="" style="left:' + x * 12.5 + '%;top:' + y * 12.5 + '%">';
+        x++;
+      });
+    });
+    return '<div class="ibd" aria-hidden="true"><div class="ibg8">' + sq + '</div>' + pcs +
+      '<div class="itk"><span></span><span></span><span></span></div>' +
+      '<div class="ibad"></div><div class="ibq">?</div></div>';
   }
   function bgPieces(){
     var ps = [['bK',6,8,30],['wQ',78,14,36],['bN',12,70,26],['wR',86,64,30],['wP',46,86,22],['bB',60,4,24]];
