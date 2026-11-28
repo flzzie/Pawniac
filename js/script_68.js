@@ -152,6 +152,7 @@
   window.renderImprove = async function(){
     if(typeof stopPoll === 'function') stopPoll();
     showScreen(KEY);
+    ready();
     try{ PW.replace('#/improve'); }catch(e){}
     draw();
     if(admin() && signups === null){ await loadSignups(); draw(); }
@@ -167,9 +168,10 @@
   // the page needs no login: a logged-out visit to /improve/ shows it over the login screen
   var RT = /^#\/improve\/?$/i;
   function loggedIn(){ return typeof ME !== 'undefined' && !!ME && !!ME.username; }
+  function ready(){ document.documentElement.classList.remove('imp-route'); }
   function showPublic(){
     pub.innerHTML = visitorHtml('<a href="/" style="align-self:flex-start">Go to Pawniac</a>');
-    pub.style.display = 'block'; bind(pub);
+    pub.style.display = 'block'; bind(pub); ready();
   }
   function check(){ if(RT.test(PW.hash()) && !loggedIn()) showPublic(); }
   document.addEventListener('DOMContentLoaded', check);
