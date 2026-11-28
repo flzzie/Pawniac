@@ -30,15 +30,15 @@
   '.ibg8{display:grid;grid-template-columns:repeat(8,1fr);height:100%}.ibg8 i.l{background:#ecdcb8}.ibg8 i.d{background:#b58863}' +
   '.ibd .pc{position:absolute;width:12.5%;height:12.5%;filter:drop-shadow(0 2px 2px rgba(0,0,0,.35))}' +
   '.ibd .mv{animation:impMv 9s cubic-bezier(.6,0,.3,1) infinite;z-index:2}' +
-  '@keyframes impMv{0%,38%{left:62.5%;top:25%}46%,70%{left:37.5%;top:37.5%}80%,100%{left:62.5%;top:25%}}' +
+  '@keyframes impMv{0%,38%{left:75%;top:12.5%}46%,70%{left:75%;top:25%}80%,100%{left:75%;top:12.5%}}' +
   '.ibd .cap{animation:impCap 9s linear infinite}' +
   '@keyframes impCap{0%,44%{opacity:1}47%,72%{opacity:0}78%,100%{opacity:1}}' +
-  '.ibd .ibad{position:absolute;left:37.5%;top:37.5%;width:12.5%;height:12.5%;background:#d32f2f;opacity:0;animation:impBad 9s linear infinite}' +
+  '.ibd .ibad{position:absolute;left:75%;top:25%;width:12.5%;height:12.5%;background:#d32f2f;opacity:0;animation:impBad 9s linear infinite}' +
   '@keyframes impBad{0%,46%{opacity:0}50%{opacity:.55}68%{opacity:.55}74%,100%{opacity:0}}' +
-  '.ibd .ibq{position:absolute;left:44%;top:30%;width:11%;height:11%;border-radius:50%;background:#d32f2f;color:#fff;font-weight:900;font-size:clamp(12px,2.4vw,18px);display:grid;place-items:center;z-index:3;opacity:0;transform:scale(.3);animation:impQ 9s cubic-bezier(.3,1.6,.5,1) infinite;box-shadow:0 2px 6px rgba(0,0,0,.4)}' +
+  '.ibd .ibq{position:absolute;left:80%;top:20%;width:11%;height:11%;border-radius:50%;background:#d32f2f;color:#fff;font-weight:900;font-size:clamp(12px,2.4vw,18px);display:grid;place-items:center;z-index:3;opacity:0;transform:scale(.3);animation:impQ 9s cubic-bezier(.3,1.6,.5,1) infinite;box-shadow:0 2px 6px rgba(0,0,0,.4)}' +
   '@keyframes impQ{0%,47%{opacity:0;transform:scale(.3)}52%,68%{opacity:1;transform:scale(1)}73%,100%{opacity:0;transform:scale(.3)}}' +
-  '.ibd .itk{position:absolute;left:66%;top:6%;width:22%;height:11%;background:#fff;border-radius:999px;display:flex;gap:7%;align-items:center;justify-content:center;z-index:3;box-shadow:0 2px 8px rgba(0,0,0,.3);animation:impTk 9s linear infinite}' +
-  '.ibd .itk:after{content:"";position:absolute;left:14%;bottom:-24%;width:16%;height:30%;background:#fff;border-radius:50%}' +
+  '.ibd .itk{position:absolute;left:62%;top:40%;width:22%;height:11%;background:#fff;border-radius:999px;display:flex;gap:7%;align-items:center;justify-content:center;z-index:3;box-shadow:0 2px 8px rgba(0,0,0,.3);animation:impTk 9s linear infinite}' +
+  '.ibd .itk:after{content:"";position:absolute;left:60%;top:-26%;width:16%;height:30%;background:#fff;border-radius:50%}' +
   '.ibd .itk span{width:12%;aspect-ratio:1;border-radius:50%;background:#444;animation:impDot 1.1s ease-in-out infinite}.ibd .itk span:nth-child(2){animation-delay:.18s}.ibd .itk span:nth-child(3){animation-delay:.36s}' +
   '@keyframes impTk{0%,4%{opacity:0}9%,34%{opacity:1}39%,100%{opacity:0}}' +
   '@keyframes impDot{0%,100%{transform:translateY(0);opacity:.4}50%{transform:translateY(-35%);opacity:1}}' +
@@ -114,8 +114,8 @@
     return '<form id="impForm"><input type="email" id="impMail" placeholder="you@example.com" autocomplete="email" maxlength="254" aria-label="Email address" required><button type="submit" id="impGo">Save my spot</button></form>' +
       '<div id="impMsg" class="hint" role="status"></div><div class="hint">One email when your spot opens. Nothing else.</div>';
   }
-  // a position, a player thinking, then a blunder with a red question mark, then it rewinds
-  var FEN = 'r1bqkb1r/ppp2ppp/2n2n2/3Pp1N1/2B5/8/PPPP1PPP/RNBQK2R';
+  // a real position where a natural-looking move (…g6) is a mistake: Black thinks, plays it, red question mark, rewind (engine: -0.5 before, +2.1 for White after)
+  var FEN = 'rn1qkbnr/ppp2ppp/3p4/4p3/2B1P1b1/2N2N2/PPPP1PPP/R1BQK2R';
   function boardHtml(){
     var sq = '', pcs = '', rows = FEN.split('/');
     for(var y = 0; y < 8; y++) for(var x = 0; x < 8; x++) sq += '<i class="' + ((x + y) % 2 ? 'd' : 'l') + '"></i>';
@@ -124,8 +124,7 @@
       r.split('').forEach(function(c){
         if(/\d/.test(c)){ x += +c; return; }
         var w = c === c.toUpperCase(), code = (w ? 'w' : 'b') + c.toUpperCase(), cls = 'pc';
-        if(x === 5 && y === 2) cls += ' mv';       // black knight on f6: the one that moves
-        if(x === 3 && y === 3) cls += ' cap';      // white pawn on d5: the one that gets taken
+        if(x === 6 && y === 1) cls += ' mv';       // black pawn on g7: the one that moves (g6 is a real mistake)
         pcs += '<img class="' + cls + '" src="/images/' + code + '.svg" alt="" style="left:' + x * 12.5 + '%;top:' + y * 12.5 + '%">';
         x++;
       });
