@@ -11,6 +11,7 @@
   function emailKey(e){ return e.toLowerCase().replace(/\./g, ',').replace(/[#$\[\]\/]/g, '_'); }
   var EMAIL_RE = /^[^\s@]{1,64}@[^\s@]{1,190}\.[^\s@]{2,24}$/;
   var asVisitor = false, signups = null;
+  var PATH = [[1,7],[2,5],[4,4],[5,2],[3,1],[1,0]], STEP = 1.3;
 
   var css = '#screen-improve,#improvePublic{--bg:#f4f1ea;--ink:#22201b;--muted:#7a766c;--line:#d9d3c4;--accent:#1f6f5c}' +
     '[data-theme=dark] #screen-improve,[data-theme=dark] #improvePublic{--bg:#1b1a17;--ink:#e8e4d8;--muted:#a39c8c;--line:#3a372f;--accent:#4fb59a}' +
@@ -26,7 +27,23 @@
     '.imp-done{opacity:.6;text-decoration:line-through}' +
     '.imp-bar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;justify-content:space-between}';
 
-  css += '.ibars{height:260px;display:flex;align-items:flex-end;gap:10px;justify-self:center;width:100%;max-width:340px}.ibars i{flex:1;height:var(--h);border-radius:8px 8px 0 0;background:linear-gradient(var(--accent),var(--soft));transform-origin:bottom;animation:impUp 1.2s cubic-bezier(.2,.8,.2,1) both;animation-delay:var(--d)}@keyframes impUp{from{transform:scaleY(.05);opacity:0}to{transform:scaleY(1);opacity:1}}@media(prefers-reduced-motion:reduce){.ibars i{animation:none}}' +
+  var T = (PATH.length * STEP).toFixed(1), kf = '';
+  PATH.forEach(function(c, k){ var pc = (k / PATH.length * 100).toFixed(1); kf += pc + '%{left:' + c[0] * 12.5 + '%;top:' + c[1] * 12.5 + '%}'; });
+  kf += '100%{left:' + PATH[0][0] * 12.5 + '%;top:' + PATH[0][1] * 12.5 + '%}';
+  css += '.ibd{position:relative;width:100%;max-width:340px;aspect-ratio:1;justify-self:center;border-radius:12px;overflow:hidden;box-shadow:0 24px 50px -18px rgba(0,0,0,.45);border:1px solid var(--line)}' +
+  '.ibg8{display:grid;grid-template-columns:repeat(8,1fr);height:100%}.ibg8 i.l{background:#ecdcb8}.ibg8 i.d{background:#b58863}' +
+  '.ibd .g{position:absolute;width:12.5%;height:12.5%;background:var(--accent);opacity:0;animation:impSq ' + T + 's linear infinite;display:grid;place-items:center;color:#fff;font-style:normal;font-weight:800;font-size:22px}' +
+  '.ibd .g.q{background:var(--gold)}' +
+  '@keyframes impSq{0%{opacity:0}5%{opacity:.85}55%{opacity:.5}90%,100%{opacity:0}}' +
+  '.ibd .ikn{position:absolute;width:12.5%;height:12.5%;animation:impKn ' + T + 's cubic-bezier(.5,0,.3,1) infinite;filter:drop-shadow(0 3px 3px rgba(0,0,0,.4))}' +
+  '@keyframes impKn{' + kf + '}' +
+  '#improvePublic .imp.wide{min-height:calc(100vh - 48px);justify-content:center;gap:16px}.ih{padding:56px 36px}.ih h2{font-size:clamp(34px,5.6vw,62px)}.imp.wide{position:relative}.imp.wide > *{position:relative;z-index:1}.imp.wide > .ibgp{position:absolute;inset:0;z-index:0;pointer-events:none;overflow:hidden}' +
+  '.ibgp img{position:absolute;opacity:.07;animation:impFloat 24s ease-in-out infinite}' +
+  '[data-theme=dark] .ibgp img{opacity:.09;filter:invert(.9)}' +
+  '@keyframes impFloat{0%,100%{transform:translateY(0) rotate(-4deg)}50%{transform:translateY(-28px) rotate(5deg)}}' +
+  '#improvePublic,#screen-improve{background-image:conic-gradient(rgba(0,0,0,.035) 25%,transparent 0 50%,rgba(0,0,0,.035) 0 75%,transparent 0);background-size:84px 84px}' +
+  '[data-theme=dark] #improvePublic,[data-theme=dark] #screen-improve{background-image:conic-gradient(rgba(255,255,255,.03) 25%,transparent 0 50%,rgba(255,255,255,.03) 0 75%,transparent 0)}' +
+  '@media(prefers-reduced-motion:reduce){.ibd .g,.ibd .ikn,.ibgp img{animation:none}.ibd .g{opacity:.5}}' +
   '#screen-improve,#improvePublic{--card:#fffdf8;--soft:#e4efe9;--gold:#b98a2e}' +
   '[data-theme=dark] #screen-improve,[data-theme=dark] #improvePublic{--card:#23211d;--soft:#1f3a31;--gold:#e0b45a}' +
   '.imp.wide{max-width:1040px;gap:0;padding:0 0 56px}' +
@@ -85,17 +102,43 @@
     return '<form id="impForm"><input type="email" id="impMail" placeholder="you@example.com" autocomplete="email" maxlength="254" aria-label="Email address" required><button type="submit" id="impGo">Save my spot</button></form>' +
       '<div id="impMsg" class="hint" role="status"></div><div class="hint">One email when your spot opens. Nothing else.</div>';
   }
+  // a knight walks a short path and lights the squares it visits; the last square is a gold "?"
+  function boardHtml(){
+    var sq = '';
+    for(var y = 0; y < 8; y++) for(var x = 0; x < 8; x++) sq += '<i class="' + ((x + y) % 2 ? 'd' : 'l') + '"></i>';
+    var glow = PATH.map(function(c, i){
+      var last = i === PATH.length - 1;
+      return '<b class="g' + (last ? ' q' : '') + '" style="left:' + c[0] * 12.5 + '%;top:' + c[1] * 12.5 + '%;animation-delay:' + (i * STEP).toFixed(1) + 's">' + (last ? '?' : '') + '</b>';
+    }).join('');
+    return '<div class="ibd" aria-hidden="true"><div class="ibg8">' + sq + '</div>' + glow + '<img class="ikn" src="/images/wN.svg" alt=""></div>';
+  }
+  function bgPieces(){
+    var ps = [['bK',6,8,30],['wQ',78,14,36],['bN',12,70,26],['wR',86,64,30],['wP',46,86,22],['bB',60,4,24]];
+    return '<div class="ibgp" aria-hidden="true">' + ps.map(function(p, i){
+      return '<img src="/images/' + p[0] + '.svg" alt="" style="left:' + p[1] + '%;top:' + p[2] + '%;width:' + p[3] + 'vw;max-width:' + (p[3] * 8) + 'px;animation-delay:-' + (i * 3.3).toFixed(1) + 's">';
+    }).join('') + '</div>';
+  }
+  function statsHtml(){ return '<div class="istats" id="impStats"></div>'; }
   function visitorHtml(note){
-    var bars = '';
-    for(var i = 0; i < 8; i++) bars += '<i style="--h:' + (22 + i * 11) + '%;--d:' + (i * .12) + 's"></i>';
-    return '<div class="imp wide">' +
+    return '<div class="imp wide">' + bgPieces() +
       '<div class="itop"><span class="imp-pill">Coming soon</span><span class="imp-pill" style="border-color:var(--gold);color:var(--gold)">Invite-only start</span></div>' +
       '<div class="ih"><div><h2>Stop repeating the <em>same mistakes</em>.</h2>' +
       '<p class="lead">Most players play thousands of games and never get better. We are building something to change that, and opening it to a small first group. Early sign-ups go in first.</p>' +
-      form() + '</div><div class="ibars" aria-hidden="true">' + bars + '</div></div>' +
+      form() + '</div>' + boardHtml() + '</div>' + statsHtml() +
       (note ? '<div style="margin-top:18px;display:flex;gap:12px;align-items:center">' + note + '</div>' : '') + '</div>';
   }
+  function num(path){
+    return db.ref(path).once('value').then(function(x){ return x.exists() ? Number(x.val()) || 0 : 0; }, function(){ return 0; });
+  }
+  function loadStats(root){
+    var el = root.querySelector('#impStats'); if(!el) return;
+    Promise.all([num('hb/counters/played/total'), num('hb/gameCount'), num('hb/counters/played/bot'), num('hb/counters/analyzed/total'), num('hb/counters/players/total')]).then(function(a){
+      var items = [[Math.max(a[0], a[1]) + a[2], 'games played on Pawniac'], [a[3], 'games analyzed by players'], [a[4], 'players have joined']].filter(function(x){ return x[0] > 0; });
+      el.innerHTML = items.map(function(x){ return '<div class="istat"><b>' + x[0].toLocaleString() + '</b><span>' + x[1] + '</span></div>'; }).join('');
+    });
+  }
   function bind(root){
+    loadStats(root);
     var tb = root.querySelector('#impTop'); if(tb) tb.onclick = function(){ var m = root.querySelector('#impMail'); m.scrollIntoView({behavior:'smooth', block:'center'}); setTimeout(function(){ m.focus(); }, 500); };
     var f = root.querySelector('#impForm'); if(!f) return;
     f.onsubmit = async function(ev){
