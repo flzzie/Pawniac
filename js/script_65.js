@@ -69,9 +69,7 @@
     var title = today ? 'Daily puzzle' : 'Practice puzzle';
     var mine = Math.ceil(P.pz.s.length / 2), left = Math.ceil((P.pz.s.length - P.step) / 2);
     var info = '<div class="an-title">' + title + '</div>' +
-      '<p class="an-note" style="margin-top:8px;">' + (P.side === 'w' ? 'White' : 'Black') + ' to move. Find the best continuation: <b>' + mine + ' moves</b> of yours' +
-      (mine > 1 && P.state === 'ask' ? ' (' + left + ' to go)' : '') + '. Click a piece, then where it goes.</p>' +
-      '<div class="hint" style="margin:0 0 6px;">Rated about ' + esc(P.pz.r) + ' on Lichess</div>';
+      '<p class="an-note" style="margin-top:8px;">' + (P.side === 'w' ? 'White' : 'Black') + ' to move. Find the best continuation. Click a piece, then where it goes.</p>';
     if(P.state === 'ask'){
       if(P.hint >= 1) info += '<div class="an-fb"><b>Hint:</b> ' + esc(hintText()) + '</div>';
       if(P.msg) info += '<div class="an-fb ' + P.cls + '">' + esc(P.msg) + '</div>';
