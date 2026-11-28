@@ -119,6 +119,8 @@ ROUTES = [
          desc="Support Pawniac, the free chess variants site, and get a gradient name.", h=None, text=[]),
     dict(path="puzzle", nav=None, sitemap=False, title="Daily Puzzle | Pawniac",
          desc="A new chess mate puzzle every day on Pawniac, with a streak that shows on your profile.", h=None, text=[]),
+    dict(path="improve", nav=None, sitemap=False, title="Improve at Chess | Pawniac",
+         desc="A free place to improve at chess: a check-up, daily training and written feedback from volunteers. Coming soon.", h=None, text=[]),
 ]
 
 HOME_H = "Free chess variants, with analysis that explains your moves"
