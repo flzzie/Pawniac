@@ -81,8 +81,8 @@
     return '<svg class="iradar" viewBox="0 0 380 330" role="img" aria-label="A skill radar that changes as a player improves">' + g + '<path class="pol" d="M190 40 L300 108 L286 228 L190 292 L92 232 L78 112 Z"/>' + l + '</svg>';
   }
   function form(){
-    return '<form id="impForm"><input type="email" id="impMail" placeholder="you@example.com" autocomplete="email" maxlength="254" aria-label="Email address" required><button type="submit" id="impGo">Notify me</button></form>' +
-      '<div id="impMsg" class="hint" role="status"></div><div class="hint">One email when it opens. Nothing else.</div>';
+    return '<form id="impForm"><input type="email" id="impMail" placeholder="you@example.com" autocomplete="email" maxlength="254" aria-label="Email address" required><button type="submit" id="impGo">Save my spot</button></form>' +
+      '<div id="impMsg" class="hint" role="status"></div><div class="hint">One email when your spot opens. Nothing else.</div>';
   }
   function visitorHtml(note){
     var feats = [
@@ -96,9 +96,9 @@
       ['03','Ask for a review','Write what you were thinking. Get a reply.'],
       ['04','Pass it on','Strong players volunteer a few minutes. Anyone can earn the Reviewer title.']];
     return '<div class="imp wide">' +
-      '<div class="itop"><span class="imp-pill">Coming soon</span></div>' +
+      '<div class="itop"><span class="imp-pill">Coming soon</span><span class="imp-pill" style="border-color:var(--gold);color:var(--gold)">Invite-only start</span></div>' +
       '<div class="ih"><div><h2>Stop repeating the <em>same mistakes</em>.</h2>' +
-      '<p class="lead">A free place to actually get better at chess. Find your weak spots, train them daily, and get written feedback from stronger players who volunteer their time.</p>' +
+      '<p class="lead">Most players play thousands of games and never get better. We help you break that loop with a check-up, daily training and written feedback from stronger players. We are opening to a small first group, because every player gets feedback from a real person and that only works with a limit. Early sign-ups go in first.</p>' +
       form() + '</div>' + radarSvg() + '</div>' +
       '<div class="istats"><div class="istat"><b>Free</b><span>no ads, no paywall</span></div><div class="istat"><b>10 min</b><span>for the Check-Up</span></div><div class="istat"><b>5 min</b><span>a day to improve</span></div><div class="istat"><b>150-300</b><span>words of real feedback</span></div></div>' +
       '<div class="isec"><div class="kick">What you get</div><h3>Four things, one loop</h3><p>Each part feeds the next, and your history is remembered so nobody starts from zero.</p><div class="igrid">' +
@@ -108,7 +108,7 @@
       '<div class="isec"><div class="kick">A real answer looks like this</div><h3>Feedback about your thinking</h3><p>You describe the moment and what you were thinking. A volunteer answers in three parts and tags the pattern so it shows up in your Record.</p>' +
       '<div class="irev"><div class="iq"><div class="who">You wrote</div><p>"I played Nxe4 because I thought it won a pawn and the knight was safe. I did not look at what the bishop on c4 could do."</p></div>' +
       '<div class="iq"><div class="who">Reviewer answered</div><p><b>What you missed.</b> After Nxe4 the bishop takes on f7 with check and drags your king out, so the pawn is poisoned.</p><p class="rule">Before grabbing a pawn, check which of my pieces become loose.</p><div class="itg"><i>Missed threat</i><i>Wrong trade</i></div></div></div></div>' +
-      '<div class="icta"><h3>Be there when it opens</h3><p>Leave your email and we will tell you the day it is ready.</p><button type="button" id="impTop">Add my email</button></div>' +
+      '<div class="icta"><h3>Get in with the first group</h3><p>Spots in the first group are limited so every answer stays personal. Early sign-ups are invited first.</p><button type="button" id="impTop">Save my spot</button></div>' +
       (note ? '<div style="margin-top:18px;display:flex;gap:12px;align-items:center">' + note + '</div>' : '') + '</div>';
   }
   function bind(root){
