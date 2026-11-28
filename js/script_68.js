@@ -26,7 +26,8 @@
     '.imp-done{opacity:.6;text-decoration:line-through}' +
     '.imp-bar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;justify-content:space-between}';
 
-  css += '#screen-improve,#improvePublic{--card:#fffdf8;--soft:#e4efe9;--gold:#b98a2e}' +
+  css += '.ibars{height:260px;display:flex;align-items:flex-end;gap:10px;justify-self:center;width:100%;max-width:340px}.ibars i{flex:1;height:var(--h);border-radius:8px 8px 0 0;background:linear-gradient(var(--accent),var(--soft));transform-origin:bottom;animation:impUp 1.2s cubic-bezier(.2,.8,.2,1) both;animation-delay:var(--d)}@keyframes impUp{from{transform:scaleY(.05);opacity:0}to{transform:scaleY(1);opacity:1}}@media(prefers-reduced-motion:reduce){.ibars i{animation:none}}' +
+  '#screen-improve,#improvePublic{--card:#fffdf8;--soft:#e4efe9;--gold:#b98a2e}' +
   '[data-theme=dark] #screen-improve,[data-theme=dark] #improvePublic{--card:#23211d;--soft:#1f3a31;--gold:#e0b45a}' +
   '.imp.wide{max-width:1040px;gap:0;padding:0 0 56px}' +
   '.ih{position:relative;overflow:hidden;border-radius:20px;padding:44px 28px 36px;margin-top:8px;background:radial-gradient(900px 420px at 85% -10%,var(--soft),transparent 60%),var(--card);border:1px solid var(--line);display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,.9fr);gap:28px;align-items:center}' +
@@ -85,30 +86,13 @@
       '<div id="impMsg" class="hint" role="status"></div><div class="hint">One email when your spot opens. Nothing else.</div>';
   }
   function visitorHtml(note){
-    var feats = [
-      ['1','The Check-Up','Twenty short positions across six areas. In ten minutes you get a skill radar and a ranked list of what is costing you games.'],
-      ['2','Five minutes a day','Short training on your weakest area, one at a time, in four-week Sprints. Test again at the end and see the change.'],
-      ['3','Real feedback','Ask a stronger player to look at one moment from your game. You get a written answer about your thinking, not an engine dump.'],
-      ['4','Training partners','Get matched with someone strong where you are weak, and the other way round. Plan a session, debrief, repeat.']];
-    var steps = [
-      ['01','Take the Check-Up','Find out where you actually lose points.'],
-      ['02','Train a little each day','Five minutes on one weakness at a time.'],
-      ['03','Ask for a review','Write what you were thinking. Get a reply.'],
-      ['04','Pass it on','Strong players volunteer a few minutes. Anyone can earn the Reviewer title.']];
+    var bars = '';
+    for(var i = 0; i < 8; i++) bars += '<i style="--h:' + (22 + i * 11) + '%;--d:' + (i * .12) + 's"></i>';
     return '<div class="imp wide">' +
       '<div class="itop"><span class="imp-pill">Coming soon</span><span class="imp-pill" style="border-color:var(--gold);color:var(--gold)">Invite-only start</span></div>' +
       '<div class="ih"><div><h2>Stop repeating the <em>same mistakes</em>.</h2>' +
-      '<p class="lead">Most players play thousands of games and never get better. We help you break that loop with a check-up, daily training and written feedback from stronger players. We are opening to a small first group, because every player gets feedback from a real person and that only works with a limit. Early sign-ups go in first.</p>' +
-      form() + '</div>' + radarSvg() + '</div>' +
-      '<div class="istats"><div class="istat"><b>Free</b><span>no ads, no paywall</span></div><div class="istat"><b>10 min</b><span>for the Check-Up</span></div><div class="istat"><b>5 min</b><span>a day to improve</span></div><div class="istat"><b>150-300</b><span>words of real feedback</span></div></div>' +
-      '<div class="isec"><div class="kick">What you get</div><h3>Four things, one loop</h3><p>Each part feeds the next, and your history is remembered so nobody starts from zero.</p><div class="igrid">' +
-      feats.map(function(f){ return '<div class="ic"><div class="in">' + f[0] + '</div><b>' + f[1] + '</b><span>' + f[2] + '</span></div>'; }).join('') + '</div></div>' +
-      '<div class="isec"><div class="kick">How it works</div><h3>From stuck to better</h3><div class="isteps" style="margin-top:14px">' +
-      steps.map(function(x){ return '<div class="is"><div class="n">' + x[0] + '</div><b>' + x[1] + '</b><span>' + x[2] + '</span></div>'; }).join('') + '</div></div>' +
-      '<div class="isec"><div class="kick">A real answer looks like this</div><h3>Feedback about your thinking</h3><p>You describe the moment and what you were thinking. A volunteer answers in three parts and tags the pattern so it shows up in your Record.</p>' +
-      '<div class="irev"><div class="iq"><div class="who">You wrote</div><p>"I played Nxe4 because I thought it won a pawn and the knight was safe. I did not look at what the bishop on c4 could do."</p></div>' +
-      '<div class="iq"><div class="who">Reviewer answered</div><p><b>What you missed.</b> After Nxe4 the bishop takes on f7 with check and drags your king out, so the pawn is poisoned.</p><p class="rule">Before grabbing a pawn, check which of my pieces become loose.</p><div class="itg"><i>Missed threat</i><i>Wrong trade</i></div></div></div></div>' +
-      '<div class="icta"><h3>Get in with the first group</h3><p>Spots in the first group are limited so every answer stays personal. Early sign-ups are invited first.</p><button type="button" id="impTop">Save my spot</button></div>' +
+      '<p class="lead">Most players play thousands of games and never get better. We are building something to change that, and opening it to a small first group. Early sign-ups go in first.</p>' +
+      form() + '</div><div class="ibars" aria-hidden="true">' + bars + '</div></div>' +
       (note ? '<div style="margin-top:18px;display:flex;gap:12px;align-items:center">' + note + '</div>' : '') + '</div>';
   }
   function bind(root){
