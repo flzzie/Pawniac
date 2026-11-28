@@ -8,18 +8,18 @@ button{padding:10px 18px;font-size:16px;cursor:pointer;margin:8px 8px 8px 0}
 pre{background:#111;color:#cfe;padding:12px;border-radius:8px;height:300px;overflow:auto;font-size:13px;white-space:pre-wrap}
 </style></head><body>
 <h2>Pawniac puzzle maker</h2>
-<p>Takes about 12 minutes (it waits between requests so Lichess does not block you). Asks Lichess for hard puzzles from your own browser, then lets you download <b>lichess_puzzles.js</b>.</p>
+<p>Takes about 10 minutes (it waits between requests so Lichess does not block you). Asks Lichess for hard puzzles from your own browser, then lets you download <b>lichess_puzzles.js</b>.</p>
 <label>Lichess token (optional, starts with lip_)</label>
 <input id="tok" placeholder="leave empty to try without">
 <button id="go">Start</button><button id="dl" disabled>Download lichess_puzzles.js</button>
 <pre id="log">Press Start.</pre>
 <script>
-var ANGLES=[["mateIn5","mate"],["veryLong","calc"],["sacrifice","calc"],["quietMove","calc"],["deflection","calc"],["attraction","calc"],["clearance","calc"],["interference","calc"],["intermezzo","calc"],["defensiveMove","calc"],["zugzwang","calc"],["exposedKing","calc"]], REPEATS=3;
-var LEVELS=["normal","harder","hardest"], BAD={mateIn1:1,mateIn2:1,mateIn3:1,oneMove:1,short:1};
+var ANGLES=[["mateIn5","mate"]].concat(["quietMove", "sacrifice", "deflection", "attraction", "clearance", "interference", "intermezzo", "defensiveMove", "zugzwang", "xRayAttack", "discoveredAttack", "capturingDefender", "trappedPiece", "exposedKing", "underPromotion", "advancedPawn", "doubleCheck", "smotheredMate"].map(function(t){return [t,"calc"];})), REPEATS=2;
+var LEVELS=["normal","harder","hardest"], BAD={mateIn1:1,mateIn2:1,mateIn3:1,mateIn4:1,oneMove:1,short:1,hangingPiece:1,fork:1,pin:1,skewer:1,backRankMate:1};
 var got={}, log=document.getElementById('log');
 function say(t){log.textContent+="\n"+t; log.scrollTop=log.scrollHeight;}
 function sleep(ms){return new Promise(function(r){setTimeout(r,ms);});}
-function out(){return Object.keys(got).map(function(k){return got[k];}).sort(function(a,b){return a.r-b.r;});}
+function out(){var a=Object.keys(got).map(function(k){return got[k];}); for(var i=a.length-1;i>0;i--){var j=Math.floor(Math.random()*(i+1)); var t=a[i]; a[i]=a[j]; a[j]=t;} return a;}
 async function fetchBatch(angle,diff,tok){
   var h={Accept:"application/json"}; if(tok) h.Authorization="Bearer "+tok;
   for(var a=0;a<2;a++){
@@ -38,7 +38,7 @@ document.getElementById('go').onclick=async function(){
     var d=await fetchBatch(ANGLES[i][0],LEVELS[j],tok), n0=Object.keys(got).length;
     ((d&&d.puzzles)||[]).forEach(function(it){
       var p=it.puzzle||{}, g=it.game||{}, th=p.themes||[], bad=th.some(function(t){return BAD[t];});
-      if(g.pgn&&(p.solution||[]).length>=9&&!bad&&!got[p.id]) got[p.id]={i:p.id,p:g.pgn,s:p.solution,r:p.rating||0,t:th.join(" "),k:ANGLES[i][1]};
+      if(g.pgn&&(p.solution||[]).length>=5&&(p.rating||0)>=1600&&!bad&&!got[p.id]) got[p.id]={i:p.id,p:g.pgn,s:p.solution,r:p.rating||0,t:th.join(" "),k:ANGLES[i][1]};
     });
     say("round "+(rep+1)+"  "+ANGLES[i][0]+" "+LEVELS[j]+": +"+(Object.keys(got).length-n0)+" (total "+Object.keys(got).length+")");
     if(Object.keys(got).length) document.getElementById('dl').disabled=false;
