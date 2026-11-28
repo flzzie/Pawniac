@@ -1,6 +1,10 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+<script>/* /improve: hide the home page until the improve page is ready (no flash) */
+try{ if(/^\/improve\/?$/i.test(location.pathname) || /[?&]__p=%2Fimprove/i.test(location.search)){ document.documentElement.classList.add('imp-route'); setTimeout(function(){ document.documentElement.classList.remove('imp-route'); }, 6000); } }catch(e){}
+</script>
+<style>html.imp-route body > *:not(#improvePublic):not(script):not(style){visibility:hidden !important}</style>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Pawniac | Standard Chess, Creative Variants &amp; Analysis</title>
