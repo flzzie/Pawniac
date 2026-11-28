@@ -12,11 +12,15 @@
   var EMAIL_RE = /^[^\s@]{1,64}@[^\s@]{1,190}\.[^\s@]{2,24}$/;
   var asVisitor = false, signups = null;
 
-  var css = '.imp{max-width:640px;margin:0 auto;padding:8px 0 40px;display:flex;flex-direction:column;gap:16px}' +
+  var css = '#screen-improve,#improvePublic{--bg:#f4f1ea;--ink:#22201b;--muted:#7a766c;--line:#d9d3c4;--accent:#1f6f5c}' +
+    '[data-theme=dark] #screen-improve,[data-theme=dark] #improvePublic{--bg:#1b1a17;--ink:#e8e4d8;--muted:#a39c8c;--line:#3a372f;--accent:#4fb59a}' +
+    '#improvePublic{background:var(--bg);color:var(--ink)}' +
+    '.imp{max-width:640px;margin:0 auto;padding:8px 0 40px;display:flex;flex-direction:column;gap:16px}' +
     '.imp h2{margin:0}.imp .sub{color:var(--muted);line-height:1.6;margin:0}' +
     '.imp-card{border:1px solid var(--line);border-radius:12px;padding:18px;display:flex;flex-direction:column;gap:10px}' +
     '.imp-pill{align-self:flex-start;font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;border:1px solid var(--accent);color:var(--accent);border-radius:999px;padding:3px 12px}' +
     '.imp form{display:flex;gap:8px;flex-wrap:wrap}.imp input[type=email]{flex:1 1 220px;min-width:0}' +
+    '.imp a{color:var(--accent);font-weight:600}.imp #impMsg:empty{display:none}' +
     '.imp-ok{color:var(--accent);font-weight:600}.imp-err{color:#b3261e}' +
     '.imp ul{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:6px}' +
     '.imp-done{opacity:.6;text-decoration:line-through}' +
@@ -26,7 +30,7 @@
   var scr = document.createElement('div'); scr.id = 'screen-improve'; scr.style.display = 'none';
   document.querySelector('.wrap').insertBefore(scr, $('pnFooter') || null);
   // for people who are not logged in: the same page on its own, no login needed
-  var pub = document.createElement('div'); pub.id = 'improvePublic'; pub.style.cssText = 'display:none;position:fixed;inset:0;z-index:9000;overflow:auto;background:var(--bg);padding:24px 16px';
+  var pub = document.createElement('div'); pub.id = 'improvePublic'; pub.style.cssText = 'display:none;position:fixed;inset:0;z-index:9000;overflow:auto;padding:24px 16px';
   document.body.appendChild(pub);
 
   function visitorHtml(note){
