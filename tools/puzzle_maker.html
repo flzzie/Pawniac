@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Pawniac puzzle maker</title>
+<style>
+body{font-family:system-ui,Segoe UI,sans-serif;max-width:720px;margin:30px auto;padding:0 16px;line-height:1.5}
+input{width:100%;padding:8px;font-size:15px;box-sizing:border-box}
+button{padding:10px 18px;font-size:16px;cursor:pointer;margin:8px 8px 8px 0}
+pre{background:#111;color:#cfe;padding:12px;border-radius:8px;height:300px;overflow:auto;font-size:13px;white-space:pre-wrap}
+</style></head><body>
+<h2>Pawniac puzzle maker</h2>
+<p>Takes about 15 minutes (it waits between requests so Lichess does not block you). Asks Lichess for hard puzzles from your own browser, then lets you download <b>lichess_puzzles.js</b>.</p>
+<label>Lichess token (optional, starts with lip_)</label>
+<input id="tok" placeholder="leave empty to try without">
+<button id="go">Start</button><button id="dl" disabled>Download lichess_puzzles.js</button>
+<pre id="log">Press Start.</pre>
+<script>
+var ANGLES=[["quietMove","calc"],["sacrifice","calc"],["deflection","calc"],["attraction","calc"],["clearance","calc"],["interference","calc"],["intermezzo","calc"],["defensiveMove","calc"],["zugzwang","calc"],["xRayAttack","calc"],["discoveredAttack","calc"],["capturingDefender","calc"],["trappedPiece","calc"],["exposedKing","calc"],["underPromotion","calc"],["advancedPawn","calc"],["equality","calc"],["advantage","calc"],["crushing","calc"],["rookEndgame","calc"],["pawnEndgame","calc"],["queenEndgame","calc"],["bishopEndgame","calc"],["knightEndgame","calc"]], REPEATS=3;
+var LEVELS=["normal","harder","hardest"], BAD={mateIn1:1,mateIn2:1,mateIn3:1,mateIn4:1,oneMove:1,short:1,hangingPiece:1,fork:1,pin:1,skewer:1,backRankMate:1};
+var got={}, log=document.getElementById('log');
+function say(t){log.textContent+="\n"+t; log.scrollTop=log.scrollHeight;}
+function sleep(ms){return new Promise(function(r){setTimeout(r,ms);});}
+function out(){var a=Object.keys(got).map(function(k){return got[k];}); for(var i=a.length-1;i>0;i--){var j=Math.floor(Math.random()*(i+1)); var t=a[i]; a[i]=a[j]; a[j]=t;} return a;}
+async function fetchBatch(angle,diff,tok){
+  var h={Accept:"application/json"}; if(tok) h.Authorization="Bearer "+tok;
+  for(var a=0;a<2;a++){
+    try{
+      var r=await fetch("https://lichess.org/api/puzzle/batch/"+angle+"?nb=50&difficulty="+diff,{headers:h});
+      if(r.status==429){say("   slow down, waiting 70 s..."); await sleep(70000); continue;}
+      if(!r.ok){say("   HTTP "+r.status+" for "+angle); return null;}
+      return await r.json();
+    }catch(e){say("   problem: "+e); await sleep(3000);}
+  }
+  return null;
+}
+document.getElementById('go').onclick=async function(){
+  var tok=document.getElementById('tok').value.trim(); this.disabled=true; log.textContent="Working...";
+  for(var rep=0;rep<REPEATS;rep++){ for(var i=0;i<ANGLES.length;i++){ for(var j=0;j<LEVELS.length;j++){
+    var d=await fetchBatch(ANGLES[i][0],LEVELS[j],tok), n0=Object.keys(got).length;
+    ((d&&d.puzzles)||[]).forEach(function(it){
+      var p=it.puzzle||{}, g=it.game||{}, th=p.themes||[], bad=th.some(function(t){return BAD[t]||/mate/i.test(t);});
+      if(g.pgn&&(p.solution||[]).length>=5&&(p.rating||0)>=1600&&!bad&&!got[p.id]) got[p.id]={i:p.id,p:g.pgn,s:p.solution,r:p.rating||0,t:th.join(" "),k:ANGLES[i][1]};
+    });
+    say("round "+(rep+1)+"  "+ANGLES[i][0]+" "+LEVELS[j]+": +"+(Object.keys(got).length-n0)+" (total "+Object.keys(got).length+")");
+    if(Object.keys(got).length) document.getElementById('dl').disabled=false;
+    await sleep(6000);
+  }}}
+  say("DONE. Press Download."); 
+};
+document.getElementById('dl').onclick=function(){
+  var blob=new Blob(["window.PAWNIAC_LICHESS_PGN = "+JSON.stringify(out())+";\n"],{type:"text/javascript"});
+  var a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download="lichess_puzzles.js"; a.click();
+};
+</script></body></html>
