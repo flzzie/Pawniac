@@ -1,4 +1,4 @@
-// pawniac.fun/improve  (Open Chess Lab).
+// pawniac.fun/improve  (Pawniac Improve).
 // Everyone sees "Coming soon" with an email box (hb/notify/<email key>, write only, read by staff).
 // Staff (pawniac_is_admin) see the work-in-progress board instead, with a "view as visitor" switch.
 // NOTE: this is a screen in a public static site, so the hiding is for the interface only. Nothing private is stored here.
@@ -74,7 +74,7 @@
     var n = signups ? Object.keys(signups).length : '...';
     var list = signups ? Object.keys(signups).map(function(k){ return signups[k]; }).sort(function(a, b){ return (b.ts || 0) - (a.ts || 0); }) : [];
     return '<div class="imp"><div class="imp-bar"><span class="imp-pill">Staff view, visitors see Coming soon</span><button class="secondary" id="impAs">View as visitor</button></div>' +
-      '<h2>Open Chess Lab: build status</h2>' +
+      '<h2>Pawniac Improve: build status</h2>' +
       '<div class="imp-card"><b>Plan</b><ul>' + PLAN.map(function(p){ return '<li class="' + (p[1] ? 'imp-done' : '') + '">' + esc(p[0]) + (p[1] ? ' (done)' : '') + '</li>'; }).join('') + '</ul></div>' +
       '<div class="imp-card"><b>Email sign-ups: ' + esc(n) + '</b>' +
       (list.length ? '<ul>' + list.slice(0, 200).map(function(x){ return '<li>' + esc(x.email) + ' <span class="hint">' + esc(x.ts ? new Date(x.ts).toLocaleDateString() : '') + '</span></li>'; }).join('') + '</ul>' : '<div class="hint">Nobody yet.</div>') +
